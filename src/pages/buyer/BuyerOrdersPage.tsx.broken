@@ -1,0 +1,285 @@
+﻿import React, { useEffect, useMemo, useState } from 'react';
+import { Link, Navigate } from 'react-router-dom';
+import { apiGet } from '../../lib/api';
+import { getAccessToken } from '../../shared/auth/tokenStore';
+import AppShell from '../../components/layout/AppShell';
+import DataTable, { TableColumn } from '../../components/ui/DataTable';
+
+type OrderRecord = Record<string, any>;
+type FilterValue = 'all' | 'unpaid' | 'paid' | 'fulfilled' | 'cancelled' | 'refunded';
+
+const normalize = (order: OrderRecord) => ({
+  id: order?.id ?? order?.orderId ?? order?._id ?? 'unknown',
+  status: order?.status ?? order?.state ?? 'unknown',
+  paymentStatus:
+    (order?.payment?.status as string | undefined) ??
+    order?.paymentStatus ??
+    order?.payment_state ??
+    order?.paymentStatus ??
+    null,
+  total:
+    order?.total ??
+    order?.totalAmount ??
+    order?.amount ??
+    order?.amountTotal ??
+    '—',
+  totalCents:
+    typeof order?.total_cents === 'number'
+      ? order.total_cents
+      : typeof order?.totalCents === 'number'
+      ? order.totalCents
+      : null,
+  created: order?.createdAt ?? order?.created ?? order?.created_at ?? '—',
+});
+
+const formatCurrencyFromCents = (cents?: number | null) => {
+  if (typeof cents === 'number' && !Number.isNaN(cents)) {
+    return '₹' + (cents / 100).toFixed(2);
+  }
+  return '—';
+};
+
+const statusMap: Record<string, string> = {
+  placed: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20',
+  fulfilled: 'bg-sky-500/10 text-sky-200 ring-sky-500/30',
+  cancelled: 'bg-rose-500/10 text-rose-200 ring-rose-500/30',
+  refund: 'bg-amber-500/10 text-amber-200 ring-amber-500/30',
+  pending: 'bg-slate-500/10 text-slate-200 ring-slate-500/30',
+};
+
+const statusClass = (status: string) => {
+  const normalized = status?.toLowerCase() ?? 'unknown';
+  return statusMap[normalized] ?? 'bg-white/5 text-slate-100 ring-white/10';
+};
+
+const shortenId = (id: string) => {
+  if (!id) return '';
+  if (id.length <= 12) return id;
+  return id.slice(0, 8) + '…' + id.slice(-4);
+};
+
+const FILTER_OPTIONS: Array<{ label: string; value: FilterValue }> = [
+  { label: 'All', value: 'all' },
+  { label: 'Unpaid', value: 'unpaid' },
+  { label: 'Paid', value: 'paid' },
+  { label: 'Fulfilled', value: 'fulfilled' },
+  { label: 'Cancelled', value: 'cancelled' },
+  { label: 'Refunded', value: 'refunded' },
+];
+
+type NormalizedOrder = ReturnType<typeof normalize>;
+
+const unpaidStatuses = new Set(['placed', 'pending', 'unpaid', 'pending_payment']);
+const refundedStatuses = new Set(['refunded', 'refund']);
+const paidStatuses = new Set(['paid']);
+
+const normalizeStatusValue = (value?: string) => (value ?? '').toLowerCase();
+
+const matchesFilter = (order: NormalizedOrder, filter: FilterValue) => {
+  const status = normalizeStatusValue(order.status);
+  switch (filter) {
+    case 'all':
+      return true;
+    case 'unpaid':
+      return (
+        unpaidStatuses.has(status) ||
+        normalizeStatusValue(order.paymentStatus) === 'unpaid' ||
+        normalizeStatusValue(order.paymentStatus) === 'pending'
+      );
+    case 'paid':
+      return paidStatuses.has(status);
+    case 'fulfilled':
+      return status === 'fulfilled';
+    case 'cancelled':
+      return status === 'cancelled';
+    case 'refunded':
+      return refundedStatuses.has(status);
+    default:
+      return true;
+  }
+};
+
+const shouldShowPayNow = (order: NormalizedOrder) => {
+  const status = normalizeStatusValue(order.status);
+  if (unpaidStatuses.has(status)) {
+    return true;
+  }
+  const paymentStatus = normalizeStatusValue(order.paymentStatus);
+  return paymentStatus === 'unpaid' || paymentStatus === 'pending';
+};
+
+export default function BuyerOrdersPage() {
+  const token = getAccessToken();
+  const [orders, setOrders] = useState<OrderRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<FilterValue>('all');
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const payload: any = await apiGet('/api/orders/my');
+        const normalized: OrderRecord[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.items)
+          ? payload.items
+          : Array.isArray(payload?.orders)
+          ? payload.orders
+          : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+        if (active) {
+          setOrders(normalized);
+        }
+      } catch (err: any) {
+        if (active) {
+          setError(err?.message ?? 'Unable to load orders');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!token) {
+    return <Navigate to= /login replace />;
+  }
+
+  const normalizedOrders = useMemo(() => orders.map(normalize), [orders]);
+  const filteredOrders = useMemo(
+    () => normalizedOrders.filter((order) => matchesFilter(order, statusFilter)),
+    [normalizedOrders, statusFilter]
+  );
+  const emptyText =
+    filteredOrders.length === 0
+      ? statusFilter === 'all'
+        ? 'No orders yet.'
+        : 'No orders for this filter.'
+      : 'No orders yet.';
+
+  const columns: TableColumn<NormalizedOrder>[] = [
+    {
+      key: 'id',
+      header: 'Order',
+      render: (row) => (
+        <Link to={/buyer/orders/} className=text-sm font-semibold text-white>
+          {shortenId(row.id)}
+        </Link>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (row) => (
+        <span
+          className={
+            'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] ' +
+            statusClass(row.status)
+          }
+        >
+          {row.status}
+        </span>
+      ),
+    },
+    {
+      key: 'total',
+      header: 'Total',
+      render: (row) => {
+        if (typeof row.totalCents === 'number') {
+          return formatCurrencyFromCents(row.totalCents);
+        }
+        return typeof row.total === 'number' ? '₹' + row.total.toFixed(2) : row.total;
+      },
+    },
+    {
+      key: 'created',
+      header: 'Created',
+      render: (row) => row.created,
+    },
+    {
+      key: 'action',
+      header: 'Action',
+      render: (row) => (
+        <div className=flex flex-wrap gap-2>
+          <Link
+            to={/buyer/orders/}
+            className=rounded-full border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.3em]
+          >
+            View
+          </Link>
+          {shouldShowPayNow(row) && (
+            <Link
+              to={/buyer/orders/}
+              className=rounded-full border border-emerald-400/80 bg-emerald-500/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-emerald-200
+            >
+              Pay now
+            </Link>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <AppShell title=My Orders subtitle=Track every purchase from the catalog.>
+      {loading && (
+        <div className=space-y-4>
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <div
+              key={skeleton-}
+              className=animate-pulse rounded-2xl bg-white/5 p-4 ring-1 ring-white/10
+            >
+              <div className=mb-2 h-4 w-32 rounded bg-white/20 />
+              <div className=h-3 w-20 rounded bg-white/10 />
+            </div>
+          ))}
+        </div>
+      )}
+      {error && (
+        <div className=rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200>
+          <p role=alert>{error}</p>
+          <button
+            type=button
+            onClick={() => window.location.reload()}
+            className=mt-2 rounded-full border border-white/30 px-3 py-1 text-xs uppercase tracking-[0.3em]
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {!loading && !error && (
+        <>
+          <div className=mb-4 flex flex-wrap gap-2>
+            {FILTER_OPTIONS.map((filter) => (
+              <button
+                key={filter.value}
+                type=button
+                onClick={() => setStatusFilter(filter.value)}
+                className={
+                  'rounded-full border px-3 py-1 text-xs uppercase tracking-[0.3em] transition ' +
+                  (statusFilter === filter.value
+                    ? 'border-white bg-white text-slate-900'
+                    : 'border-white/10 text-white/70 hover:border-white/30')
+                }
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+          <DataTable columns={columns} rows={filteredOrders} emptyText={emptyText} />
+        </>
+      )}
+    </AppShell>
+  );
+}

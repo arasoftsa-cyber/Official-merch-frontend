@@ -1,0 +1,12 @@
+.env.ui.local
+node_modules
+package-lock.json
+.env
+.env.*
+!.env.example
+
+dist/
+test-results/
+playwright-report/
+.playwright/
+.vite/
