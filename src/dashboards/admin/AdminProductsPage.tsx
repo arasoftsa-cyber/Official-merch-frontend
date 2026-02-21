@@ -182,6 +182,7 @@ export default function AdminProductsPage() {
 
       <form onSubmit={submitCreate} className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-6">
         <select
+          data-testid="admin-product-artist-select"
           value={createArtistId}
           onChange={(e) => setCreateArtistId(e.target.value)}
           className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white md:col-span-2"

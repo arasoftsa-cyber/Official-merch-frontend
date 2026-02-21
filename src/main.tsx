@@ -11,10 +11,16 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './app/App';
 import AppErrorBoundary from './components/ux/AppErrorBoundary';
 import { ToastProvider } from './components/ux/ToastHost';
+import { API_BASE } from './shared/api/baseUrl';
 
 const root = document.getElementById('root');
 if (!root) {
   throw new Error('Root element not found');
+}
+
+if (import.meta.env.DEV) {
+  // eslint-disable-next-line no-console
+  console.log(`[api] resolved base URL: ${API_BASE}`);
 }
 
 const sanitize = (value: string) => value.replace(/</g, '&lt;');

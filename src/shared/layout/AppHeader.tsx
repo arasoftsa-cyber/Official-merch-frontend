@@ -92,6 +92,9 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
 
   const showMyAccount = loggedIn && !roleLoading;
   const actionPadding = variant === 'buyer' ? 'px-3 py-1.5' : 'px-3 py-1.5';
+  const loginTarget = `/login?returnTo=${encodeURIComponent(
+    `${location.pathname}${location.search}`
+  )}`;
 
   return (
     <header className="border-b border-white/15 bg-black">
@@ -141,7 +144,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
             </>
           ) : (
             <Link
-              to="/login"
+              to={loginTarget}
               className={`hidden rounded-md border border-white/25 text-sm text-white hover:bg-white/10 md:inline-flex ${actionPadding}`}
             >
               Login
@@ -195,7 +198,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
               </>
             ) : (
               <Link
-                to="/login"
+                to={loginTarget}
                 className="mt-1 inline-flex w-fit rounded-md border border-white/25 px-3 py-1.5 text-sm text-white hover:bg-white/10"
               >
                 Login

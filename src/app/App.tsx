@@ -31,6 +31,8 @@ import AdminProductVariants from '../dashboards/admin/AdminProductVariants';
 import AdminDropsPage from '../dashboards/admin/AdminDropsPage';
 import AdminProvisioningPage from '../pages/admin/AdminProvisioningPage';
 import AdminLeadsPage from '../pages/admin/AdminLeadsPage';
+import AdminArtistsPage from '../pages/admin/AdminArtistsPage';
+import AdminArtistDetailPage from '../pages/admin/AdminArtistDetailPage';
 import BuyerOrdersPage from '../pages/buyer/BuyerOrdersPage';
 import BuyerOrderDetailPage from '../pages/buyer/BuyerOrderDetailPage';
 import BuyerLayout from '../pages/buyer/BuyerLayout';
@@ -1116,6 +1118,14 @@ function AppRoutes() {
         element={requireAuthElement(<AdminLeadsPage />)}
       />
       <Route
+        path="/partner/admin/artists"
+        element={requireAuthElement(<AdminArtistsPage />)}
+      />
+      <Route
+        path="/partner/admin/artists/:id"
+        element={requireAuthElement(<AdminArtistDetailPage />)}
+      />
+      <Route
         path="/partner/admin/products"
         element={requireAuthElement(<AdminProductsPage />)}
       />
@@ -1206,6 +1216,18 @@ function AppRoutes() {
       <Route
         path="/admin/leads"
         element={<LegacyRedirect to="/partner/admin/leads" />}
+      />
+      <Route
+        path="/admin/artists"
+        element={<LegacyRedirect to="/partner/admin/artists" />}
+      />
+      <Route
+        path="/admin/artists/:id"
+        element={
+          <ParamsRedirect
+            to={(params) => `/partner/admin/artists/${params.id ?? ''}`}
+          />
+        }
       />
       <Route
         path="/admin/products"

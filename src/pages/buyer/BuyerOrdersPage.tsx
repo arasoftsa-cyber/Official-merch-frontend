@@ -63,7 +63,7 @@ async function fetchOrdersFallback(): Promise<OrderLike[]> {
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  const res = await fetch("/api/orders", {
+  const res = await fetch("/api/orders/my", {
     headers,
   });
   let message = `Failed to load orders (${res.status})`;

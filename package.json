@@ -19,9 +19,10 @@
     "vite": "^5.0.0"
   },
   "scripts": {
+    "test:guard": "powershell -ExecutionPolicy Bypass -File .\\scripts\\check_no_hardcoded_test_creds.ps1",
     "ui:install": "npx playwright install --with-deps",
     "ui:smoke:full": "npx playwright test --config=playwright.config.ts --reporter=line",
-    "ui:smoke": "npx playwright test ui_smoke_buyer.spec.ts ui_smoke_admin.spec.ts ui_smoke_artist.spec.ts --config=playwright.config.ts --reporter=list --workers=3",
+    "ui:smoke": "npx playwright test",
     "ui:smoke:verbose": "npx playwright test ui_smoke_buyer.spec.ts ui_smoke_admin.spec.ts ui_smoke_artist.spec.ts --config=playwright.config.ts --reporter=list --workers=1",
     "dev": "vite",
     "build": "vite build",

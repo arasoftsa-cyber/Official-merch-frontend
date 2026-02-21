@@ -26,6 +26,15 @@ export default function PartnerLoginPage() {
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
   const portalError = params.get('portalError');
+  const rawReturn =
+    params.get('returnTo') || params.get('returnUrl') || params.get('next') || '/';
+  let redirectTarget = rawReturn;
+  try {
+    redirectTarget = decodeURIComponent(rawReturn);
+  } catch {
+    redirectTarget = rawReturn;
+  }
+  const fanLinkTarget = `/fan/login?returnTo=${encodeURIComponent(redirectTarget)}`;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -43,7 +52,7 @@ export default function PartnerLoginPage() {
     setLoading(true);
     localStorage.setItem(LOGIN_CONTEXT_KEY, 'partner');
     try {
-      const loginResponse = await apiFetch('/auth/login', {
+      const loginResponse = await apiFetch('/auth/partner/login', {
         method: 'POST',
         body: { email, password },
       });
@@ -81,6 +90,12 @@ export default function PartnerLoginPage() {
       // Redirect resolution is centralized in App loginEntryElement.
       navigate(`/login${location.search}`, { replace: true });
     } catch (err: any) {
+      if (err?.message === 'fan_account' || err?.message === 'portal_fan_account') {
+        clearTokens();
+        localStorage.removeItem(LOGIN_CONTEXT_KEY);
+        navigate('/fan/login?portalError=fan_account', { replace: true });
+        return;
+      }
       setError(err?.message ?? 'Login failed');
     } finally {
       setLoading(false);
@@ -174,7 +189,7 @@ export default function PartnerLoginPage() {
           </button>
         </form>
         <p className="text-xs text-center text-slate-400 mt-4">
-          Fan login? <Link className="underline" to="/fan/login">Click here</Link>.
+          Fan login? <Link className="underline" to={fanLinkTarget}>Click here</Link>.
         </p>
       </Card>
     </div>

@@ -128,7 +128,10 @@ export default function BuyerOrderDetailPage() {
     }
   };
 
-  const detailItems = Array.isArray(detail?.items) ? detail.items : [];
+  const detailItems = useMemo(
+    () => (Array.isArray(detail?.items) ? detail.items : []),
+    [detail?.items]
+  );
   const status = detail?.status ?? detail?.state ?? detail?.orderStatus;
   const totalCents =
     typeof detail?.totalCents === 'number'

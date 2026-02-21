@@ -1,11 +1,4 @@
-const normalizeBase = (value: string): string =>
-  value.endsWith('/') ? value.slice(0, -1) : value;
-
-const DEFAULT_API_BASE = "http://76.13.241.27:3000";
-const rawBase =
-  ((import.meta.env.VITE_API_BASE as string | undefined)?.trim() ??
-    (import.meta.env.VITE_API_URL as string | undefined)?.trim()) ?? '';
-const API_BASE = rawBase.length > 0 ? normalizeBase(rawBase) : DEFAULT_API_BASE;
+import { API_BASE } from '../shared/api/baseUrl';
 
 function getToken(): string | null {
   return (

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import ErrorBanner from '../../components/ux/ErrorBanner';
 import LoadingSkeleton from '../../components/ux/LoadingSkeleton';
 import { useToast } from '../../components/ux/ToastHost';
@@ -8,12 +8,17 @@ import { Container, Page } from '../../ui/Page';
 
 const endpoint = '/api/admin/artist-access-requests';
 const STATUS_OPTIONS = ['pending', 'approved', 'rejected'] as const;
-const STATUS_LABELS: Record<typeof STATUS_OPTIONS[number], string> = {
+const STATUS_LABELS: Record<(typeof STATUS_OPTIONS)[number], string> = {
   pending: 'Pending',
   approved: 'Approved',
   rejected: 'Rejected',
 };
 const LIMIT = 20;
+
+type SocialItem = {
+  platform: string;
+  profileLink: string;
+};
 
 type ArtistRequest = {
   id: string;
@@ -21,15 +26,51 @@ type ArtistRequest = {
   status: string;
   source: string;
   labelId?: string | null;
-  name: string;
-  handleSuggestion?: string | null;
-  contactEmail?: string | null;
-  contactPhone?: string | null;
-  socials?: string | null;
-  pitch?: string | null;
+  artistName: string;
+  handle: string;
+  email: string;
+  phone: string;
+  socials: SocialItem[];
+  aboutMe: string;
+  profilePhotoUrl: string;
+  messageForFans: string;
+  rejectionComment: string;
 };
 
 const formatStatus = (status?: string) => (status ? status.toUpperCase() : 'PENDING');
+
+const normalizeSocials = (value: any): SocialItem[] => {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => ({
+        platform: String(item?.platform ?? item?.name ?? '').trim(),
+        profileLink: String(item?.profileLink ?? item?.url ?? item?.link ?? item?.value ?? '').trim(),
+      }))
+      .filter((item) => item.platform || item.profileLink);
+  }
+
+  if (typeof value === 'string') {
+    try {
+      return normalizeSocials(JSON.parse(value));
+    } catch {
+      const raw = value.trim();
+      return raw ? [{ platform: '', profileLink: raw }] : [];
+    }
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .map(([platform, profileLink]) => ({
+        platform: String(platform || '').trim(),
+        profileLink: String(profileLink || '').trim(),
+      }))
+      .filter((item) => item.platform || item.profileLink);
+  }
+
+  return [];
+};
 
 export default function AdminArtistRequests() {
   const token = getAccessToken();
@@ -38,11 +79,14 @@ export default function AdminArtistRequests() {
   const [total, setTotal] = useState(0);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savingAction, setSavingAction] = useState<'approve' | 'reject' | null>(null);
-  const [actionError, setActionError] = useState<{ id: string; message: string } | null>(null);
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<typeof STATUS_OPTIONS[number]>('pending');
+  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]>('pending');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reviewRequest, setReviewRequest] = useState<ArtistRequest | null>(null);
+  const [rejectComment, setRejectComment] = useState('');
+  const [modalError, setModalError] = useState<string | null>(null);
+
   const pageSize = LIMIT;
   const offset = (page - 1) * pageSize;
 
@@ -50,9 +94,7 @@ export default function AdminArtistRequests() {
     const params = new URLSearchParams();
     params.set('pageSize', LIMIT.toString());
     params.set('page', page.toString());
-    if (statusFilter) {
-      params.set('status', statusFilter);
-    }
+    if (statusFilter) params.set('status', statusFilter);
     return `${endpoint}?${params.toString()}`;
   }, [page, statusFilter]);
 
@@ -62,10 +104,9 @@ export default function AdminArtistRequests() {
     setError(null);
     try {
       const payload = await apiFetch(buildUrl());
-      let items: ArtistRequest[] = [];
+      let items: any[] = [];
       let totalCount = 0;
       let pageFromPayload = page;
-      let pageSizeFromPayload = LIMIT;
       if (Array.isArray(payload)) {
         items = payload;
         totalCount = payload.length;
@@ -73,31 +114,50 @@ export default function AdminArtistRequests() {
         items = payload?.items ?? [];
         totalCount = payload?.total ?? items.length;
         pageFromPayload = Number(payload?.page) || page;
-        pageSizeFromPayload = Number(payload?.pageSize) || LIMIT;
       }
-      const normalized = items.map((item) => {
+
+      const normalized: ArtistRequest[] = items.map((item) => {
         const artistName =
-          (item as any).artist_name ?? item.name ?? (item as any).artistName ?? 'Unknown';
-        const contactEmail =
-          (item as any).contact_email ?? item.contactEmail ?? null;
-        const contactPhone =
-          (item as any).contact_phone ?? item.contactPhone ?? null;
+          String((item as any).artist_name ?? item.artistName ?? item.name ?? 'Unknown').trim() ||
+          'Unknown';
+        const handle =
+          String((item as any).handle ?? (item as any).handle_suggestion ?? item.handleSuggestion ?? '')
+            .trim();
+        const email =
+          String((item as any).email ?? (item as any).contact_email ?? item.contactEmail ?? '').trim();
+        const phone =
+          String((item as any).phone ?? (item as any).contact_phone ?? item.contactPhone ?? '').trim();
         const createdAt =
-          (item as any).created_at ?? item.createdAt ?? new Date().toISOString();
-        const socialsValue = item.socials ?? (item as any).socials ?? null;
-        let socialsFormatted = '�';
-        if (socialsValue && typeof socialsValue === 'object') {
-          socialsFormatted = Object.keys(socialsValue).join(', ') || '�';
-        }
+          String((item as any).created_at ?? item.createdAt ?? new Date().toISOString()).trim();
+
         return {
-          ...item,
-          name: artistName,
-          contactEmail,
-          contactPhone,
+          id: String(item.id),
           createdAt,
-          socials: socialsFormatted,
+          status: String(item.status ?? 'pending'),
+          source: String(item.source ?? 'artist_access_request'),
+          labelId: (item as any).label_id ?? item.labelId ?? null,
+          artistName,
+          handle,
+          email,
+          phone,
+          socials: normalizeSocials((item as any).socials ?? item.socials),
+          aboutMe: String((item as any).about_me ?? item.aboutMe ?? (item as any).pitch ?? '').trim(),
+          profilePhotoUrl: String(
+            (item as any).profile_photo_url ??
+              (item as any).profile_photo_path ??
+              item.profilePhotoUrl ??
+              item.profilePhotoPath ??
+              ''
+          ).trim(),
+          messageForFans: String(
+            (item as any).message_for_fans ?? item.messageForFans ?? (item as any).fan_message ?? ''
+          ).trim(),
+          rejectionComment: String(
+            (item as any).rejection_comment ?? item.rejectionComment ?? ''
+          ).trim(),
         };
       });
+
       setRequests(normalized);
       setTotal(totalCount);
       setPage(pageFromPayload);
@@ -116,25 +176,54 @@ export default function AdminArtistRequests() {
     loadRequests();
   }, [loadRequests]);
 
+  const openReview = (request: ArtistRequest) => {
+    setReviewRequest(request);
+    setRejectComment('');
+    setModalError(null);
+  };
+
+  const closeReview = () => {
+    setReviewRequest(null);
+    setRejectComment('');
+    setModalError(null);
+  };
+
   const performAction = useCallback(
-    async (id: string, action: 'approve' | 'reject') => {
-      setSavingId(id);
-      setActionError(null);
+    async (request: ArtistRequest, action: 'approve' | 'reject') => {
+      if (!request?.id) return;
+      const trimmedComment = rejectComment.trim();
+      if (action === 'reject' && !trimmedComment) {
+        setModalError('Rejection comment is required.');
+        return;
+      }
+
+      setSavingId(request.id);
+      setSavingAction(action);
+      setModalError(null);
+
       try {
-        await apiFetch(`${endpoint}/${id}/${action}`, { method: 'POST' });
-        notify(`Request ${action === 'approve' ? 'approved' : 'rejected'}`, 'success');
+        await apiFetch(`${endpoint}/${request.id}/${action}`, {
+          method: 'POST',
+          ...(action === 'reject' ? { body: { comment: trimmedComment } } : {}),
+        });
+
+        notify(
+          action === 'approve'
+            ? 'Artist request approved successfully.'
+            : 'Artist request rejected successfully.',
+          'success'
+        );
+
         await loadRequests();
+        closeReview();
       } catch (err: any) {
-        const message =
-          err?.error === 'invalid_transition'
-            ? err?.message ?? 'Invalid transition'
-            : err?.message ?? 'Action failed';
-        setActionError({ id, message });
+        setModalError(err?.message ?? 'Action failed');
       } finally {
         setSavingId(null);
+        setSavingAction(null);
       }
     },
-    [loadRequests, notify]
+    [loadRequests, notify, rejectComment]
   );
 
   if (!token) {
@@ -182,7 +271,7 @@ export default function AdminArtistRequests() {
             id="status-filter"
             value={statusFilter}
             onChange={(event) => {
-              setStatusFilter(event.target.value as typeof STATUS_OPTIONS[number]);
+              setStatusFilter(event.target.value as (typeof STATUS_OPTIONS)[number]);
               setPage(1);
             }}
             className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
@@ -212,48 +301,22 @@ export default function AdminArtistRequests() {
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.3em] text-white/50">{request.source}</p>
-                    <p className="text-lg font-semibold text-white">{request.name}</p>
-                    {request.handleSuggestion && (
-                      <p className="text-xs text-white/60">@{request.handleSuggestion}</p>
-                    )}
-                    <p className="text-xs text-white/60">
-                      {request.contactEmail ?? request.contactPhone ?? 'No contact info'}
-                    </p>
+                    <p className="text-lg font-semibold text-white">{request.artistName}</p>
+                    {request.handle && <p className="text-xs text-white/60">@{request.handle}</p>}
+                    <p className="text-xs text-white/60">{request.email || request.phone || 'No contact info'}</p>
                   </div>
-                  <div className="flex flex-col items-end gap-1 text-[11px] uppercase tracking-[0.3em] text-white/60">
+                  <div className="flex flex-col items-end gap-2 text-[11px] uppercase tracking-[0.3em] text-white/60">
                     <span>{formatStatus(request.status)}</span>
                     <span>Submitted {new Date(request.createdAt).toLocaleString()}</span>
+                    <button
+                      type="button"
+                      onClick={() => openReview(request)}
+                      className="inline-flex items-center rounded-full border border-white/20 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                    >
+                      Review
+                    </button>
                   </div>
                 </div>
-                {statusFilter === 'pending' && request.status.toLowerCase() === 'pending' && (
-                  <div className="mt-3 flex flex-col gap-2">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => performAction(request.id, 'approve')}
-                        disabled={savingId === request.id}
-                        className="inline-flex items-center rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 disabled:opacity-40"
-                      >
-                        {savingId === request.id && savingAction === 'approve'
-                          ? 'Approving...'
-                          : 'Approve'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => performAction(request.id, 'reject')}
-                        disabled={savingId === request.id}
-                        className="inline-flex items-center rounded-full border border-rose-500/60 bg-rose-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-rose-200 hover:border-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:opacity-40"
-                      >
-                        {savingId === request.id && savingAction === 'reject'
-                          ? 'Rejecting...'
-                          : 'Reject'}
-                      </button>
-                    </div>
-                    {actionError?.id === request.id && (
-                      <p className="text-xs text-rose-300">{actionError.message}</p>
-                    )}
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -278,6 +341,102 @@ export default function AdminArtistRequests() {
           </button>
         </div>
       </Container>
+
+      {reviewRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-white">Review Artist Request</h2>
+              <button
+                type="button"
+                onClick={closeReview}
+                className="rounded-full border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/80 hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-3 text-sm text-white/85">
+              <p><span className="text-white/60">Artist Name:</span> {reviewRequest.artistName || '—'}</p>
+              <p><span className="text-white/60">Handle:</span> {reviewRequest.handle || '—'}</p>
+              <p><span className="text-white/60">Email:</span> {reviewRequest.email || '—'}</p>
+              <p><span className="text-white/60">Phone:</span> {reviewRequest.phone || '—'}</p>
+              <div>
+                <p className="text-white/60">Socials:</p>
+                {reviewRequest.socials.length > 0 ? (
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {reviewRequest.socials.map((social, idx) => (
+                      <li key={`${reviewRequest.id}-social-${idx}`}>
+                        {(social.platform || 'platform').toUpperCase()}: {social.profileLink || '—'}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-white/70">—</p>
+                )}
+              </div>
+              <p><span className="text-white/60">About Me:</span> {reviewRequest.aboutMe || '—'}</p>
+              <div>
+                <p className="text-white/60">Profile Photo:</p>
+                {reviewRequest.profilePhotoUrl ? (
+                  <div className="mt-2 space-y-2">
+                    <a
+                      href={reviewRequest.profilePhotoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-emerald-300 underline"
+                    >
+                      Open profile photo
+                    </a>
+                    <img
+                      src={reviewRequest.profilePhotoUrl}
+                      alt={`${reviewRequest.artistName} profile`}
+                      className="max-h-48 rounded-lg border border-white/10 object-contain"
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-1 text-white/70">—</p>
+                )}
+              </div>
+              <p><span className="text-white/60">Message For Fans:</span> {reviewRequest.messageForFans || '—'}</p>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <label className="block text-sm font-medium text-white/80">
+                Rejection Comment * (required to reject)
+                <textarea
+                  value={rejectComment}
+                  onChange={(event) => setRejectComment(event.target.value)}
+                  rows={3}
+                  className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+                  placeholder="Explain why this request is being rejected"
+                />
+              </label>
+
+              {modalError && <p className="text-xs text-rose-300">{modalError}</p>}
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => performAction(reviewRequest, 'approve')}
+                  disabled={savingId === reviewRequest.id || reviewRequest.status.toLowerCase() !== 'pending'}
+                  className="inline-flex items-center rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 disabled:opacity-40"
+                >
+                  {savingId === reviewRequest.id && savingAction === 'approve' ? 'Approving...' : 'Approve'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => performAction(reviewRequest, 'reject')}
+                  disabled={savingId === reviewRequest.id || reviewRequest.status.toLowerCase() !== 'pending'}
+                  className="inline-flex items-center rounded-full border border-rose-500/60 bg-rose-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-rose-200 hover:border-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:opacity-40"
+                >
+                  {savingId === reviewRequest.id && savingAction === 'reject' ? 'Rejecting...' : 'Reject'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Page>
   );
 }

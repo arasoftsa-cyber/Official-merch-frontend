@@ -16,7 +16,7 @@ const normalizeBase = (value: string): string => {
   return normalized;
 };
 
-const DEFAULT_API_BASE = "http://76.13.241.27:3000";
+const DEFAULT_API_BASE = "http://localhost:3000";
 export const API_BASE =
   envBase && envBase.length > 0 ? normalizeBase(envBase) : DEFAULT_API_BASE;
 

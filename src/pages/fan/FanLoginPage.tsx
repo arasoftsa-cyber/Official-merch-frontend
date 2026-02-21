@@ -35,9 +35,12 @@ export default function FanLoginPage() {
   } catch {
     redirectTarget = rawReturn;
   }
-  const partnerLinkTarget = `/partner/login?returnUrl=${encodeURIComponent(
-    redirectTarget
+  const safeRedirectTarget =
+    redirectTarget.startsWith('/') && !redirectTarget.startsWith('//') ? redirectTarget : '/';
+  const partnerLinkTarget = `/partner/login?returnTo=${encodeURIComponent(
+    safeRedirectTarget
   )}`;
+  const registerLinkTarget = `/fan/register?returnTo=${encodeURIComponent(safeRedirectTarget)}`;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -90,8 +93,8 @@ export default function FanLoginPage() {
         return;
       }
 
-      // Redirect resolution is centralized in App loginEntryElement.
-      navigate(`/login${location.search}`, { replace: true });
+      localStorage.removeItem(LOGIN_CONTEXT_KEY);
+      navigate(safeRedirectTarget || '/', { replace: true });
     } catch (err: any) {
       setFormError(err?.message ?? 'Login failed');
     } finally {
@@ -187,7 +190,7 @@ export default function FanLoginPage() {
         </form>
         <div className="text-xs text-center text-slate-400 mt-4 space-y-2">
           <p>
-            Need an account? <Link className="underline" to="/fan/register">Create one</Link>.
+            Need an account? <Link className="underline" to={registerLinkTarget}>Create one</Link>.
           </p>
           <p>
             Partner?{' '}

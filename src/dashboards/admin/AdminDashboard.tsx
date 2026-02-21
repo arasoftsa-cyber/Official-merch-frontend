@@ -186,6 +186,12 @@ export default function AdminDashboard() {
           />
         </button>
         <Link
+          to="/partner/admin/artists"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 cursor-pointer rounded-2xl transition"
+        >
+          <KpiCard label="ARTISTS" value="—" hint="Onboarded artists" />
+        </Link>
+        <Link
           to="/partner/admin/products"
           className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 cursor-pointer rounded-2xl transition"
         >

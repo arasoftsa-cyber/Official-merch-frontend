@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Label from '../../components/ui/Label';
@@ -25,7 +25,21 @@ const extractToken = (payload: Record<string, any>) => {
 };
 
 export default function FanRegisterPage() {
+  const location = useLocation();
   const navigate = useNavigate();
+  const params = new URLSearchParams(location.search);
+  const rawReturn =
+    params.get('returnTo') || params.get('returnUrl') || params.get('next') || '/';
+  let redirectTarget = rawReturn;
+  try {
+    redirectTarget = decodeURIComponent(rawReturn);
+  } catch {
+    redirectTarget = rawReturn;
+  }
+  const safeRedirectTarget =
+    redirectTarget.startsWith('/') && !redirectTarget.startsWith('//') ? redirectTarget : '/';
+  const loginLinkTarget = `/fan/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`;
+  const partnerLinkTarget = `/partner/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -57,10 +71,10 @@ export default function FanRegisterPage() {
         if (refreshToken) {
           setRefreshToken(refreshToken);
         }
-        navigate('/fan', { replace: true });
+        navigate(safeRedirectTarget || '/', { replace: true });
         return;
       }
-      navigate('/fan/login', { replace: true });
+      navigate(loginLinkTarget, { replace: true });
     } catch (err: any) {
       setError(err?.message ?? 'Registration failed');
     } finally {
@@ -160,8 +174,8 @@ export default function FanRegisterPage() {
           </button>
         </form>
         <p className="text-xs text-center text-slate-400 mt-4 space-y-2">
-          <span>Already have an account? <Link className="underline" to="/fan/login">Login</Link>.</span>
-          <span>Partner? <Link className="underline" to="/partner/login">Login here</Link>.</span>
+          <span>Already have an account? <Link className="underline" to={loginLinkTarget}>Login</Link>.</span>
+          <span>Partner? <Link className="underline" to={partnerLinkTarget}>Login here</Link>.</span>
         </p>
       </Card>
     </div>

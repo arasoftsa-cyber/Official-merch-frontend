@@ -21,6 +21,8 @@ type DropRecord = {
   updatedAt?: string;
   updated_at?: string;
   handle?: string;
+  product_count?: number;
+  productCount?: number;
   [key: string]: any;
 };
 
@@ -110,16 +112,22 @@ export default function ArtistDropsPage() {
         render: (row) => {
           const status = String(row.status ?? row.state ?? '').toLowerCase();
           const rowId = String(row.id ?? row.dropId ?? row.handle ?? '');
+          const productCount = Number(row.product_count ?? row.productCount ?? 0);
           if (status === 'draft') {
             return (
-              <button
-                type="button"
-                onClick={() => runAction(row, 'publish')}
-                disabled={actionLoadingId === rowId}
-                className="rounded-lg border border-white/20 px-2 py-1 text-xs text-white/90 hover:bg-white/10 disabled:opacity-60"
-              >
-                {actionLoadingId === rowId ? 'Publishing...' : 'Publish'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => runAction(row, 'publish')}
+                  disabled={actionLoadingId === rowId || productCount === 0}
+                  className="rounded-lg border border-white/20 px-2 py-1 text-xs text-white/90 hover:bg-white/10 disabled:opacity-60"
+                >
+                  {actionLoadingId === rowId ? 'Publishing...' : 'Publish'}
+                </button>
+                {productCount === 0 && (
+                  <span className="text-[11px] text-amber-300">Add a product to publish</span>
+                )}
+              </div>
             );
           }
           if (status === 'published') {
