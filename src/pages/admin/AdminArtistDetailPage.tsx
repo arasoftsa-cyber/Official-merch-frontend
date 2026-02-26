@@ -38,7 +38,9 @@ const normalizeDetail = (payload: any): AdminArtistDetail => {
     phone: String(row?.phone ?? row?.contact_phone ?? ''),
     aboutMe: String(row?.about_me ?? row?.aboutMe ?? ''),
     messageForFans: String(row?.message_for_fans ?? row?.messageForFans ?? ''),
-    profilePhotoUrl: String(row?.profile_photo_url ?? row?.profile_photo_path ?? ''),
+    profilePhotoUrl: String(
+      row?.profile_photo_url ?? row?.profilePhotoUrl ?? row?.profile_photo_path ?? ''
+    ),
     socials,
     raw: row,
   };
