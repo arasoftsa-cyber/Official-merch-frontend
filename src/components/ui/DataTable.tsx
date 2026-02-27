@@ -1,17 +1,17 @@
 import React from 'react';
 
 type ColumnRender<T> = {
-  header: string;
+  header: React.ReactNode;
   render: (row: T) => React.ReactNode;
 };
 
 type ColumnCell<T> = {
-  header: string;
+  header: React.ReactNode;
   cell: (row: T) => React.ReactNode;
 };
 
 type ColumnAccessor = {
-  header: string;
+  header: React.ReactNode;
   accessor?: string;
   key?: string;
 };
@@ -46,10 +46,11 @@ const renderCell = (column: TableColumn, row: any) => {
   return getValueAtPath(row, path);
 };
 
-const columnKey = (column: TableColumn) => {
+const columnKey = (column: TableColumn, index: number) => {
   if ('key' in column && column.key) return column.key;
   if ('accessor' in column && column.accessor) return column.accessor;
-  return column.header;
+  if (typeof column.header === 'string' && column.header) return column.header;
+  return `col-${index}`;
 };
 
 export default function DataTable<T = any>({
@@ -71,8 +72,8 @@ export default function DataTable<T = any>({
       <table className="w-full text-sm text-left text-slate-200">
         <thead className="bg-white/5 text-xs uppercase tracking-[0.4em] text-slate-400">
           <tr>
-            {columns.map((column) => (
-              <th key={columnKey(column)} className="px-4 py-3">
+            {columns.map((column, columnIndex) => (
+              <th key={columnKey(column, columnIndex)} className="px-4 py-3">
                 {column.header}
               </th>
             ))}
@@ -87,8 +88,8 @@ export default function DataTable<T = any>({
               data-testid="admin-order-row"
               tabIndex={rowOnClick ? 0 : undefined}
             >
-              {columns.map((column) => (
-                <td key={columnKey(column)} className="px-4 py-3 align-top">
+              {columns.map((column, columnIndex) => (
+                <td key={columnKey(column, columnIndex)} className="px-4 py-3 align-top">
                   {renderCell(column, row)}
                 </td>
               ))}

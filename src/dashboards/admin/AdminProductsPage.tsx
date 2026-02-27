@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch, apiFetchForm } from '../../shared/api/http';
+import { resolveMediaUrl } from '../../shared/utils/media';
 
 type Artist = {
   id: string;
@@ -116,8 +117,8 @@ const extractListingPhotoUrls = (product: Product | null | undefined): string[] 
     typeof product.listingPhotoUrl === 'string' ? product.listingPhotoUrl : '',
     typeof product.primaryPhotoUrl === 'string' ? product.primaryPhotoUrl : '',
   ]
-    .map((entry) => String(entry || '').trim())
-    .filter(Boolean);
+    .map((entry) => resolveMediaUrl(typeof entry === 'string' ? entry : null))
+    .filter((entry): entry is string => Boolean(entry));
   return Array.from(new Set(candidates)).slice(0, 4);
 };
 
@@ -320,7 +321,9 @@ export default function AdminProductsPage() {
           method: 'PUT',
         });
         const latestUrls = Array.isArray(photoUpdate?.listingPhotoUrls)
-          ? photoUpdate.listingPhotoUrls.map((entry: any) => String(entry || '').trim()).filter(Boolean)
+          ? photoUpdate.listingPhotoUrls
+              .map((entry: any) => resolveMediaUrl(typeof entry === 'string' ? entry : null))
+              .filter((entry: string | null): entry is string => Boolean(entry))
           : [];
         setEditListingPhotoUrls(latestUrls.slice(0, 4));
         setEditReplacementPhotos([]);
@@ -385,10 +388,7 @@ export default function AdminProductsPage() {
                   ? 'active'
                   : 'inactive';
               const artistId = product.artistId || product.artist_id || '';
-              const thumbnail =
-                product.listingPhotoUrl ||
-                product.primaryPhotoUrl ||
-                (Array.isArray(product.listingPhotoUrls) ? product.listingPhotoUrls[0] : '');
+              const thumbnail = extractListingPhotoUrls(product)[0] || '';
 
               return (
                 <tr key={product.id} className="border-b border-white/5">

@@ -4,6 +4,7 @@ import AppShell from '../../components/layout/AppShell';
 import ErrorBanner from '../../components/ux/ErrorBanner';
 import LoadingSkeleton from '../../components/ux/LoadingSkeleton';
 import { apiFetch } from '../../shared/api/http';
+import { resolveMediaUrl } from '../../shared/utils/media';
 import AdminArtistEditModal from './AdminArtistEditModal';
 
 type AdminArtistDetail = {
@@ -39,9 +40,10 @@ const normalizeDetail = (payload: any): AdminArtistDetail => {
     phone: String(row?.phone ?? row?.contact_phone ?? ''),
     aboutMe: String(row?.about_me ?? row?.aboutMe ?? ''),
     messageForFans: String(row?.message_for_fans ?? row?.messageForFans ?? ''),
-    profilePhotoUrl: String(
-      row?.profile_photo_url ?? row?.profilePhotoUrl ?? row?.profile_photo_path ?? ''
-    ),
+    profilePhotoUrl:
+      resolveMediaUrl(
+        String(row?.profile_photo_url ?? row?.profilePhotoUrl ?? row?.profile_photo_path ?? '').trim() || null
+      ) ?? '',
     socials,
     raw: row,
   };

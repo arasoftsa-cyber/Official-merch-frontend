@@ -12,6 +12,9 @@ type ProductDTO = {
   description?: string;
   createdAt?: string;
   price?: number;
+  card_image_url?: string;
+  cover_photo_url?: string;
+  listing_photos?: string[];
 };
 
 type RowStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -41,7 +44,29 @@ const mapProduct = (source: any): ProductDTO | null => {
   const price =
     parsePrice(source?.price) ??
     parsePrice(source?.priceCents ? Number(source.priceCents) / 100 : undefined);
-  return { id: String(id), title, artist, description, createdAt, price };
+  const listingPhotosRaw =
+    source?.listing_photos ??
+    source?.listingPhotos ??
+    source?.photo_urls ??
+    source?.photoUrls;
+  const listing_photos = Array.isArray(listingPhotosRaw)
+    ? listingPhotosRaw.map((value: any) => String(value ?? '').trim()).filter(Boolean)
+    : undefined;
+  const cover_photo_url =
+    (typeof source?.cover_photo_url === 'string' ? source.cover_photo_url : '') ||
+    (typeof source?.coverPhotoUrl === 'string' ? source.coverPhotoUrl : '') ||
+    (listing_photos?.[0] ?? '');
+  return {
+    id: String(id),
+    title,
+    artist,
+    description,
+    createdAt,
+    price,
+    card_image_url: cover_photo_url || undefined,
+    cover_photo_url: cover_photo_url || undefined,
+    listing_photos,
+  };
 };
 
 const chooseArray = (payload: any) =>

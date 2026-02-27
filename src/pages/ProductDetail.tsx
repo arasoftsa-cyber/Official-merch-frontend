@@ -12,6 +12,7 @@ import { useCart } from '../cart/CartContext';
 import { NotFoundPage } from './Errors';
 import { safeErrorMessage } from '../shared/utils/safeError';
 import { apiFetch } from '../shared/api/http';
+import { resolveMediaUrl } from '../shared/utils/media';
 
 type Variant = {
   id: string;
@@ -27,9 +28,7 @@ type Product = {
   title?: string;
   description?: string;
   priceCents?: number;
-  primaryPhotoUrl?: string;
-  listingPhotoUrl?: string;
-  photos?: string[];
+  listing_photos?: string[];
 };
 
 function asObject(value: unknown): Record<string, any> | null {
@@ -60,43 +59,49 @@ function formatCurrency(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-function normalizeProductPhotos(
+function normalizeProductListingPhotos(
   productSource: Record<string, any> | null,
   root: Record<string, any>,
   data: Record<string, any> | null
-): { photos: string[]; primaryPhotoUrl?: string } {
-  const fromProduct = Array.isArray(productSource?.photos)
-    ? productSource.photos
-    : Array.isArray(productSource?.photoUrls)
-    ? productSource.photoUrls
+): string[] {
+  const fromProduct = Array.isArray(productSource?.listing_photos)
+    ? productSource.listing_photos
+    : Array.isArray(productSource?.listingPhotos)
+    ? productSource.listingPhotos
     : Array.isArray(productSource?.listingPhotoUrls)
     ? productSource.listingPhotoUrls
+    : Array.isArray(productSource?.photoUrls)
+    ? productSource.photoUrls
+    : Array.isArray(productSource?.photos)
+    ? productSource.photos
     : [];
-  const fromPayload = Array.isArray(root?.photos)
-    ? root.photos
+  const fromPayload = Array.isArray(root?.listing_photos)
+    ? root.listing_photos
+    : Array.isArray(root?.listingPhotos)
+    ? root.listingPhotos
+    : Array.isArray(root?.listingPhotoUrls)
+    ? root.listingPhotoUrls
+    : Array.isArray(data?.listing_photos)
+    ? data.listing_photos
+    : Array.isArray(data?.listingPhotos)
+    ? data.listingPhotos
+    : Array.isArray(data?.listingPhotoUrls)
+    ? data.listingPhotoUrls
     : Array.isArray(root?.photoUrls)
     ? root.photoUrls
-    : Array.isArray(data?.photos)
-    ? data.photos
     : Array.isArray(data?.photoUrls)
     ? data.photoUrls
+    : Array.isArray(root?.photos)
+    ? root.photos
+    : Array.isArray(data?.photos)
+    ? data.photos
     : [];
 
-  const photos = (fromProduct.length ? fromProduct : fromPayload).filter(
+  return (fromProduct.length ? fromProduct : fromPayload)
+    .filter(
     (value): value is string => typeof value === 'string' && value.trim().length > 0
-  );
-  const primaryPhotoUrl =
-    (typeof productSource?.primaryPhotoUrl === 'string' ? productSource.primaryPhotoUrl : '') ||
-    (typeof productSource?.listingPhotoUrl === 'string' ? productSource.listingPhotoUrl : '') ||
-    (typeof root?.primaryPhotoUrl === 'string' ? root.primaryPhotoUrl : '') ||
-    (typeof root?.listingPhotoUrl === 'string' ? root.listingPhotoUrl : '') ||
-    (typeof data?.primaryPhotoUrl === 'string' ? data.primaryPhotoUrl : '') ||
-    (typeof data?.listingPhotoUrl === 'string' ? data.listingPhotoUrl : '') ||
-    photos[0] ||
-    undefined;
-
-  const normalizedPhotos = photos.length > 0 ? photos : primaryPhotoUrl ? [primaryPhotoUrl] : [];
-  return { photos: normalizedPhotos, primaryPhotoUrl: primaryPhotoUrl || normalizedPhotos[0] };
+    )
+    .slice(0, 4);
 }
 
 function normalizeVariant(raw: any, index: number): Variant {
@@ -129,7 +134,7 @@ function normalizePayload(payload: any, fallbackId: string) {
     title: typeof productSource.title === 'string' ? productSource.title : undefined,
     description: typeof productSource.description === 'string' ? productSource.description : undefined,
     priceCents: resolveCents(productSource) ?? undefined,
-    ...normalizeProductPhotos(productSource, root, data),
+    listing_photos: normalizeProductListingPhotos(productSource, root, data),
   };
 
   const variantsSource = Array.isArray(productSource.variants)
@@ -212,15 +217,13 @@ export default function ProductDetail() {
           ? displayPriceCents
           : 0
       );
-  const photos = useMemo(() => {
-    const fromProduct = Array.isArray(product?.photos)
-      ? product?.photos
-      : [];
-    if (fromProduct.length > 0) return fromProduct.slice(0, 4);
-    if (product?.listingPhotoUrl) return [product.listingPhotoUrl];
-    if (product?.primaryPhotoUrl) return [product.primaryPhotoUrl];
-    return [];
-  }, [product?.photos, product?.listingPhotoUrl, product?.primaryPhotoUrl]);
+  const photos = useMemo(
+    () =>
+      (Array.isArray(product?.listing_photos) ? product.listing_photos : [])
+        .map((value) => resolveMediaUrl(value))
+        .filter((value): value is string => Boolean(value)),
+    [product?.listing_photos]
+  );
 
   const mainImageUrl = photos[activeIdx] || '';
 
@@ -458,9 +461,9 @@ export default function ProductDetail() {
                 <div className="h-full w-full bg-gradient-to-b from-white/20 to-transparent" aria-hidden />
               )}
             </div>
-            {photos.length > 0 && (
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                {photos.slice(0, 4).map((photoUrl, idx) => (
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              {photos.length > 0 ? (
+                photos.slice(0, 4).map((photoUrl, idx) => (
                   <button
                     key={`${photoUrl}-${idx}`}
                     type="button"
@@ -476,10 +479,13 @@ export default function ProductDetail() {
                       className="h-full w-full object-cover"
                     />
                   </button>
-                ))}
-              </div>
-            )}
-            <p className="om-muted mt-4 uppercase tracking-[0.4em]">Artist gallery</p>
+                ))
+              ) : (
+                <div className="col-span-4 flex h-16 items-center justify-center rounded-lg border border-white/20 bg-slate-900/40 text-xs uppercase tracking-[0.2em] text-slate-400">
+                  No photos
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="">

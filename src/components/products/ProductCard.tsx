@@ -1,11 +1,16 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { resolveMediaUrl } from '../../shared/utils/media';
 
 type ProductCardModel = {
   id: string;
   title?: string;
   artist?: string;
   brand?: string;
+  cover_photo_url?: string;
+  coverPhotoUrl?: string;
+  listing_photos?: string[];
+  listingPhotos?: string[];
   imageUrl?: string;
   primaryImageUrl?: string;
   thumbnailUrl?: string;
@@ -16,14 +21,27 @@ type ProductCardProps = {
   product: ProductCardModel;
 };
 
-const resolveImage = (product: ProductCardModel) =>
-  product.imageUrl ??
-  product.primaryImageUrl ??
-  product.thumbnailUrl ??
-  null;
+const resolveImage = (product: ProductCardModel) => {
+  const coverPhotoUrl = resolveMediaUrl(product.cover_photo_url ?? product.coverPhotoUrl ?? null);
+  if (coverPhotoUrl) return coverPhotoUrl;
+
+  const listingPhotoUrl = resolveMediaUrl(
+    (Array.isArray(product.listing_photos) ? product.listing_photos[0] : null) ??
+      (Array.isArray(product.listingPhotos) ? product.listingPhotos[0] : null)
+  );
+  if (listingPhotoUrl) return listingPhotoUrl;
+
+  return resolveMediaUrl(product.imageUrl ?? product.primaryImageUrl ?? product.thumbnailUrl ?? null);
+};
 
 export default function ProductCard({ product }: ProductCardProps) {
   const imageUrl = resolveImage(product);
+  const [imageLoadFailed, setImageLoadFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    setImageLoadFailed(false);
+  }, [product.id, imageUrl]);
+
   const navigate = useNavigate();
   const subtitle = product.artist ?? product.brand ?? 'OfficialMerch';
   const productUrl = `/products/${product.id}`;
@@ -48,10 +66,11 @@ export default function ProductCard({ product }: ProductCardProps) {
     >
       <div className="relative w-full border-b border-white/5 bg-slate-900/60">
         <div className="aspect-[4/3] w-full overflow-hidden bg-gradient-to-b from-white/15 via-transparent to-black/30">
-          {imageUrl ? (
+          {imageUrl && !imageLoadFailed ? (
             <img
               src={imageUrl}
               alt={product.title ?? 'Product'}
+              onError={() => setImageLoadFailed(true)}
               className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
             />
           ) : (

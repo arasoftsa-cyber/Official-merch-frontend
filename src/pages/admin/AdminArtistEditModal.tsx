@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiFetch, apiFetchForm } from '../../shared/api/http';
+import { resolveMediaUrl } from '../../shared/utils/media';
 
 type SocialRow = {
   platform: string;
@@ -25,6 +26,7 @@ type ArtistDetail = {
   handle: string;
   email: string;
   status: string;
+  is_featured: boolean;
   phone: string;
   about: string;
   message_for_fans: string;
@@ -46,6 +48,7 @@ type ArtistFormState = {
   handle: string;
   email: string;
   status: string;
+  is_featured: boolean;
   phone: string;
   about: string;
   message_for_fans: string;
@@ -90,12 +93,13 @@ const normalizeDetail = (payload: any): ArtistDetail => {
     handle: String(row?.handle ?? '').replace(/^@+/, '').trim(),
     email: String(row?.email ?? row?.contact_email ?? '').trim(),
     status: String(row?.status ?? '').trim().toLowerCase() || 'active',
+    is_featured: Boolean(row?.is_featured ?? row?.isFeatured),
     phone: String(row?.phone ?? row?.contact_phone ?? '').trim(),
     about: String(row?.about ?? row?.aboutMe ?? row?.about_me ?? '').trim(),
     message_for_fans: String(
       row?.message_for_fans ?? row?.messageForFans ?? ''
     ).trim(),
-    profilePhotoUrl: String(row?.profilePhotoUrl ?? row?.profile_photo_url ?? '').trim(),
+    profilePhotoUrl: resolveMediaUrl(String(row?.profilePhotoUrl ?? row?.profile_photo_url ?? '').trim() || null) ?? '',
     socials,
     statusOptions: statusOptions.length ? statusOptions : DEFAULT_STATUS_OPTIONS,
     capabilities: { ...DEFAULT_CAPABILITIES, ...(row?.capabilities || {}) },
@@ -111,6 +115,7 @@ const createInitialFormState = (): ArtistFormState => ({
   handle: '',
   email: '',
   status: 'active',
+  is_featured: false,
   phone: '',
   about: '',
   message_for_fans: '',
@@ -147,6 +152,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
           handle: normalized.handle,
           email: normalized.email,
           status: normalized.status,
+          is_featured: normalized.is_featured,
           phone: normalized.phone,
           about: normalized.about,
           message_for_fans: normalized.message_for_fans,
@@ -169,6 +175,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
     if (!profilePhotoFile) return '';
     return URL.createObjectURL(profilePhotoFile);
   }, [profilePhotoFile]);
+  const resolvedProfilePreviewUrl = resolveMediaUrl(form.profilePhotoUrl);
 
   useEffect(() => {
     return () => {
@@ -230,6 +237,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
       if (caps.canEditHandle) payload.handle = form.handle.trim().replace(/^@+/, '');
       if (emailEditable) payload.email = form.email.trim().toLowerCase();
       payload.status = form.status.trim().toLowerCase();
+      payload.is_featured = Boolean(form.is_featured);
       if (caps.canEditPhone) payload.phone = form.phone.trim();
       payload.about = form.about.trim();
       payload.message_for_fans = form.message_for_fans.trim();
@@ -363,6 +371,25 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                 {fieldErrors.status && <p className="mt-1 text-xs text-rose-300">{fieldErrors.status}</p>}
               </label>
 
+              <label className="text-sm text-white">
+                Featured
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    data-testid="admin-artist-featured-modal-toggle"
+                    checked={Boolean(form.is_featured)}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, is_featured: event.target.checked }))
+                    }
+                    disabled={saving}
+                    className="h-4 w-4 rounded border border-white/20 bg-black/20 accent-emerald-400 disabled:opacity-50"
+                  />
+                  <span className="text-xs text-slate-300">
+                    {form.is_featured ? 'Featured artist' : 'Not featured'}
+                  </span>
+                </div>
+              </label>
+
               <label className="text-sm text-white md:col-span-2">
                 Phone
                 <input
@@ -443,9 +470,9 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                 <legend className="px-2 text-sm text-white">Profile Photo</legend>
                 <div className="mt-2 flex flex-wrap items-start gap-4">
                   <div className="h-24 w-24 overflow-hidden rounded-lg border border-white/15 bg-black/20">
-                    {(previewUrl || form.profilePhotoUrl) ? (
+                    {(previewUrl || resolvedProfilePreviewUrl) ? (
                       <img
-                        src={previewUrl || form.profilePhotoUrl}
+                        src={previewUrl || resolvedProfilePreviewUrl || ''}
                         alt="Profile preview"
                         className="h-full w-full object-cover"
                       />

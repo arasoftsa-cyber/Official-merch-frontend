@@ -3,6 +3,43 @@ import { ADMIN_EMAIL, ADMIN_PASSWORD, LABEL_EMAIL, LABEL_PASSWORD } from './_env
 import { gotoApp, loginAdmin, loginLabel } from './helpers/auth';
 import path from 'path';
 
+async function waitForSelectReady(page: Page, testId: string, timeout = 15000): Promise<Locator> {
+  const select = page.getByTestId(testId);
+  await expect(select).toBeVisible({ timeout });
+
+  await expect
+    .poll(
+      async () => {
+        const disabled = await select.isDisabled().catch(() => true);
+        if (disabled) return false;
+
+        const readiness = await select.evaluate((el) => {
+          const s = el as HTMLSelectElement;
+          const options = Array.from(s.options).map((o) => ({
+            value: (o.value || '').trim(),
+            text: (o.textContent || '').trim().toLowerCase(),
+          }));
+          const realOptions = options.filter((o) => {
+            if (!o.value || o.value === '0') return false;
+            if (/^(select|choose|loading)\b/.test(o.text)) return false;
+            if (o.text.includes('select artist')) return false;
+            return true;
+          });
+          return {
+            count: options.length,
+            realCount: realOptions.length,
+          };
+        });
+
+        return readiness.count >= 2 || readiness.realCount >= 1;
+      },
+      { timeout }
+    )
+    .toBe(true);
+
+  return select;
+}
+
 async function selectFirstRealOption(select: Locator) {
   await expect(select).toBeVisible();
   await expect(select).toBeEnabled();
@@ -19,6 +56,7 @@ async function selectFirstRealOption(select: Locator) {
     const v = (o.value || "").trim();
     const t = (o.text || "").trim().toLowerCase();
     if (!v || v === "0") return false;
+    if (/^(select|choose|loading)\b/.test(t)) return false;
     if (t.includes("select artist")) return false;
     return true;
   });
@@ -203,9 +241,7 @@ test.describe('Admin smoke', () => {
     await page.getByRole('link', { name: /create product/i }).click();
     await expect(page).toHaveURL(/\/partner\/admin\/products\/new/);
 
-    const artistSelect = page.getByTestId('admin-product-artist');
-    await expect(artistSelect).toBeVisible();
-    await expect(artistSelect).toBeEnabled();
+    const artistSelect = await waitForSelectReady(page, 'admin-product-artist');
     await selectFirstRealOption(artistSelect);
 
     await page.getByTestId('admin-product-merch-name').fill(uniqueTitle);
@@ -276,6 +312,25 @@ test.describe('Admin smoke', () => {
         { timeout: 15000 }
       )
       .toBe(true);
+  });
+
+  test('admin artists page shows featured column and toggle', async ({ page }) => {
+    test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
+    await loginAdmin(page);
+
+    await gotoApp(page, '/partner/admin/artists', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/partner\/admin\/artists/);
+
+    await expect(page.getByTestId('admin-artist-featured-header')).toBeVisible({ timeout: 15000 });
+
+    const featuredToggleByTestId = page.locator('[data-testid^="admin-artist-featured-toggle-"]').first();
+    const featuredToggle =
+      (await featuredToggleByTestId.count()) > 0
+        ? featuredToggleByTestId
+        : page.locator('table tbody input[type="checkbox"]').first();
+
+    await expect(featuredToggle).toBeVisible({ timeout: 15000 });
+    await expect(featuredToggle).toBeEnabled({ timeout: 15000 });
   });
 
 });

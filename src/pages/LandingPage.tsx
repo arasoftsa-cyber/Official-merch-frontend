@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchFeaturedDrops } from '../shared/api/appApi';
-import { API_BASE, apiFetch } from '../shared/api/http';
+import { apiFetch } from '../shared/api/http';
 import { resolveMediaUrl } from '../shared/utils/media';
 import PublicCardCover from '../components/public/PublicCardCover';
 
@@ -35,9 +35,7 @@ const mapArtist = (row: any): ArtistCard | null => {
   if (!handle) return null;
   const name = String(row?.name ?? row?.title ?? handle).trim();
   const profileCandidate = row?.profile_photo_url ?? row?.profilePhotoUrl ?? null;
-  const profilePhotoUrl = profileCandidate
-    ? resolveMediaUrl(profileCandidate, API_BASE)
-    : undefined;
+  const profilePhotoUrl = resolveMediaUrl(profileCandidate) ?? undefined;
   return { handle, name: name || handle, profilePhotoUrl };
 };
 

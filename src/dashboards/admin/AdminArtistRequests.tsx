@@ -4,6 +4,7 @@ import LoadingSkeleton from '../../components/ux/LoadingSkeleton';
 import { useToast } from '../../components/ux/ToastHost';
 import { apiFetch } from '../../shared/api/http';
 import { getAccessToken } from '../../shared/auth/tokenStore';
+import { resolveMediaUrl } from '../../shared/utils/media';
 import { Container, Page } from '../../ui/Page';
 
 const endpoint = '/api/admin/artist-access-requests';
@@ -142,13 +143,16 @@ export default function AdminArtistRequests() {
           phone,
           socials: normalizeSocials((item as any).socials ?? item.socials),
           aboutMe: String((item as any).about_me ?? item.aboutMe ?? (item as any).pitch ?? '').trim(),
-          profilePhotoUrl: String(
-            (item as any).profile_photo_url ??
-              (item as any).profile_photo_path ??
-              item.profilePhotoUrl ??
-              item.profilePhotoPath ??
-              ''
-          ).trim(),
+          profilePhotoUrl:
+            resolveMediaUrl(
+              String(
+                (item as any).profile_photo_url ??
+                  (item as any).profile_photo_path ??
+                  item.profilePhotoUrl ??
+                  item.profilePhotoPath ??
+                  ''
+              ).trim() || null
+            ) ?? '',
           messageForFans: String(
             (item as any).message_for_fans ?? item.messageForFans ?? (item as any).fan_message ?? ''
           ).trim(),

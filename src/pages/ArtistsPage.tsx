@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchJson } from '../shared/api';
-import { API_BASE } from '../shared/api/http';
 import { resolveMediaUrl } from '../shared/utils/media';
 import EmptyState from '../components/ux/EmptyState';
 import LoadingSkeleton from '../components/ux/LoadingSkeleton';
@@ -35,9 +34,10 @@ export default function ArtistsPage() {
           const name = value?.name ?? value?.title ?? handle;
           const profileCandidate =
             value?.profile_photo_url ?? value?.profilePhotoUrl ?? null;
-          const profilePhotoUrl = profileCandidate
-            ? resolveMediaUrl(profileCandidate, API_BASE)
-            : String(value?.coverUrl ?? '').trim();
+          const profilePhotoUrl =
+            resolveMediaUrl(profileCandidate) ??
+            resolveMediaUrl(value?.coverUrl) ??
+            '';
           if (!handle) return null;
           return { handle, name, profilePhotoUrl };
         })

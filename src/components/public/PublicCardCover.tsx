@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getArtistInitials } from '../../shared/utils/media';
+import { getArtistInitials, resolveMediaUrl } from '../../shared/utils/media';
 
 type PublicCardCoverProps = {
   title: string;
@@ -19,10 +19,11 @@ export default function PublicCardCover({
   className,
 }: PublicCardCoverProps) {
   const [hasImageError, setHasImageError] = useState(false);
+  const normalizedImageUrl = resolveMediaUrl(imageUrl);
 
   useEffect(() => {
     setHasImageError(false);
-  }, [imageUrl]);
+  }, [normalizedImageUrl]);
 
   const fallbackText = kind === 'drop' ? 'DROP' : getArtistInitials(title);
   const gradientClass =
@@ -35,9 +36,9 @@ export default function PublicCardCover({
       className={`relative overflow-hidden rounded-xl border border-white/10 ${className ?? 'aspect-[16/9] w-full'}`}
       aria-label={subtitle ? `${title} ${subtitle}` : title}
     >
-      {imageUrl && !hasImageError ? (
+      {normalizedImageUrl && !hasImageError ? (
         <img
-          src={imageUrl}
+          src={normalizedImageUrl}
           alt={imageAlt ?? title}
           loading="lazy"
           decoding="async"
