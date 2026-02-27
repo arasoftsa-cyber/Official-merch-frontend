@@ -18,6 +18,7 @@ type ProductCard = {
   id: string;
   title: string;
   subtitle?: string;
+  card_image_url: string;
 };
 
 type DropCard = {
@@ -34,6 +35,7 @@ export default function ArtistPage() {
 
   const [artist, setArtist] = useState<ArtistData | null>(null);
   const [products, setProducts] = useState<ProductCard[]>([]);
+  const [imageLoadFailedByProduct, setImageLoadFailedByProduct] = useState<Record<string, boolean>>({});
   const [activeDrop, setActiveDrop] = useState<DropCard | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -77,18 +79,33 @@ export default function ArtistPage() {
         ? productsData.products
         : [];
       const mappedProducts = rawProducts
-        .map((entry) => ({
-          id: entry?.id ?? entry?.productId ?? entry?.sku,
-          title: entry?.title ?? entry?.name ?? `Product ${(entry?.id ?? entry?.productId) ?? ''}`,
-          subtitle:
-            entry?.subtitle ??
-            entry?.artistName ??
-            entry?.artist?.name ??
-            artistPayload.artist.name ??
-            artistPayload.artist.handle ??
-            'OfficialMerch',
-        }))
+        .map((entry) => {
+          const cardImageUrl =
+            typeof entry?.card_image_url === 'string' ? entry.card_image_url.trim() : '';
+          return {
+            id: entry?.id ?? entry?.productId ?? entry?.sku,
+            title: entry?.title ?? entry?.name ?? `Product ${(entry?.id ?? entry?.productId) ?? ''}`,
+            subtitle:
+              entry?.subtitle ??
+              entry?.artistName ??
+              entry?.artist?.name ??
+              artistPayload.artist.name ??
+              artistPayload.artist.handle ??
+              'OfficialMerch',
+            card_image_url: cardImageUrl,
+          };
+        })
         .filter((item): item is ProductCard => Boolean(item.id));
+
+      if (import.meta.env.DEV) {
+        console.log(
+          '[artist page] product images',
+          mappedProducts.map((p: any) => ({
+            title: p.title || p.name,
+            card_image_url: p.card_image_url,
+          }))
+        );
+      }
 
       const dropsPayload = await fetchJson<{ items?: any[] }>('/drops/featured').catch(() => ({ items: [] }));
       const featuredDrops = Array.isArray(dropsPayload?.items) ? dropsPayload.items : [];
@@ -103,6 +120,7 @@ export default function ArtistPage() {
 
       setArtist(mappedArtist);
       setProducts(mappedProducts);
+      setImageLoadFailedByProduct({});
       setActiveDrop(
         artistDrop
           ? {
@@ -124,6 +142,7 @@ export default function ArtistPage() {
       setStatus('error');
       setArtist(null);
       setProducts([]);
+      setImageLoadFailedByProduct({});
       setActiveDrop(null);
     }
   }, [handle, navigate]);
@@ -257,23 +276,88 @@ export default function ArtistPage() {
               <Link
                 to={`/products/${product.id}`}
                 key={product.id}
+                className="group block h-full overflow-hidden rounded-xl border border-white/10 bg-[#1f1f1f] transition-all duration-200 hover:-translate-y-0.5 hover:border-white/30 hover:bg-[#252525] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111]"
                 style={{
-                  padding: '1rem',
                   borderRadius: 12,
-                  background: '#1f1f1f',
                   border: '1px solid rgba(255,255,255,0.1)',
                   textDecoration: 'none',
                   color: '#fff',
                   display: 'block',
                 }}
               >
-                <h3 style={{ margin: 0, fontSize: '1rem' }}>{product.title}</h3>
-                <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', opacity: 0.7 }}>
-                  {product.subtitle}
-                </p>
-                <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', opacity: 0.7 }}>
-                  View product
-                </p>
+                <div
+                  style={{
+                    aspectRatio: '4 / 3',
+                    width: '100%',
+                    overflow: 'hidden',
+                    borderBottom: '1px solid rgba(255,255,255,0.08)',
+                    background: '#171717',
+                  }}
+                >
+                  {product.card_image_url && !imageLoadFailedByProduct[product.id] ? (
+                    <img
+                      src={product.card_image_url}
+                      alt={`${product.title || 'Product'} image`}
+                      loading="lazy"
+                      decoding="async"
+                      onError={(event) => {
+                        event.currentTarget.onerror = null;
+                        setImageLoadFailedByProduct((prev) =>
+                          prev[product.id] ? prev : { ...prev, [product.id]: true }
+                        );
+                      }}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        display: 'block',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'rgba(255,255,255,0.65)',
+                        fontSize: '0.78rem',
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        background: 'linear-gradient(180deg, #222 0%, #181818 100%)',
+                      }}
+                    >
+                      No image
+                    </div>
+                  )}
+                </div>
+                <div style={{ padding: '0.85rem 1rem 0.95rem', minHeight: 76 }}>
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontSize: '0.98rem',
+                      lineHeight: 1.3,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {product.title}
+                  </h3>
+                  <p
+                    style={{
+                      margin: '0.45rem 0 0',
+                      fontSize: '0.82rem',
+                      opacity: 0.72,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {product.subtitle || 'View product'}
+                  </p>
+                </div>
               </Link>
             ))}
           </div>

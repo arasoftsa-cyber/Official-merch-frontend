@@ -34,6 +34,7 @@ import AdminProvisioningPage from '../pages/admin/AdminProvisioningPage';
 import AdminLeadsPage from '../pages/admin/AdminLeadsPage';
 import AdminArtistsPage from '../pages/admin/AdminArtistsPage';
 import AdminArtistDetailPage from '../pages/admin/AdminArtistDetailPage';
+import AdminArtistEditPage from '../pages/admin/AdminArtistEditPage';
 import BuyerOrdersPage from '../pages/buyer/BuyerOrdersPage';
 import BuyerOrderDetailPage from '../pages/buyer/BuyerOrderDetailPage';
 import BuyerLayout from '../pages/buyer/BuyerLayout';
@@ -1127,6 +1128,10 @@ function AppRoutes() {
         element={requireAuthElement(<AdminArtistDetailPage />)}
       />
       <Route
+        path="/partner/admin/artists/:id/edit"
+        element={requireAuthElement(<AdminArtistEditPage />)}
+      />
+      <Route
         path="/partner/admin/products"
         element={requireAuthElement(<AdminProductsPage />)}
       />
@@ -1231,6 +1236,14 @@ function AppRoutes() {
         element={
           <ParamsRedirect
             to={(params) => `/partner/admin/artists/${params.id ?? ''}`}
+          />
+        }
+      />
+      <Route
+        path="/admin/artists/:id/edit"
+        element={
+          <ParamsRedirect
+            to={(params) => `/partner/admin/artists/${params.id ?? ''}/edit`}
           />
         }
       />

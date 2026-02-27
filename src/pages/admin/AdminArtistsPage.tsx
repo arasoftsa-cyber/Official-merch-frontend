@@ -5,6 +5,7 @@ import ErrorBanner from '../../components/ux/ErrorBanner';
 import LoadingSkeleton from '../../components/ux/LoadingSkeleton';
 import DataTable, { TableColumn } from '../../components/ui/DataTable';
 import { apiFetch } from '../../shared/api/http';
+import AdminArtistEditModal from './AdminArtistEditModal';
 
 type AdminArtistRow = {
   id: string;
@@ -12,6 +13,27 @@ type AdminArtistRow = {
   handle: string;
   email: string;
   status: string;
+};
+
+const toText = (value: unknown) => String(value ?? '').trim();
+const withDash = (value: unknown) => {
+  const text = toText(value);
+  return text ? text : '-';
+};
+const normalizeHandle = (value: unknown) => {
+  const text = toText(value);
+  if (!text) return '-';
+  return text.startsWith('@') ? text : `@${text}`;
+};
+const normalizeStatusLabel = (value: unknown) => {
+  const raw = toText(value).toLowerCase();
+  if (!raw) return '-';
+  const mapped = raw === 'denied' ? 'rejected' : raw;
+  return mapped
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 };
 
 const normalizeRows = (payload: any): AdminArtistRow[] => {
@@ -22,10 +44,10 @@ const normalizeRows = (payload: any): AdminArtistRow[] => {
     : [];
   return items.map((item: any) => ({
     id: String(item?.id ?? ''),
-    name: String(item?.name ?? item?.artist_name ?? item?.artistName ?? 'Unknown'),
-    handle: String(item?.handle ?? ''),
-    email: String(item?.email ?? item?.contact_email ?? ''),
-    status: String(item?.status ?? 'active'),
+    name: toText(item?.name ?? item?.artist_name ?? item?.artistName),
+    handle: toText(item?.handle),
+    email: toText(item?.email ?? item?.contact_email),
+    status: toText(item?.status),
   }));
 };
 
@@ -34,7 +56,9 @@ export default function AdminArtistsPage() {
   const [rows, setRows] = useState<AdminArtistRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [endpointUnavailable, setEndpointUnavailable] = useState(false);
+  const [editingArtistId, setEditingArtistId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -62,12 +86,36 @@ export default function AdminArtistsPage() {
 
   const columns: TableColumn<AdminArtistRow>[] = useMemo(
     () => [
-      { header: 'Name', key: 'name' },
-      { header: 'Handle', render: (row) => (row.handle ? `@${row.handle}` : '-') },
-      { header: 'Email', key: 'email' },
-      { header: 'Status', key: 'status' },
+      { header: 'Name', render: (row) => withDash(row.name) },
+      { header: 'Handle', render: (row) => normalizeHandle(row.handle) },
+      { header: 'Email', render: (row) => withDash(row.email) },
+      { header: 'Status', render: (row) => normalizeStatusLabel(row.status) },
+      {
+        header: 'Actions',
+        render: (row) => (
+          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+            <Link
+              to={`/partner/admin/artists/${row.id}`}
+              onClick={(event) => event.stopPropagation()}
+              className="rounded-lg border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.25em] text-white"
+            >
+              View
+            </Link>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setEditingArtistId(row.id);
+              }}
+              className="rounded-lg border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.25em] text-white"
+            >
+              Edit
+            </button>
+          </div>
+        ),
+      },
     ],
-    []
+    [navigate]
   );
 
   return (
@@ -80,6 +128,11 @@ export default function AdminArtistsPage() {
 
       {loading && <LoadingSkeleton count={2} />}
       {error && <ErrorBanner message={error} onRetry={load} />}
+      {success && (
+        <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200">
+          {success}
+        </div>
+      )}
 
       {!loading && endpointUnavailable && (
         <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-300">
@@ -96,6 +149,16 @@ export default function AdminArtistsPage() {
           rowOnClick={(row) => navigate(`/partner/admin/artists/${row.id}`)}
         />
       )}
+
+      <AdminArtistEditModal
+        open={Boolean(editingArtistId)}
+        artistId={editingArtistId}
+        onClose={() => setEditingArtistId(null)}
+        onSaved={async () => {
+          setSuccess('Artist updated successfully.');
+          await load();
+        }}
+      />
     </AppShell>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchJson } from '../shared/api';
+import { API_BASE } from '../shared/api/http';
 import EmptyState from '../components/ux/EmptyState';
 import LoadingSkeleton from '../components/ux/LoadingSkeleton';
 import PublicCardCover from '../components/public/PublicCardCover';
@@ -8,8 +9,19 @@ import PublicCardCover from '../components/public/PublicCardCover';
 type ArtistRow = {
   handle: string;
   name: string;
-  coverUrl?: string;
+  profilePhotoUrl?: string;
 };
+
+function resolveMediaUrl(url: unknown): string {
+  const raw = String(url ?? '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  const base = String(API_BASE ?? '').trim().replace(/\/+$/, '');
+  const path = raw.replace(/^\/+/, '');
+  if (!base) return `/${path}`;
+  return `${base}/${path}`;
+}
 
 export default function ArtistsPage() {
   const [artists, setArtists] = useState<ArtistRow[]>([]);
@@ -31,9 +43,13 @@ export default function ArtistsPage() {
         .map((value) => {
           const handle = value?.handle ?? value?.artistHandle ?? value?.id;
           const name = value?.name ?? value?.title ?? handle;
-          const coverUrl = value?.coverUrl ?? null;
+          const profileCandidate =
+            value?.profile_photo_url ?? value?.profilePhotoUrl ?? null;
+          const profilePhotoUrl = profileCandidate
+            ? resolveMediaUrl(profileCandidate)
+            : String(value?.coverUrl ?? '').trim();
           if (!handle) return null;
-          return { handle, name, coverUrl };
+          return { handle, name, profilePhotoUrl };
         })
         .filter((item): item is ArtistRow => Boolean(item));
       if (mountedRef.current) {
@@ -93,9 +109,10 @@ export default function ArtistsPage() {
             <PublicCardCover
               title={artist.name}
               subtitle={artist.handle}
-              imageUrl={artist.coverUrl ?? undefined}
+              imageUrl={artist.profilePhotoUrl ?? undefined}
+              imageAlt={`${artist.name || 'Artist'} profile photo`}
               kind="artist"
-              className="h-32 w-full rounded-xl"
+              className="aspect-[4/3] w-full rounded-xl"
             />
             <div>
               <p className="text-lg font-semibold">{artist.name}</p>

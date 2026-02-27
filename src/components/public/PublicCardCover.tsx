@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 type PublicCardCoverProps = {
   title: string;
   subtitle?: string;
   imageUrl?: string;
+  imageAlt?: string;
   kind: 'artist' | 'drop';
   className?: string;
 };
@@ -22,9 +23,16 @@ export default function PublicCardCover({
   title,
   subtitle,
   imageUrl,
+  imageAlt,
   kind,
   className,
 }: PublicCardCoverProps) {
+  const [hasImageError, setHasImageError] = useState(false);
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [imageUrl]);
+
   const fallbackText = kind === 'drop' ? 'DROP' : getInitials(title);
   const gradientClass =
     kind === 'artist'
@@ -36,11 +44,13 @@ export default function PublicCardCover({
       className={`relative overflow-hidden rounded-xl border border-white/10 ${className ?? 'aspect-[16/9] w-full'}`}
       aria-label={subtitle ? `${title} ${subtitle}` : title}
     >
-      {imageUrl ? (
+      {imageUrl && !hasImageError ? (
         <img
           src={imageUrl}
-          alt={title}
+          alt={imageAlt ?? title}
           loading="lazy"
+          decoding="async"
+          onError={() => setHasImageError(true)}
           className="h-full w-full object-cover"
         />
       ) : (
