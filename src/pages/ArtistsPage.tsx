@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchJson } from '../shared/api';
 import { API_BASE } from '../shared/api/http';
+import { resolveMediaUrl } from '../shared/utils/media';
 import EmptyState from '../components/ux/EmptyState';
 import LoadingSkeleton from '../components/ux/LoadingSkeleton';
 import PublicCardCover from '../components/public/PublicCardCover';
@@ -11,17 +12,6 @@ type ArtistRow = {
   name: string;
   profilePhotoUrl?: string;
 };
-
-function resolveMediaUrl(url: unknown): string {
-  const raw = String(url ?? '').trim();
-  if (!raw) return '';
-  if (/^https?:\/\//i.test(raw)) return raw;
-
-  const base = String(API_BASE ?? '').trim().replace(/\/+$/, '');
-  const path = raw.replace(/^\/+/, '');
-  if (!base) return `/${path}`;
-  return `${base}/${path}`;
-}
 
 export default function ArtistsPage() {
   const [artists, setArtists] = useState<ArtistRow[]>([]);
@@ -46,7 +36,7 @@ export default function ArtistsPage() {
           const profileCandidate =
             value?.profile_photo_url ?? value?.profilePhotoUrl ?? null;
           const profilePhotoUrl = profileCandidate
-            ? resolveMediaUrl(profileCandidate)
+            ? resolveMediaUrl(profileCandidate, API_BASE)
             : String(value?.coverUrl ?? '').trim();
           if (!handle) return null;
           return { handle, name, profilePhotoUrl };

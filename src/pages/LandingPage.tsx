@@ -1,11 +1,14 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchFeaturedDrops } from '../shared/api/appApi';
-import { apiFetch } from '../shared/api/http';
+import { API_BASE, apiFetch } from '../shared/api/http';
+import { resolveMediaUrl } from '../shared/utils/media';
+import PublicCardCover from '../components/public/PublicCardCover';
 
 type ArtistCard = {
   handle: string;
   name: string;
+  profilePhotoUrl?: string;
 };
 
 type ArtistRowState = {
@@ -31,7 +34,11 @@ const mapArtist = (row: any): ArtistCard | null => {
   const handle = String(row?.handle ?? row?.artistHandle ?? row?.slug ?? row?.id ?? '').trim();
   if (!handle) return null;
   const name = String(row?.name ?? row?.title ?? handle).trim();
-  return { handle, name: name || handle };
+  const profileCandidate = row?.profile_photo_url ?? row?.profilePhotoUrl ?? null;
+  const profilePhotoUrl = profileCandidate
+    ? resolveMediaUrl(profileCandidate, API_BASE)
+    : undefined;
+  return { handle, name: name || handle, profilePhotoUrl };
 };
 
 const mapDrop = (row: any): DropCard | null => {
@@ -139,7 +146,7 @@ export default function LandingPage() {
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 5 }).map((_, index) => (
               <div key={`artist-skeleton-${index}`} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-                <div className="h-28 animate-pulse bg-white/10" />
+                <div className="h-32 animate-pulse bg-white/10" />
                 <div className="space-y-2 p-4">
                   <div className="h-4 w-3/4 animate-pulse rounded bg-white/10" />
                   <div className="h-3 w-1/2 animate-pulse rounded bg-white/10" />
@@ -176,9 +183,14 @@ export default function LandingPage() {
                 to={`/artists/${artist.handle}`}
                 className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 transition hover:border-white/30"
               >
-                <div className="flex h-28 items-center justify-center bg-white/10 text-xs font-bold uppercase tracking-[0.2em] text-slate-300">
-                  Artist
-                </div>
+                <PublicCardCover
+                  title={artist.name}
+                  subtitle={artist.handle}
+                  imageUrl={artist.profilePhotoUrl ?? undefined}
+                  imageAlt={`${artist.name || 'Artist'} profile photo`}
+                  kind="artist"
+                  className="h-32 w-full rounded-none"
+                />
                 <div className="space-y-1 p-4">
                   <p className="truncate text-sm font-semibold text-white">{artist.name}</p>
                   <p className="truncate text-xs text-slate-400">@{artist.handle}</p>
@@ -266,3 +278,4 @@ export default function LandingPage() {
     </section>
   );
 }
+

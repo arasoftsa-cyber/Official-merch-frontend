@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getArtistInitials } from '../../shared/utils/media';
 
 type PublicCardCoverProps = {
   title: string;
@@ -7,16 +8,6 @@ type PublicCardCoverProps = {
   imageAlt?: string;
   kind: 'artist' | 'drop';
   className?: string;
-};
-
-const getInitials = (value: string) => {
-  const words = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (!words.length) return '?';
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return `${words[0][0]}${words[1][0]}`.toUpperCase();
 };
 
 export default function PublicCardCover({
@@ -33,7 +24,7 @@ export default function PublicCardCover({
     setHasImageError(false);
   }, [imageUrl]);
 
-  const fallbackText = kind === 'drop' ? 'DROP' : getInitials(title);
+  const fallbackText = kind === 'drop' ? 'DROP' : getArtistInitials(title);
   const gradientClass =
     kind === 'artist'
       ? 'bg-gradient-to-br from-emerald-500/35 via-cyan-500/25 to-slate-700/40'
