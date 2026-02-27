@@ -109,6 +109,14 @@ export default function AdminProductVariants() {
       {!loading && (
         <>
           <div className="space-y-2">
+            <div className="mb-1 hidden gap-2 px-1 text-xs font-medium uppercase tracking-[0.12em] text-slate-300 md:grid md:grid-cols-6">
+              <div>SKU</div>
+              <div>Size</div>
+              <div>Color</div>
+              <div>Price</div>
+              <div>Stock</div>
+              <div>Actions</div>
+            </div>
             {variants.map((variant, index) => (
               <div key={`${variant.id || 'new'}-${index}`} className="grid gap-2 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-6">
                 <input

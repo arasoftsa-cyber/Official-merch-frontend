@@ -13,15 +13,13 @@ type Product = {
   title?: string;
   description?: string;
   artistId?: string;
+  artist_id?: string;
   isActive?: boolean;
   is_active?: boolean;
-  minVariantPriceCents?: number;
-  priceCents?: number;
-};
-
-const centsToDollars = (cents?: number) => {
-  if (typeof cents !== 'number' || !Number.isFinite(cents)) return '';
-  return (cents / 100).toFixed(2);
+  status?: string;
+  primaryPhotoUrl?: string;
+  listingPhotoUrl?: string;
+  listingPhotoUrls?: string[];
 };
 
 export default function AdminProductsPage() {
@@ -31,13 +29,6 @@ export default function AdminProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  const [createArtistId, setCreateArtistId] = useState('');
-  const [createTitle, setCreateTitle] = useState('');
-  const [createDescription, setCreateDescription] = useState('');
-  const [createPrice, setCreatePrice] = useState('19.99');
-  const [createStock, setCreateStock] = useState('10');
-  const [createActive, setCreateActive] = useState(true);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -67,9 +58,6 @@ export default function AdminProductsPage() {
 
       setProducts(productItems);
       setArtists(artistItems);
-      if (!createArtistId && artistItems.length > 0) {
-        setCreateArtistId(artistItems[0].id);
-      }
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load admin products');
     } finally {
@@ -89,41 +77,6 @@ export default function AdminProductsPage() {
     });
     return map;
   }, [artists]);
-
-  const submitCreate = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!createArtistId || !createTitle.trim()) {
-      setError('Artist and title are required.');
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    try {
-      await apiFetch('/admin/products', {
-        method: 'POST',
-        body: {
-          artistId: createArtistId,
-          title: createTitle.trim(),
-          description: createDescription.trim(),
-          price: createPrice,
-          stock: Number(createStock) || 0,
-          isActive: createActive,
-        },
-      });
-
-      setCreateTitle('');
-      setCreateDescription('');
-      setCreatePrice('19.99');
-      setCreateStock('10');
-      setCreateActive(true);
-      await load();
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to create product');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const openEditModal = (product: Product) => {
     setEditingProduct(product);
@@ -151,9 +104,9 @@ export default function AdminProductsPage() {
       await apiFetch(`/admin/products/${editingProduct.id}`, {
         method: 'PATCH',
         body: {
-        title: editTitle.trim(),
-        description: editDescription.trim(),
-        isActive: editActive,
+          title: editTitle.trim(),
+          description: editDescription.trim(),
+          isActive: editActive,
         },
       });
 
@@ -173,75 +126,28 @@ export default function AdminProductsPage() {
           <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Admin</p>
           <h1 className="text-2xl font-semibold text-white">Products</h1>
         </div>
-        <Link className="text-sm text-slate-300 underline" to="/partner/admin">
-          Back to dashboard
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/partner/admin/products/new"
+            className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white"
+          >
+            Create Product
+          </Link>
+          <Link className="text-sm text-slate-300 underline" to="/partner/admin">
+            Back to dashboard
+          </Link>
+        </div>
       </div>
 
       {error && <p className="text-sm text-rose-300">{error}</p>}
-
-      <form onSubmit={submitCreate} className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-6">
-        <select
-          data-testid="admin-product-artist-select"
-          value={createArtistId}
-          onChange={(e) => setCreateArtistId(e.target.value)}
-          className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white md:col-span-2"
-        >
-          <option value="">Select artist</option>
-          {artists.map((artist) => (
-            <option key={artist.id} value={artist.id}>
-              {artist.name || artist.handle || artist.id}
-            </option>
-          ))}
-        </select>
-        <input
-          value={createTitle}
-          onChange={(e) => setCreateTitle(e.target.value)}
-          placeholder="Title"
-          className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white md:col-span-2"
-        />
-        <input
-          value={createPrice}
-          onChange={(e) => setCreatePrice(e.target.value)}
-          placeholder="Price"
-          className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-        />
-        <input
-          value={createStock}
-          onChange={(e) => setCreateStock(e.target.value)}
-          placeholder="Stock"
-          className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-        />
-        <input
-          value={createDescription}
-          onChange={(e) => setCreateDescription(e.target.value)}
-          placeholder="Description"
-          className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white md:col-span-4"
-        />
-        <label className="flex items-center gap-2 text-sm text-slate-200">
-          <input
-            type="checkbox"
-            checked={createActive}
-            onChange={(e) => setCreateActive(e.target.checked)}
-          />
-          Active
-        </label>
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white disabled:opacity-50"
-        >
-          Create product
-        </button>
-      </form>
 
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
         <table className="w-full text-sm text-white">
           <thead>
             <tr className="border-b border-white/10 text-left text-xs uppercase tracking-[0.35em] text-slate-400">
+              <th className="px-4 py-3">Photo</th>
               <th className="px-4 py-3">Title</th>
               <th className="px-4 py-3">Artist</th>
-              <th className="px-4 py-3">Price</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
@@ -256,14 +162,35 @@ export default function AdminProductsPage() {
             )}
             {products.map((product) => {
               const active = Boolean(product.isActive ?? product.is_active);
-              const priceLabel = centsToDollars(product.minVariantPriceCents ?? product.priceCents);
+              const statusLabel =
+                typeof product.status === 'string' && product.status.trim().length > 0
+                  ? product.status.toLowerCase()
+                  : active
+                  ? 'active'
+                  : 'inactive';
+              const artistId = product.artistId || product.artist_id || '';
+              const thumbnail =
+                product.listingPhotoUrl ||
+                product.primaryPhotoUrl ||
+                (Array.isArray(product.listingPhotoUrls) ? product.listingPhotoUrls[0] : '');
+
               return (
                 <tr key={product.id} className="border-b border-white/5">
+                  <td className="px-4 py-3">
+                    {thumbnail ? (
+                      <img
+                        src={thumbnail}
+                        alt={`${product.title ?? 'Product'} thumbnail`}
+                        className="h-10 w-10 rounded-md border border-white/15 object-cover"
+                      />
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">{product.title ?? '-'}</td>
-                  <td className="px-4 py-3">{artistLabelById[product.artistId || ''] || product.artistId || '-'}</td>
-                  <td className="px-4 py-3">{priceLabel ? `$${priceLabel}` : '-'}</td>
-                  <td className="px-4 py-3">{active ? 'active' : 'inactive'}</td>
-                  <td className="px-4 py-3 text-right space-x-2">
+                  <td className="px-4 py-3">{artistLabelById[artistId] || artistId || '-'}</td>
+                  <td className="px-4 py-3">{statusLabel}</td>
+                  <td className="space-x-2 px-4 py-3 text-right">
                     <button
                       type="button"
                       onClick={() => openEditModal(product)}
@@ -288,7 +215,7 @@ export default function AdminProductsPage() {
 
       {isEditOpen && editingProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-slate-950/95 p-6 shadow-xl space-y-4">
+          <div className="w-full max-w-xl space-y-4 rounded-2xl border border-white/10 bg-slate-950/95 p-6 shadow-xl">
             <div className="flex items-center justify-between">
               <h2 className="text-lg text-white">Edit product</h2>
               <button

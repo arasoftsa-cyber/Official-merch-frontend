@@ -27,6 +27,7 @@ import { safeErrorMessage } from '../shared/utils/safeError';
 import AdminOrders from '../dashboards/admin/AdminOrders';
 import AdminArtistRequests from '../dashboards/admin/AdminArtistRequests';
 import AdminProductsPage from '../dashboards/admin/AdminProductsPage';
+import AdminCreateProductPage from '../dashboards/admin/AdminCreateProductPage';
 import AdminProductVariants from '../dashboards/admin/AdminProductVariants';
 import AdminDropsPage from '../dashboards/admin/AdminDropsPage';
 import AdminProvisioningPage from '../pages/admin/AdminProvisioningPage';
@@ -1128,6 +1129,10 @@ function AppRoutes() {
       <Route
         path="/partner/admin/products"
         element={requireAuthElement(<AdminProductsPage />)}
+      />
+      <Route
+        path="/partner/admin/products/new"
+        element={requireAuthElement(<AdminCreateProductPage />)}
       />
       <Route
         path="/partner/admin/drops"

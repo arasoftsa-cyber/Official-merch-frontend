@@ -27,6 +27,9 @@ type Product = {
   title?: string;
   description?: string;
   priceCents?: number;
+  primaryPhotoUrl?: string;
+  listingPhotoUrl?: string;
+  photos?: string[];
 };
 
 function asObject(value: unknown): Record<string, any> | null {
@@ -53,9 +56,47 @@ function resolveCents(source: Record<string, any> | null): number | null {
   return toCents(source.price);
 }
 
-function formatCurrency(cents: number | null | undefined) {
-  if (typeof cents !== 'number' || !Number.isFinite(cents)) return 'Price unavailable';
+function formatCurrency(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+function normalizeProductPhotos(
+  productSource: Record<string, any> | null,
+  root: Record<string, any>,
+  data: Record<string, any> | null
+): { photos: string[]; primaryPhotoUrl?: string } {
+  const fromProduct = Array.isArray(productSource?.photos)
+    ? productSource.photos
+    : Array.isArray(productSource?.photoUrls)
+    ? productSource.photoUrls
+    : Array.isArray(productSource?.listingPhotoUrls)
+    ? productSource.listingPhotoUrls
+    : [];
+  const fromPayload = Array.isArray(root?.photos)
+    ? root.photos
+    : Array.isArray(root?.photoUrls)
+    ? root.photoUrls
+    : Array.isArray(data?.photos)
+    ? data.photos
+    : Array.isArray(data?.photoUrls)
+    ? data.photoUrls
+    : [];
+
+  const photos = (fromProduct.length ? fromProduct : fromPayload).filter(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  );
+  const primaryPhotoUrl =
+    (typeof productSource?.primaryPhotoUrl === 'string' ? productSource.primaryPhotoUrl : '') ||
+    (typeof productSource?.listingPhotoUrl === 'string' ? productSource.listingPhotoUrl : '') ||
+    (typeof root?.primaryPhotoUrl === 'string' ? root.primaryPhotoUrl : '') ||
+    (typeof root?.listingPhotoUrl === 'string' ? root.listingPhotoUrl : '') ||
+    (typeof data?.primaryPhotoUrl === 'string' ? data.primaryPhotoUrl : '') ||
+    (typeof data?.listingPhotoUrl === 'string' ? data.listingPhotoUrl : '') ||
+    photos[0] ||
+    undefined;
+
+  const normalizedPhotos = photos.length > 0 ? photos : primaryPhotoUrl ? [primaryPhotoUrl] : [];
+  return { photos: normalizedPhotos, primaryPhotoUrl: primaryPhotoUrl || normalizedPhotos[0] };
 }
 
 function normalizeVariant(raw: any, index: number): Variant {
@@ -88,6 +129,7 @@ function normalizePayload(payload: any, fallbackId: string) {
     title: typeof productSource.title === 'string' ? productSource.title : undefined,
     description: typeof productSource.description === 'string' ? productSource.description : undefined,
     priceCents: resolveCents(productSource) ?? undefined,
+    ...normalizeProductPhotos(productSource, root, data),
   };
 
   const variantsSource = Array.isArray(productSource.variants)
@@ -119,6 +161,8 @@ export default function ProductDetail() {
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedColor, setSelectedColor] = useState<string>('');
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [mainImageLoadError, setMainImageLoadError] = useState(false);
 
   const hasVariants = variants.length > 0;
   const sizeOptions = useMemo(
@@ -150,7 +194,35 @@ export default function ProductDetail() {
 
   const hasValidVariantSelection = !hasVariants || Boolean(selectedVariant);
   const selectedVariantIdentifier = selectedVariant?.id ?? selectedVariant?.sku ?? null;
-  const displayPriceCents = selectedVariant?.priceCents ?? product?.priceCents ?? null;
+  const minimumVariantPriceCents = useMemo(() => {
+    const prices = variants
+      .map((variant) => variant.priceCents)
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    if (!prices.length) return null;
+    return Math.min(...prices);
+  }, [variants]);
+
+  const displayPriceCents =
+    selectedVariant?.priceCents ?? product?.priceCents ?? minimumVariantPriceCents ?? null;
+  const showPriceUnavailable = !hasVariants && (!displayPriceCents || displayPriceCents <= 0);
+  const displayPriceLabel = showPriceUnavailable
+    ? 'Price unavailable'
+    : formatCurrency(
+        typeof displayPriceCents === 'number' && Number.isFinite(displayPriceCents)
+          ? displayPriceCents
+          : 0
+      );
+  const photos = useMemo(() => {
+    const fromProduct = Array.isArray(product?.photos)
+      ? product?.photos
+      : [];
+    if (fromProduct.length > 0) return fromProduct.slice(0, 4);
+    if (product?.listingPhotoUrl) return [product.listingPhotoUrl];
+    if (product?.primaryPhotoUrl) return [product.primaryPhotoUrl];
+    return [];
+  }, [product?.photos, product?.listingPhotoUrl, product?.primaryPhotoUrl]);
+
+  const mainImageUrl = photos[activeIdx] || '';
 
   const selectedVariantLabel = useMemo(() => {
     if (!selectedVariant) return null;
@@ -226,6 +298,17 @@ export default function ProductDetail() {
       trackPageView('Product Detail');
     }
   }, [product]);
+
+  useEffect(() => {
+    setActiveIdx(0);
+  }, [id]);
+
+  useEffect(() => {
+    if (activeIdx >= photos.length) {
+      setActiveIdx(0);
+    }
+    setMainImageLoadError(false);
+  }, [activeIdx, photos]);
 
   const { addItem } = useCart();
   const [cartFeedback, setCartFeedback] = useState<string | null>(null);
@@ -364,8 +447,38 @@ export default function ProductDetail() {
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="om-card p-4">
             <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-900/40">
-              <div className="h-full w-full bg-gradient-to-b from-white/20 to-transparent" aria-hidden />
+              {mainImageUrl && !mainImageLoadError ? (
+                <img
+                  src={mainImageUrl}
+                  alt={product?.title || 'Product image'}
+                  className="h-full w-full object-cover"
+                  onError={() => setMainImageLoadError(true)}
+                />
+              ) : (
+                <div className="h-full w-full bg-gradient-to-b from-white/20 to-transparent" aria-hidden />
+              )}
             </div>
+            {photos.length > 0 && (
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {photos.slice(0, 4).map((photoUrl, idx) => (
+                  <button
+                    key={`${photoUrl}-${idx}`}
+                    type="button"
+                    onClick={() => setActiveIdx(idx)}
+                    className={`aspect-square overflow-hidden rounded-lg border ${
+                      idx === activeIdx ? 'border-white/60' : 'border-white/20'
+                    } bg-slate-900/40`}
+                    aria-label={`View product photo ${idx + 1}`}
+                  >
+                    <img
+                      src={photoUrl}
+                      alt={`Product thumbnail ${idx + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="om-muted mt-4 uppercase tracking-[0.4em]">Artist gallery</p>
           </div>
 
@@ -378,7 +491,7 @@ export default function ProductDetail() {
 
               {!isLoading && !isError && (
                 <div className="space-y-1">
-                  <p className="om-title text-3xl font-bold text-white">{formatCurrency(displayPriceCents)}</p>
+                  <p className="om-title text-3xl font-bold text-white">{displayPriceLabel}</p>
                   <p className="text-sm text-slate-300 leading-relaxed">
                     {selectedVariant?.size && `Size: ${selectedVariant.size}`}
                     {selectedVariant?.color && ` · Color: ${selectedVariant.color}`}

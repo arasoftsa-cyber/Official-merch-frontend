@@ -78,8 +78,21 @@ export async function apiFetch(
       payload?.error || payload?.message || `HTTP_${response.status}`;
     const error = new Error(message);
     (error as any).status = response.status;
+    (error as any).details = payload?.details;
+    (error as any).payload = payload;
     throw error;
   }
 
   return payload;
+}
+
+export async function apiFetchForm(
+  path: string,
+  formData: FormData,
+  options: Omit<RequestInit, 'body'> = {}
+): Promise<any> {
+  return apiFetch(path, {
+    ...options,
+    body: formData,
+  });
 }

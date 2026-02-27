@@ -1,34 +1,110 @@
 import { test, expect, Locator, Page } from '@playwright/test';
 import { ADMIN_EMAIL, ADMIN_PASSWORD, LABEL_EMAIL, LABEL_PASSWORD } from './_env';
 import { gotoApp, loginAdmin, loginLabel } from './helpers/auth';
+import path from 'path';
 
-const selectFirstArtistOption = async (selectLocator: Locator) => {
-  await expect
-    .poll(async () => selectLocator.locator('option').count(), { timeout: 8000 })
-    .toBeGreaterThan(1);
+async function selectFirstRealOption(select: Locator) {
+  await expect(select).toBeVisible();
+  await expect(select).toBeEnabled();
 
-  const options = await selectLocator.locator('option').evaluateAll((nodes) =>
-    nodes.map((node, index) => ({
-      index,
-      value: (node as HTMLOptionElement).value?.trim() ?? '',
-      text: (node.textContent ?? '').trim(),
-    }))
-  );
-  const firstSelectable = options.find(
-    (option) =>
-      option.index > 0 &&
-      option.value.length > 0 &&
-      !/select|choose|loading/i.test(option.text)
-  );
-  if (!firstSelectable) {
-    const dump = options
-      .map((option) => `[index=${option.index} value="${option.value}" text="${option.text}"]`)
-      .join(', ');
-    throw new Error(
-      `No artists available in dropdown. Observed options: ${dump || '<none>'}`
-    );
+  const options = await select.evaluate((el) => {
+    const s = el as HTMLSelectElement;
+    return Array.from(s.options).map((o) => ({
+      value: o.value,
+      text: (o.textContent || "").trim(),
+    }));
+  });
+
+  const pick = options.find((o) => {
+    const v = (o.value || "").trim();
+    const t = (o.text || "").trim().toLowerCase();
+    if (!v || v === "0") return false;
+    if (t.includes("select artist")) return false;
+    return true;
+  });
+
+  if (!pick) throw new Error("No selectable Artist options found (only placeholder).");
+
+  await select.selectOption({ value: pick.value });
+
+  const selectedValue = await select.inputValue();
+  if (!selectedValue || selectedValue === "0") {
+    throw new Error(`Artist select did not change value (still '${selectedValue}')`);
   }
-  await selectLocator.selectOption(firstSelectable.value);
+};
+
+const fillIfEmpty = async (input: Locator, value: string) => {
+  const current = (await input.inputValue().catch(() => '')).trim();
+  if (!current) {
+    await input.fill(value);
+  }
+};
+
+const selectMerchTypeTshirt = async (page: Page) => {
+  const merchType = page.getByTestId('admin-product-merch-type');
+  await expect(merchType).toBeVisible({ timeout: 10000 });
+
+  const merchTypeTag = await merchType
+    .evaluate((el) => (el as HTMLElement).tagName.toLowerCase())
+    .catch(() => '');
+
+  if (merchTypeTag === 'select') {
+    const optionMatch = await merchType.locator('option').evaluateAll((nodes) => {
+      const normalized = (value: string) => value.toLowerCase().replace(/[\s_-]+/g, '');
+      const found = nodes
+        .map((node, index) => ({
+          index,
+          value: (node as HTMLOptionElement).value?.trim() ?? '',
+          text: (node.textContent ?? '').trim(),
+        }))
+        .find((entry) => /t[\s_-]*shirt/i.test(entry.text) || normalized(entry.value) === 'tshirt');
+      return found || null;
+    });
+    if (optionMatch?.value) {
+      await merchType.selectOption(optionMatch.value);
+    } else {
+      const fallbacks = ['tshirt', 't_shirt', 't-shirt'];
+      let selected = false;
+      for (const value of fallbacks) {
+        try {
+          await merchType.selectOption(value);
+          selected = true;
+          break;
+        } catch (_err) {
+          // try next fallback
+        }
+      }
+      if (!selected) {
+        await merchType.selectOption({ index: 0 });
+      }
+    }
+    await expect
+      .poll(async () => (await merchType.inputValue()).toLowerCase(), { timeout: 5000 })
+      .toMatch(/t[\s_-]*shirt/i);
+    return;
+  }
+
+  await merchType.click();
+  const tshirtOption = page.getByRole('option', { name: /t[\s_-]*shirt/i }).first();
+  if ((await tshirtOption.count().catch(() => 0)) > 0) {
+    await expect(tshirtOption).toBeVisible({ timeout: 5000 });
+    await tshirtOption.click();
+  } else {
+    const tshirtTextOption = page.locator('[role="listbox"]').getByText(/t[\s_-]*shirt/i).first();
+    await expect(tshirtTextOption).toBeVisible({ timeout: 5000 });
+    await tshirtTextOption.click();
+  }
+
+  await expect
+    .poll(
+      async () => {
+        const value = await merchType.inputValue().catch(() => '');
+        const text = ((await merchType.textContent().catch(() => '')) || '').trim();
+        return `${value} ${text}`;
+      },
+      { timeout: 5000 }
+    )
+    .toMatch(/t[\s_-]*shirt/i);
 };
 
 const findRowByTextWithRetry = async (
@@ -55,10 +131,13 @@ const findRowByTextWithRetry = async (
 
 const applySearchIfPresent = async (page: Page, text: string) => {
   if (/\/partner\/admin\/products(?:\/|$)/i.test(page.url())) {
-    const createBtn = page.getByRole('button', { name: /create product/i });
-    await expect(createBtn).toBeVisible();
+    const createButton = page.getByRole('button', { name: /create product/i });
+    const createLink = page.getByRole('link', { name: /create product/i });
+    const createAction =
+      (await createButton.count().catch(() => 0)) > 0 ? createButton.first() : createLink.first();
+    await expect(createAction).toBeVisible();
 
-    const filterBar = createBtn.locator('..').locator('..');
+    const filterBar = createAction.first().locator('..').locator('..');
     const preferredInBar = [
       filterBar.getByPlaceholder(/title/i).first(),
       filterBar.getByPlaceholder(/search/i).first(),
@@ -121,16 +200,37 @@ test.describe('Admin smoke', () => {
     await expect(page).toHaveURL(/\/partner\/admin\/products/);
 
     const uniqueTitle = `Smoke Admin Product ${Date.now()}`;
-    const productArtistSelect = page.getByTestId('admin-product-artist-select');
-    await expect(productArtistSelect).toBeVisible({ timeout: 10000 });
-    await selectFirstArtistOption(productArtistSelect);
+    await page.getByRole('link', { name: /create product/i }).click();
+    await expect(page).toHaveURL(/\/partner\/admin\/products\/new/);
 
-    await page.getByPlaceholder('Title').fill(uniqueTitle);
-    await page.getByPlaceholder('Description').fill('Created by admin smoke');
-    await page.getByPlaceholder('Price').fill('29.99');
-    await page.getByPlaceholder('Stock').fill('12');
+    const artistSelect = page.getByTestId('admin-product-artist');
+    await expect(artistSelect).toBeVisible();
+    await expect(artistSelect).toBeEnabled();
+    await selectFirstRealOption(artistSelect);
 
-    await page.getByRole('button', { name: /create product/i }).click();
+    await page.getByTestId('admin-product-merch-name').fill(uniqueTitle);
+    await page.getByLabel(/^Merch Story$/i).fill('Created by admin smoke with listing photos');
+    const vendorPayInput = page.getByTestId('admin-product-vendor-pay');
+    const ourShareInput = page.getByTestId('admin-product-our-share');
+    const royaltyInput = page.getByTestId('admin-product-royalty');
+    await fillIfEmpty(vendorPayInput, '1');
+    await fillIfEmpty(ourShareInput, '1');
+    await fillIfEmpty(royaltyInput, '1');
+    await selectMerchTypeTshirt(page);
+
+    const fixturesDir = path.resolve(__dirname, 'fixtures');
+    const photoFiles = [
+      path.join(fixturesDir, 'listing-photo-1.png'),
+      path.join(fixturesDir, 'listing-photo-2.png'),
+      path.join(fixturesDir, 'listing-photo-3.png'),
+      path.join(fixturesDir, 'listing-photo-4.png'),
+    ];
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles(photoFiles);
+
+    await page.getByRole('button', { name: /^Create Product$/i }).click();
+    await expect(page).toHaveURL(/\/partner\/admin\/products$/, { timeout: 15000 });
     await page.reload({ waitUntil: 'domcontentloaded' });
     const createdRow = await findRowByTextWithRetry(page, uniqueTitle, {
       attempts: 6,
