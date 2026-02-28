@@ -47,6 +47,7 @@ export default function ProductCardPublic({ product, href, onClick }: ProductCar
         textDecoration: 'none',
         color: '#fff',
         display: 'block',
+        minHeight: 320,
       }}
     >
       <div
@@ -94,15 +95,17 @@ export default function ProductCardPublic({ product, href, onClick }: ProductCar
           </div>
         )}
       </div>
-      <div style={{ padding: '0.85rem 1rem 0.95rem', minHeight: 76 }}>
+      <div style={{ padding: '0.85rem 1rem 0.95rem', minHeight: 104 }}>
         <h3
           style={{
             margin: 0,
             fontSize: '0.98rem',
             lineHeight: 1.3,
-            whiteSpace: 'nowrap',
+            minHeight: '2.6em',
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
           }}
         >
           {product.title}
@@ -112,9 +115,11 @@ export default function ProductCardPublic({ product, href, onClick }: ProductCar
             margin: '0.45rem 0 0',
             fontSize: '0.82rem',
             opacity: 0.72,
-            whiteSpace: 'nowrap',
+            minHeight: '2.4em',
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
           }}
         >
           {product.subtitle || 'View product'}

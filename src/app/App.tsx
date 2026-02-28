@@ -35,6 +35,7 @@ import AdminLeadsPage from '../pages/admin/AdminLeadsPage';
 import AdminArtistsPage from '../pages/admin/AdminArtistsPage';
 import AdminArtistDetailPage from '../pages/admin/AdminArtistDetailPage';
 import AdminArtistEditPage from '../pages/admin/AdminArtistEditPage';
+import AdminHomepageBannersPage from '../pages/admin/AdminHomepageBannersPage';
 import BuyerOrdersPage from '../pages/buyer/BuyerOrdersPage';
 import BuyerOrderDetailPage from '../pages/buyer/BuyerOrderDetailPage';
 import BuyerLayout from '../pages/buyer/BuyerLayout';
@@ -1144,6 +1145,10 @@ function AppRoutes() {
         element={requireAuthElement(<AdminDropsPage />)}
       />
       <Route
+        path="/partner/admin/homepage-banners"
+        element={requireAuthElement(<AdminHomepageBannersPage />)}
+      />
+      <Route
         path="/partner/admin/products/:id/variants"
         element={requireAuthElement(<AdminProductVariants />)}
       />
@@ -1250,6 +1255,10 @@ function AppRoutes() {
       <Route
         path="/admin/products"
         element={<LegacyRedirect to="/partner/admin/products" />}
+      />
+      <Route
+        path="/admin/homepage-banners"
+        element={<LegacyRedirect to="/partner/admin/homepage-banners" />}
       />
       <Route
         path="/admin/products/:id/variants"

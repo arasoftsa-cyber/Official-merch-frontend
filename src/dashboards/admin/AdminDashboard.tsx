@@ -204,6 +204,12 @@ export default function AdminDashboard() {
           <KpiCard label="DROPS" value="â€”" hint="Manage drop campaigns" />
         </Link>
         <Link
+          to="/partner/admin/homepage-banners"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 cursor-pointer rounded-2xl transition"
+        >
+          <KpiCard label="HOMEPAGE" value="-" hint="Manage hero banners" />
+        </Link>
+        <Link
           to="/admin/provisioning"
           className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 cursor-pointer rounded-2xl transition"
         >

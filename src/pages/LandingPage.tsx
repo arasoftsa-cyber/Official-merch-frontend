@@ -4,6 +4,7 @@ import { fetchFeaturedDrops } from '../shared/api/appApi';
 import { apiFetch } from '../shared/api/http';
 import { resolveMediaUrl } from '../shared/utils/media';
 import PublicCardCover from '../components/public/PublicCardCover';
+import HeroBackgroundCarousel from '../components/HeroBackgroundCarousel';
 
 type ArtistCard = {
   handle: string;
@@ -29,6 +30,8 @@ type DropRowState = {
   items: DropCard[];
   error: string | null;
 };
+
+const DEFAULT_HERO_IMAGES = ['/hero/hero-1.jpg', '/hero/hero-2.jpg', '/hero/hero-3.jpg'];
 
 const mapArtist = (row: any): ArtistCard | null => {
   const handle = String(row?.handle ?? row?.artistHandle ?? row?.slug ?? row?.id ?? '').trim();
@@ -58,6 +61,14 @@ const mapDrop = (row: any): DropCard | null => {
   };
 };
 
+const preloadImage = (url: string): Promise<boolean> =>
+  new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(true);
+    image.onerror = () => resolve(false);
+    image.src = url;
+  });
+
 export default function LandingPage() {
   const [artistsRow, setArtistsRow] = useState<ArtistRowState>({
     status: 'loading',
@@ -69,6 +80,7 @@ export default function LandingPage() {
     items: [],
     error: null,
   });
+  const [heroImages, setHeroImages] = useState<string[]>(DEFAULT_HERO_IMAGES);
 
   const loadFeaturedArtists = useCallback(async () => {
     setArtistsRow({ status: 'loading', items: [], error: null });
@@ -105,37 +117,66 @@ export default function LandingPage() {
     }
   }, []);
 
+  const loadHomepageBanners = useCallback(async () => {
+    try {
+      const payload = await apiFetch('/homepage/banners');
+      const banners = Array.isArray(payload?.banners) ? payload.banners : [];
+      const candidateUrls = banners
+        .map((banner: any) => resolveMediaUrl(String(banner?.public_url ?? '').trim()))
+        .filter((url): url is string => Boolean(url));
+
+      if (candidateUrls.length === 0) {
+        setHeroImages(DEFAULT_HERO_IMAGES);
+        return;
+      }
+
+      const preloaded = await Promise.all(candidateUrls.map((url) => preloadImage(url)));
+      const validUrls = candidateUrls.filter((_, index) => preloaded[index]);
+      setHeroImages(validUrls.length > 0 ? validUrls : DEFAULT_HERO_IMAGES);
+    } catch (_error) {
+      setHeroImages(DEFAULT_HERO_IMAGES);
+    }
+  }, []);
+
   useEffect(() => {
-    void Promise.all([loadFeaturedArtists(), loadFeaturedDrops()]);
-  }, [loadFeaturedArtists, loadFeaturedDrops]);
+    void Promise.all([loadFeaturedArtists(), loadFeaturedDrops(), loadHomepageBanners()]);
+  }, [loadFeaturedArtists, loadFeaturedDrops, loadHomepageBanners]);
 
   return (
     <section className="py-8">
-      <div className="mx-auto max-w-[820px] space-y-4">
-        <p className="text-xs uppercase tracking-[0.25em] text-slate-400">OfficialMerch Public Release</p>
-        <h1 className="text-4xl font-semibold leading-tight text-white">
-          Limited drops curated with maker-first intent
-        </h1>
-        <p className="text-base text-slate-300">
-          Discover artists across genres, preview upcoming drops, and support creators through high-contrast merch experiences.
-        </p>
-        <div className="flex flex-wrap gap-3 pt-2">
-          <Link
-            to="/products"
-            className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-xs font-bold uppercase tracking-[0.12em] text-black"
-            aria-label="Browse featured products"
-          >
-            Browse Products
-          </Link>
-          <Link
-            to="/apply/artist"
-            className="inline-flex items-center justify-center rounded-full border border-white/60 px-6 py-3 text-xs font-bold uppercase tracking-[0.12em] text-white"
-            aria-label="Apply to join OfficialMerch"
-          >
-            Apply as Artist
-          </Link>
+      <section className="relative isolate overflow-hidden rounded-3xl">
+        <HeroBackgroundCarousel
+          images={heroImages}
+          intervalMs={5000}
+        />
+        <div className="relative z-10">
+          <div className="mx-auto max-w-[820px] space-y-4 px-4 py-12 sm:px-6 md:py-16">
+            <p className="text-xs uppercase tracking-[0.25em] text-slate-400">OfficialMerch Public Release</p>
+            <h1 className="text-4xl font-semibold leading-tight text-white">
+              Limited drops curated with maker-first intent
+            </h1>
+            <p className="text-base text-slate-300">
+              Discover artists across genres, preview upcoming drops, and support creators through high-contrast merch experiences.
+            </p>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <Link
+                to="/products"
+                className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-xs font-bold uppercase tracking-[0.12em] text-black"
+                aria-label="Browse featured products"
+              >
+                Browse Products
+              </Link>
+              <Link
+                to="/apply/artist"
+                className="inline-flex items-center justify-center rounded-full border border-white/60 px-6 py-3 text-xs font-bold uppercase tracking-[0.12em] text-white"
+                aria-label="Apply to join OfficialMerch"
+              >
+                Apply as Artist
+              </Link>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
       <div className="mt-12">
         <h2 className="text-2xl font-semibold text-white">Featured Artists</h2>

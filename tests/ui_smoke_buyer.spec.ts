@@ -1,9 +1,133 @@
 import { test, expect, Page, APIRequestContext, request as playwrightRequest } from '@playwright/test';
+import { spawnSync } from 'child_process';
+import * as path from 'path';
 import { ADMIN_EMAIL, ADMIN_PASSWORD, BUYER_EMAIL, BUYER_PASSWORD } from './_env';
 import { gotoApp, loginBuyer, loginFanWithCredentials } from './helpers/auth';
 import { getApiUrl } from './helpers/urls';
 
 const PRODUCT_CARD_SELECTORS = ['article[role="button"]', '[data-testid*="product"]', '[data-testid*="card"]'];
+const DEFAULT_SMOKE_DROP_HANDLE = 'seed-drop';
+const FALLBACK_SMOKE_DROP_HANDLE = 'ui-smoke-featured-drop';
+const DEV_SEED_ENDPOINTS = [
+  '/api/dev/seed-ui-smoke',
+  '/api/dev/seed-smoke-drop-quiz',
+  '/api/dev/seed_smoke_drop_quiz',
+  '/api/dev/seed-smoke',
+];
+
+const getHandleFromPayload = (payload: any): string | null => {
+  const candidates = [
+    payload?.drop?.handle,
+    payload?.handle,
+    payload?.updatedHandle,
+    payload?.row?.handle,
+    payload?.dropHandle,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+  return null;
+};
+
+const ensureSmokeDropQuiz = async (request: APIRequestContext): Promise<string> => {
+  let seededHandle: string | null = null;
+  let hasDevSeedSuccess = false;
+
+  for (const endpoint of DEV_SEED_ENDPOINTS) {
+    const response = await request.post(getApiUrl(endpoint), { failOnStatusCode: false });
+    const status = response.status();
+    const bodyText = await response.text().catch(() => '');
+
+    if (status >= 200 && status < 300) {
+      hasDevSeedSuccess = true;
+      try {
+        const payload = bodyText ? JSON.parse(bodyText) : null;
+        seededHandle = getHandleFromPayload(payload) || seededHandle;
+      } catch {
+        // Ignore non-JSON body from successful seed endpoint.
+      }
+      break;
+    }
+
+    if (status === 404) {
+      continue;
+    }
+
+    throw new Error(
+      `Smoke drop seed endpoint failed: POST ${endpoint} returned ${status}. body=${bodyText}`
+    );
+  }
+
+  if (!hasDevSeedSuccess) {
+    const backendDir = path.resolve(process.cwd(), '..', 'Official-merch-backend');
+    const seedResult = spawnSync('node', ['scripts/seed_smoke_drop_quiz.js'], {
+      cwd: backendDir,
+      encoding: 'utf8',
+    });
+    const stdout = String(seedResult.stdout || '').trim();
+    const stderr = String(seedResult.stderr || '').trim();
+
+    if (seedResult.error) {
+      throw new Error(
+        `Failed to run seed_smoke_drop_quiz.js: ${seedResult.error.message}\nstdout:\n${stdout}\nstderr:\n${stderr}`
+      );
+    }
+
+    if (seedResult.status !== 0) {
+      throw new Error(
+        `seed_smoke_drop_quiz.js exited with code ${seedResult.status}\nstdout:\n${stdout}\nstderr:\n${stderr}`
+      );
+    }
+
+    const handleMatch = stdout.match(/"updatedHandle"\s*:\s*"([^"]+)"/i);
+    if (handleMatch?.[1]) {
+      seededHandle = handleMatch[1];
+    }
+  }
+
+  const handleCandidates = Array.from(
+    new Set(
+      [seededHandle, DEFAULT_SMOKE_DROP_HANDLE, FALLBACK_SMOKE_DROP_HANDLE].filter(
+        (value): value is string => typeof value === 'string' && value.trim().length > 0
+      )
+    )
+  );
+  let resolvedHandle: string | null = null;
+
+  await expect
+    .poll(
+      async () => {
+        for (const handle of handleCandidates) {
+          const dropResponse = await request.get(getApiUrl(`/api/drops/${handle}`), {
+            failOnStatusCode: false,
+          });
+          if (dropResponse.status() !== 200) {
+            continue;
+          }
+
+          const payload = await dropResponse.json().catch(() => ({} as any));
+          const drop = payload?.drop || payload || {};
+          const quiz = drop?.quiz_json ?? drop?.quizJson ?? null;
+          const hasQuizTitle = String(quiz?.title || '').trim() === 'Smoke Drop Quiz';
+          const hasQuizJson = quiz != null;
+          if (hasQuizTitle || hasQuizJson) {
+            resolvedHandle = handle;
+            return 'ready';
+          }
+
+          return `drop_found_without_quiz_${handle}`;
+        }
+
+        return `drop_not_ready_${handleCandidates.join('|')}`;
+      },
+      { timeout: 15000, intervals: [500, 1000, 1500] }
+    )
+    .toBe('ready');
+
+  return resolvedHandle || seededHandle || DEFAULT_SMOKE_DROP_HANDLE;
+};
 
 const getProductTitleFromDetail = async (page: Page): Promise<string> => {
   const waitForDetailApi = async () => {
@@ -242,20 +366,39 @@ test.describe('Buyer smoke', () => {
     ).toBeVisible({ timeout: 15000 });
   });
 
-  test('public drop quiz lead submission works end-to-end', async ({ page }) => {
+  test('public drop quiz lead submission works end-to-end', async ({ page, request }) => {
     const uniqueLeadEmail = `smoke.lead.${Date.now()}@example.invalid`;
+    const dropHandle = await ensureSmokeDropQuiz(request);
 
-    await gotoApp(page, '/', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /featured drops/i })).toBeVisible({
+    const dropDetailsResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        /\/api\/drops\/[^/?#]+$/i.test(response.url()) &&
+        !/\/api\/drops\/featured(?:[/?#]|$)/i.test(response.url()) &&
+        [200, 304].includes(response.status()),
+      { timeout: 15000 }
+    );
+    await gotoApp(page, `/drops/${dropHandle}`, { waitUntil: 'domcontentloaded' });
+    await dropDetailsResponse;
+    await expect(page).toHaveURL(new RegExp(`/drops/${dropHandle}(?:[/?#]|$)`), {
       timeout: 15000,
     });
 
-    const featuredDropLink = page.getByRole('link', { name: /view drop|play quiz/i }).first();
-    if (!(await featuredDropLink.isVisible().catch(() => false))) {
-      test.skip(true, 'No featured drop link available; DB has no featured drops');
-    }
-    await featuredDropLink.click();
-    await expect(page).toHaveURL(/\/drops\/[^/?#]+$/, { timeout: 15000 });
+    await expect
+      .poll(
+        async () => {
+          const hasStartQuiz = await page
+            .getByRole('button', { name: /start quiz/i })
+            .first()
+            .isVisible()
+            .catch(() => false);
+          const hasQuizFields = (await page.locator('input[type="radio"][name]').count()) > 0;
+          const hasLeadFields = await page.getByLabel(/^name$/i).first().isVisible().catch(() => false);
+          return hasStartQuiz || hasQuizFields || hasLeadFields;
+        },
+        { timeout: 15000 }
+      )
+      .toBe(true);
 
     const startQuizButton = page.getByRole('button', { name: /start quiz/i }).first();
     if (await startQuizButton.isVisible().catch(() => false)) {
@@ -297,7 +440,15 @@ test.describe('Buyer smoke', () => {
 
     const submitButton = page.getByRole('button', { name: /^submit$/i }).first();
     await expect(submitButton).toBeVisible({ timeout: 10000 });
+    const submitLeadResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/leads(?:[/?#]|$)/i.test(response.url()) &&
+        [200, 201].includes(response.status()),
+      { timeout: 10000 }
+    );
     await submitButton.click();
+    await submitLeadResponse;
 
     await expect(page.getByText('We will contact you if you win.').first()).toBeVisible({
       timeout: 10000,

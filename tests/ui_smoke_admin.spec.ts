@@ -275,6 +275,7 @@ test.describe('Admin smoke', () => {
     await createdRow.getByRole('button', { name: /variants/i }).click();
     await expect(page).toHaveURL(/\/partner\/admin\/products\/.+\/variants/);
     const productId = page.url().match(/\/partner\/admin\/products\/([^/]+)\/variants/)?.[1] ?? '';
+    expect(productId, `Missing productId in variants URL: ${page.url()}`).toBeTruthy();
 
     const sku = `ADM-${Date.now()}`;
     await page.getByRole('button', { name: /add variant/i }).click();
@@ -286,32 +287,60 @@ test.describe('Admin smoke', () => {
     const stockInput = page.getByPlaceholder('Stock').last();
 
     await skuInput.fill(sku);
-    await sizeInput.fill('L');
-    await colorInput.fill('Black');
-    await priceInput.fill('2999');
-    await stockInput.fill('20');
+    await sizeInput.fill('M');
+    await colorInput.fill('black');
+    await priceInput.fill('400');
+    await stockInput.fill('3');
 
     await page.getByRole('button', { name: /save variants/i }).click();
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect
       .poll(
         async () => {
-          // SKU is rendered as an <input value="...">, so getByText() will not work.
-          const skuInput = page.locator(`input[value="${sku}"]`).first();
-          if (await skuInput.count()) return await skuInput.isVisible();
+          const skuInputs = page.locator('[data-testid="admin-variant-sku-input"], input[placeholder="SKU"]');
+          const sizeInputs = page.locator('[data-testid="admin-variant-size-input"], input[placeholder="Size"]');
+          const colorInputs = page.locator('[data-testid="admin-variant-color-input"], input[placeholder="Color"]');
+          const priceInputs = page.locator(
+            '[data-testid="admin-variant-price-input"], input[placeholder="Price cents"]'
+          );
+          const stockInputs = page.locator('[data-testid="admin-variant-stock-input"], input[placeholder="Stock"]');
 
-          // Fallback: check any input currently contains sku substring (some UIs may trim/format)
-          const anySkuLike = page.locator('input').filter({ hasText: '' }); // keep as inputs only
-          const n = await anySkuLike.count();
-          for (let i = 0; i < Math.min(n, 30); i++) {
-            const v = await anySkuLike.nth(i).inputValue().catch(() => '');
-            if (v && v.includes(sku)) return true;
+          const rowCount = Math.min(
+            await skuInputs.count(),
+            await sizeInputs.count(),
+            await colorInputs.count(),
+            await priceInputs.count(),
+            await stockInputs.count()
+          );
+          if (rowCount < 1) return false;
+
+          for (let index = 0; index < rowCount; index += 1) {
+            const skuValue = (await skuInputs.nth(index).inputValue().catch(() => '')).trim();
+            const sizeValue = (await sizeInputs.nth(index).inputValue().catch(() => '')).trim();
+            const colorValue = (await colorInputs.nth(index).inputValue().catch(() => '')).trim().toLowerCase();
+            const priceValue = (await priceInputs.nth(index).inputValue().catch(() => '')).trim();
+            const stockValue = (await stockInputs.nth(index).inputValue().catch(() => '')).trim();
+
+            if (
+              skuValue.length > 0 &&
+              sizeValue === 'M' &&
+              colorValue === 'black' &&
+              priceValue === '400' &&
+              stockValue === '3'
+            ) {
+              return true;
+            }
           }
+
           return false;
         },
-        { timeout: 15000 }
+        { timeout: 20000 }
       )
       .toBe(true);
+
+    const persistedVariantRowSkuInput = page.getByPlaceholder('SKU').first();
+    await expect(persistedVariantRowSkuInput).toBeVisible({ timeout: 10000 });
+    await expect(persistedVariantRowSkuInput).toBeEnabled({ timeout: 10000 });
   });
 
   test('admin artists page shows featured column and toggle', async ({ page }) => {
