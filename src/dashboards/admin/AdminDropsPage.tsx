@@ -2,9 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import AppShell from '../../components/layout/AppShell';
 import ErrorBanner from '../../components/ux/ErrorBanner';
 import LoadingSkeleton from '../../components/ux/LoadingSkeleton';
-import { apiFetch } from '../../shared/api/http';
+import { apiFetch, apiFetchForm } from '../../shared/api/http';
 
 const ADMIN_DROPS_BASE = '/api/admin/drops';
+const PARTNER_ADMIN_DROPS_BASE = '/api/partner/admin/drops';
+const MAX_HERO_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_HERO_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 type AdminFetchResult<T> = {
   ok: boolean;
@@ -118,7 +121,13 @@ export default function AdminDropsPage() {
   const [editorLoading, setEditorLoading] = useState(false);
   const [editorSaving, setEditorSaving] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
+  const [heroUploadBusy, setHeroUploadBusy] = useState(false);
+  const [heroUploadStatus, setHeroUploadStatus] = useState<{
+    type: 'success' | 'error' | 'info';
+    text: string;
+  } | null>(null);
   const editorTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const heroUploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -357,6 +366,11 @@ export default function AdminDropsPage() {
     setEditorError(null);
     setEditorLoading(false);
     setEditorSaving(false);
+    setHeroUploadBusy(false);
+    setHeroUploadStatus(null);
+    if (heroUploadInputRef.current) {
+      heroUploadInputRef.current.value = '';
+    }
   };
 
   const getDropPathKey = (row: DropRow) => row.handle || row.id;
@@ -375,6 +389,7 @@ export default function AdminDropsPage() {
     setEditorSelectedProductIds([]);
     setEditorInitialProductIds([]);
     setEditorError(null);
+    setHeroUploadStatus(null);
     setEditorLoading(true);
 
     try {
@@ -403,6 +418,76 @@ export default function AdminDropsPage() {
       setEditorError(`${statusPart}${err?.message ?? 'Unable to load mapped products for this drop.'}`);
     } finally {
       setEditorLoading(false);
+    }
+  };
+
+  const uploadHeroImage = async (file: File | null) => {
+    if (!editorDrop) return;
+    if (!file) {
+      setHeroUploadStatus({ type: 'error', text: 'Select an image first.' });
+      return;
+    }
+
+    if (file.size > MAX_HERO_IMAGE_BYTES) {
+      setHeroUploadStatus({ type: 'error', text: 'Image must be 5MB or smaller.' });
+      return;
+    }
+
+    if (!ALLOWED_HERO_IMAGE_MIME_TYPES.has(String(file.type || '').toLowerCase())) {
+      setHeroUploadStatus({ type: 'error', text: 'Only JPG, PNG, or WEBP images are allowed.' });
+      return;
+    }
+
+    const dropId = editorDrop.id;
+    setHeroUploadBusy(true);
+    setHeroUploadStatus({ type: 'info', text: 'Uploading hero image...' });
+    setEditorError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const payload = await apiFetchForm(
+        `${PARTNER_ADMIN_DROPS_BASE}/${encodeURIComponent(dropId)}/hero-image`,
+        formData,
+        { method: 'POST' }
+      );
+
+      const uploadedUrl = String(
+        payload?.heroImageUrl ??
+          payload?.public_url ??
+          payload?.publicUrl ??
+          payload?.drop?.heroImageUrl ??
+          payload?.drop?.hero_image_url ??
+          ''
+      ).trim();
+
+      if (!uploadedUrl) {
+        throw new Error('Upload succeeded but no hero image URL was returned.');
+      }
+
+      setEditorHeroImageUrl(uploadedUrl);
+      setHeroUploadStatus({ type: 'success', text: 'Hero image uploaded.' });
+      setRows((prev) =>
+        prev.map((row) =>
+          row.id === dropId
+            ? {
+                ...row,
+                heroImageUrl: uploadedUrl,
+              }
+            : row
+        )
+      );
+    } catch (err: any) {
+      setHeroUploadStatus({
+        type: 'error',
+        text: err?.message ?? 'Failed to upload hero image.',
+      });
+    } finally {
+      setHeroUploadBusy(false);
+      if (heroUploadInputRef.current) {
+        heroUploadInputRef.current.value = '';
+      }
     }
   };
 
@@ -725,6 +810,40 @@ export default function AdminDropsPage() {
                       onChange={(event) => setEditorHeroImageUrl(event.target.value)}
                       className="w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white"
                     />
+                    <input
+                      ref={heroUploadInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                      className="hidden"
+                      onChange={(event) => {
+                        void uploadHeroImage(event.target.files?.[0] ?? null);
+                      }}
+                    />
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => heroUploadInputRef.current?.click()}
+                        disabled={heroUploadBusy || editorSaving}
+                        className="rounded-lg border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {heroUploadBusy ? 'Uploading...' : 'Upload Hero Image'}
+                      </button>
+                      <span className="text-[11px] text-slate-400">JPG/PNG/WEBP, max 5MB</span>
+                    </div>
+                    {heroUploadStatus && (
+                      <p
+                        role="status"
+                        className={`text-xs ${
+                          heroUploadStatus.type === 'success'
+                            ? 'text-emerald-300'
+                            : heroUploadStatus.type === 'error'
+                            ? 'text-rose-300'
+                            : 'text-slate-300'
+                        }`}
+                      >
+                        {heroUploadStatus.text}
+                      </p>
+                    )}
                   </label>
                   <label className="space-y-1">
                     <span className="text-xs text-slate-300">Starts at</span>

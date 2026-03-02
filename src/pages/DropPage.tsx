@@ -6,6 +6,7 @@ import ErrorBanner from '../components/ux/ErrorBanner';
 import LoadingSkeleton from '../components/ux/LoadingSkeleton';
 import { useToast } from '../components/ux/ToastHost';
 import { trackEvent, trackPageView } from '../shared/telemetry';
+import { resolveMediaUrl } from '../shared/utils/media';
 import { NotFoundPage } from './Errors';
 
 type DropData = {
@@ -13,6 +14,7 @@ type DropData = {
   handle: string;
   title: string;
   description?: string;
+  coverUrl?: string | null;
   heroImageUrl?: string;
   quizJson?: {
     title?: string;
@@ -82,7 +84,16 @@ export default function DropPage() {
         handle: payload.drop.handle,
         title: payload.drop.title,
         description: payload.drop.description,
-        heroImageUrl: payload.drop.heroImageUrl ?? payload.drop.hero_image_url,
+        coverUrl: payload.drop.coverUrl ?? payload.drop.cover_url ?? null,
+        heroImageUrl:
+          payload.drop.coverUrl ??
+          payload.drop.cover_url ??
+          payload.drop.heroImageUrl ??
+          payload.drop.hero_image_url ??
+          payload.drop.heroImageURL ??
+          payload.drop.hero_image ??
+          payload.drop.imageUrl ??
+          null,
         quizJson: payload.drop.quizJson ?? payload.drop.quiz_json ?? null,
       });
       setStatus('idle');
@@ -227,15 +238,13 @@ export default function DropPage() {
     }
   };
 
-  const heroImageStyle = useMemo(
-    () => ({
-      width: '100%',
-      height: 220,
-      borderRadius: 14,
-      background: drop?.heroImageUrl
-        ? `url(${drop.heroImageUrl}) center/cover`
-        : '#111',
-    }),
+  const heroUrl = useMemo(
+    () =>
+      resolveMediaUrl(
+        drop?.coverUrl ??
+          drop?.heroImageUrl ??
+          null
+      ),
     [drop]
   );
 
@@ -250,7 +259,30 @@ export default function DropPage() {
           marginBottom: '1.5rem',
         }}
       >
-        <div style={heroImageStyle} />
+        {heroUrl ? (
+          <img
+            src={heroUrl}
+            alt={`${formatDropTitle(drop)} hero`}
+            loading="lazy"
+            decoding="async"
+            style={{
+              width: '100%',
+              height: 220,
+              borderRadius: 14,
+              objectFit: 'cover',
+              display: 'block',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: 220,
+              borderRadius: 14,
+              background: '#111',
+            }}
+          />
+        )}
         <div style={{ marginTop: '1rem' }}>
           <p style={{ opacity: 0.7 }}>{drop?.handle && `@${drop.handle}`}</p>
           <h1>{formatDropTitle(drop)}</h1>

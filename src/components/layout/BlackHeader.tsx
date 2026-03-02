@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getAccessToken, clearTokens } from '../../shared/auth/tokenStore';
+import { logoutAuth } from '../../lib/api/auth';
 
 const navLinks = [
   { label: 'Home', to: '/' },
@@ -16,11 +17,17 @@ export default function BlackHeader() {
   );
   const [isAuthenticated, setIsAuthenticated] = useState(Boolean(getAccessToken()));
   const navigate = useNavigate();
-  const handleLogout = () => {
-    clearTokens();
-    sessionStorage.clear();
-    setIsAuthenticated(false);
-    navigate('/login', { replace: true });
+  const handleLogout = async () => {
+    try {
+      await logoutAuth();
+    } catch {
+      // Best-effort server logout.
+    } finally {
+      clearTokens();
+      sessionStorage.clear();
+      setIsAuthenticated(false);
+      navigate('/login', { replace: true });
+    }
   };
 
   useEffect(() => {

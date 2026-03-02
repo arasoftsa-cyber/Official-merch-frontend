@@ -1,18 +1,11 @@
 import { API_BASE } from '../shared/api/baseUrl';
-
-function getToken(): string | null {
-  return (
-    localStorage.getItem('auth_access_token') ||
-    localStorage.getItem('auth_token') ||
-    null
-  );
-}
+import { getAccessToken } from '../shared/auth/tokenStore';
 
 function buildHeaders() {
   const headers: Record<string, string> = {
     Accept: 'application/json',
   };
-  const token = getToken();
+  const token = getAccessToken();
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }

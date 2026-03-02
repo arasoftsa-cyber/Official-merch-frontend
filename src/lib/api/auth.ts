@@ -25,3 +25,17 @@ export async function registerBuyer({
     body: { name, email, password, role: 'buyer' },
   });
 }
+
+export async function refreshAuth(): Promise<AuthResponse> {
+  return apiFetch('/auth/refresh', {
+    method: 'POST',
+    body: {},
+  });
+}
+
+export async function logoutAuth(): Promise<AuthResponse> {
+  return apiFetch('/auth/logout', {
+    method: 'POST',
+    body: {},
+  });
+}

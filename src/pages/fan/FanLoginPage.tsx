@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
 import Label from '../../components/ui/Label';
+import { logoutAuth } from '../../lib/api/auth';
 import {
   setAccessToken,
   setRefreshToken,
@@ -11,7 +12,9 @@ import {
 import { apiFetch } from '../../shared/api/http';
 
 const LOGIN_CONTEXT_KEY = 'om_login_context';
-const FAN_ALLOWED_ROLES = new Set(['buyer']);
+const FAN_ALLOWED_ROLES = new Set(['buyer', 'fan', 'customer']);
+const PARTNER_PORTAL_ERROR_MESSAGE =
+  'This is a partner/admin account. Please log in via the partner portal.';
 
 function resolveRole(payload: any): string {
   const role =
@@ -84,12 +87,15 @@ export default function FanLoginPage() {
         setRefreshToken(refreshToken);
       }
 
-      const me = await apiFetch('/auth/whoami');
-      const role = resolveRole(me);
+      let role = resolveRole(loginResponse);
+      if (!role) {
+        const me = await apiFetch('/auth/whoami');
+        role = resolveRole(me);
+      }
       if (!FAN_ALLOWED_ROLES.has(role)) {
         clearTokens();
-        localStorage.removeItem(LOGIN_CONTEXT_KEY);
-        navigate('/partner/login?portalError=partner_account', { replace: true });
+        void logoutAuth().catch(() => undefined);
+        setFormError(PARTNER_PORTAL_ERROR_MESSAGE);
         return;
       }
 

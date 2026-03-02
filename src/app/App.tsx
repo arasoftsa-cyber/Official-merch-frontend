@@ -11,9 +11,10 @@ import {
 } from 'react-router-dom';
 import Smoke from '../pages/Smoke';
 import { apiFetch } from '../shared/api/http';
-import { getAccessToken, clearTokens } from '../shared/auth/tokenStore';
+import { getAccessToken, setAccessToken, clearTokens } from '../shared/auth/tokenStore';
 import { API_BASE } from '../shared/api/http';
 import { getMe, getConfig } from '../shared/api/appApi';
+import { logoutAuth } from '../lib/api/auth';
 import FanLoginPage from '../pages/fan/FanLoginPage';
 import FanRegisterPage from '../pages/fan/FanRegisterPage';
 import PartnerLoginPage from '../pages/partner/PartnerLoginPage';
@@ -778,17 +779,10 @@ function useAuthStatus() {
     let isMounted = true;
     const currentToken = getAccessToken();
     setHasToken(Boolean(currentToken));
-
-    if (!currentToken) {
-      setRole(null);
-      setAuthChecked(true);
-      return;
-    }
-
     setAuthChecked(false);
 
     (async () => {
-      try {
+      const fetchRole = async () => {
         const me = await apiFetch('/auth/whoami');
         if (!isMounted) return;
         const resolvedRole =
@@ -797,12 +791,36 @@ function useAuthStatus() {
           me?.user?.role ||
           null;
         setRole(resolvedRole);
+        setHasToken(true);
+      };
+
+      try {
+        if (!currentToken) {
+          const refreshResponse = await apiFetch('/auth/refresh', {
+            method: 'POST',
+            body: {},
+          });
+          const refreshedToken =
+            refreshResponse?.accessToken ||
+            refreshResponse?.token ||
+            refreshResponse?.data?.accessToken ||
+            refreshResponse?.access_token ||
+            null;
+          if (!refreshedToken) {
+            throw new Error('No refreshed token');
+          }
+          setAccessToken(refreshedToken);
+        }
+        await fetchRole();
       } catch (err: any) {
         const message = typeof err?.message === 'string' ? err.message : '';
         if (message.includes('401') || message.includes('403')) {
           clearTokens();
           setHasToken(false);
           setRole(null);
+        } else if (isMounted) {
+          setRole(null);
+          setHasToken(false);
         }
       } finally {
         if (isMounted) {
@@ -873,11 +891,17 @@ function AppRoutes() {
         <div className="mx-auto flex w-full max-w-6xl justify-end px-6 pt-4">
           <button
             type="button"
-            onClick={() => {
-              clearTokens();
-              sessionStorage.clear();
-              localStorage.removeItem(LOGIN_CONTEXT_KEY);
-              window.location.assign('/partner/login');
+            onClick={async () => {
+              try {
+                await logoutAuth();
+              } catch {
+                // Best-effort server logout.
+              } finally {
+                clearTokens();
+                sessionStorage.clear();
+                localStorage.removeItem(LOGIN_CONTEXT_KEY);
+                window.location.assign('/partner/login');
+              }
             }}
             className="rounded-full border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.3em] text-slate-300 hover:bg-white/10 hover:text-white"
           >

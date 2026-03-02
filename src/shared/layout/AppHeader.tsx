@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { clearTokens, getAccessToken } from '../../shared/auth/tokenStore';
 import { getMe } from '../../shared/api/appApi';
+import { logoutAuth } from '../../lib/api/auth';
 
 type AppHeaderProps = {
   variant?: 'public' | 'buyer';
@@ -82,12 +83,18 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
     };
   }, [location.pathname]);
 
-  const handleLogout = () => {
-    clearTokens();
-    sessionStorage.clear();
-    setLoggedIn(false);
-    setRole(null);
-    navigate('/', { replace: true });
+  const handleLogout = async () => {
+    try {
+      await logoutAuth();
+    } catch {
+      // Best-effort server logout.
+    } finally {
+      clearTokens();
+      sessionStorage.clear();
+      setLoggedIn(false);
+      setRole(null);
+      navigate('/', { replace: true });
+    }
   };
 
   const showMyAccount = loggedIn && !roleLoading;

@@ -1,4 +1,4 @@
-import { getAccessToken } from '../auth/tokenStore';
+import { clearTokens, getAccessToken, setAccessToken } from '../auth/tokenStore';
 
 const envBase =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
@@ -19,6 +19,7 @@ const normalizeBase = (value: string): string => {
 const DEFAULT_API_BASE = "http://localhost:3000";
 export const API_BASE =
   envBase && envBase.length > 0 ? normalizeBase(envBase) : DEFAULT_API_BASE;
+const AUTH_REFRESH_ENDPOINT = '/api/auth/refresh';
 
 const ensureApiPath = (path: string) => {
   const trimmed = path.trim();
@@ -38,9 +39,57 @@ function isPlainObject(value: any): value is Record<string, unknown> {
   );
 }
 
-export async function apiFetch(
+const getAccessTokenFromPayload = (payload: any): string | null => {
+  return (
+    payload?.accessToken ||
+    payload?.token ||
+    payload?.data?.accessToken ||
+    payload?.access_token ||
+    null
+  );
+};
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+const refreshAccessToken = async (): Promise<string | null> => {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const response = await fetch(`${API_BASE}${AUTH_REFRESH_ENDPOINT}`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: '{}',
+      });
+
+      const contentType = response.headers.get('content-type') ?? '';
+      const payload = contentType.includes('application/json')
+        ? await response.json().catch(() => null)
+        : null;
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const token = getAccessTokenFromPayload(payload);
+      if (token) {
+        setAccessToken(token);
+      }
+      return token;
+    })().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+
+  return refreshInFlight;
+};
+
+async function apiFetchInternal(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  allowRefresh = true
 ): Promise<any> {
   const endpoint = ensureApiPath(path);
   if (import.meta.env.DEV && endpoint.includes('/api/api/')) {
@@ -62,6 +111,9 @@ export async function apiFetch(
   }
 
   init.headers = headers;
+  if (!init.credentials) {
+    init.credentials = 'include';
+  }
   const response = await fetch(url, init);
   const contentType = response.headers.get('content-type') ?? '';
   let payload: any = null;
@@ -74,6 +126,14 @@ export async function apiFetch(
   }
 
   if (!response.ok) {
+    if (response.status === 401 && allowRefresh && endpoint !== AUTH_REFRESH_ENDPOINT) {
+      const refreshedToken = await refreshAccessToken();
+      if (refreshedToken) {
+        return apiFetchInternal(path, options, false);
+      }
+      clearTokens();
+    }
+
     const message =
       payload?.error || payload?.message || `HTTP_${response.status}`;
     const error = new Error(message);
@@ -84,6 +144,13 @@ export async function apiFetch(
   }
 
   return payload;
+}
+
+export async function apiFetch(
+  path: string,
+  options: RequestInit = {}
+): Promise<any> {
+  return apiFetchInternal(path, options, true);
 }
 
 export async function apiFetchForm(
