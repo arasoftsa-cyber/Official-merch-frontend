@@ -6,6 +6,7 @@ import LoadingSkeleton from '../../components/ux/LoadingSkeleton';
 import { apiFetch } from '../../shared/api/http';
 import { resolveMediaUrl } from '../../shared/utils/media';
 import AdminArtistEditModal from './AdminArtistEditModal';
+import { useAdminArtistSubscription } from './hooks/useAdminArtistSubscription';
 
 type AdminArtistDetail = {
   id: string;
@@ -65,6 +66,23 @@ const normalizePossibleUrl = (value: unknown) => {
   if (/^www\./i.test(text)) return `https://${text}`;
   return '';
 };
+const toTitleCase = (value: unknown) => {
+  const text = toText(value).toLowerCase();
+  if (!text) return '-';
+  return text
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+const formatDateValue = (value: unknown) => {
+  const text = toText(value);
+  if (!text) return '-';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  return date.toISOString().slice(0, 10);
+};
 
 export default function AdminArtistDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -74,6 +92,13 @@ export default function AdminArtistDetailPage() {
   const [endpointUnavailable, setEndpointUnavailable] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const shouldLoadSubscription = Boolean(id && detail && !endpointUnavailable && !error);
+  const {
+    subscription,
+    loading: subscriptionLoading,
+    error: subscriptionError,
+    reload: reloadSubscription,
+  } = useAdminArtistSubscription(id || null, shouldLoadSubscription);
 
   const load = async () => {
     if (!id) {
@@ -138,71 +163,110 @@ export default function AdminArtistDetailPage() {
       )}
 
       {!loading && !endpointUnavailable && !error && detail && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <div className="grid gap-x-6 gap-y-3 md:grid-cols-[180px_minmax(0,1fr)]">
-            <p className="text-slate-400">Name</p>
-            <p>{withDash(detail.name)}</p>
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="grid gap-x-6 gap-y-3 md:grid-cols-[180px_minmax(0,1fr)]">
+              <p className="text-slate-400">Name</p>
+              <p>{withDash(detail.name)}</p>
 
-            <p className="text-slate-400">Handle</p>
-            <p>{formatHandle(detail.handle)}</p>
+              <p className="text-slate-400">Handle</p>
+              <p>{formatHandle(detail.handle)}</p>
 
-            <p className="text-slate-400">Email</p>
-            <p>{withDash(detail.email)}</p>
+              <p className="text-slate-400">Email</p>
+              <p>{withDash(detail.email)}</p>
 
-            <p className="text-slate-400">Status</p>
-            <p>{withDash(detail.status)}</p>
+              <p className="text-slate-400">Status</p>
+              <p>{withDash(detail.status)}</p>
 
-            <p className="text-slate-400">Phone</p>
-            <p>{withDash(detail.phone)}</p>
+              <p className="text-slate-400">Phone</p>
+              <p>{withDash(detail.phone)}</p>
 
-            <p className="text-slate-400">About</p>
-            <p>{withDash(detail.aboutMe)}</p>
+              <p className="text-slate-400">About</p>
+              <p>{withDash(detail.aboutMe)}</p>
 
-            <p className="text-slate-400">Message For Fans</p>
-            <p>{withDash(detail.messageForFans)}</p>
+              <p className="text-slate-400">Message For Fans</p>
+              <p>{withDash(detail.messageForFans)}</p>
 
-            <p className="text-slate-400">Socials</p>
-            <div className="space-y-1">
-              {detail.socials.length > 0 ? (
-                detail.socials.map((social, idx) => {
-                  const platform = withDash(social.platform).toUpperCase();
-                  const value = withDash(social.profileLink);
-                  const href = normalizePossibleUrl(social.profileLink);
-                  return (
-                    <p key={`${idx}-${social.platform}-${social.profileLink}`}>
-                      <span className="text-slate-300">{platform}:</span>{' '}
-                      {href ? (
-                        <a href={href} target="_blank" rel="noreferrer" className="text-emerald-300 underline">
-                          {value}
-                        </a>
-                      ) : (
-                        value
-                      )}
-                    </p>
-                  );
-                })
-              ) : (
-                <p>-</p>
-              )}
+              <p className="text-slate-400">Socials</p>
+              <div className="space-y-1">
+                {detail.socials.length > 0 ? (
+                  detail.socials.map((social, idx) => {
+                    const platform = withDash(social.platform).toUpperCase();
+                    const value = withDash(social.profileLink);
+                    const href = normalizePossibleUrl(social.profileLink);
+                    return (
+                      <p key={`${idx}-${social.platform}-${social.profileLink}`}>
+                        <span className="text-slate-300">{platform}:</span>{' '}
+                        {href ? (
+                          <a href={href} target="_blank" rel="noreferrer" className="text-emerald-300 underline">
+                            {value}
+                          </a>
+                        ) : (
+                          value
+                        )}
+                      </p>
+                    );
+                  })
+                ) : (
+                  <p>-</p>
+                )}
+              </div>
+
+              <p className="text-slate-400">Profile Photo</p>
+              <div>
+                {detail.profilePhotoUrl ? (
+                  <div className="space-y-2">
+                    <a href={detail.profilePhotoUrl} target="_blank" rel="noreferrer" className="text-emerald-300 underline">
+                      Open profile photo
+                    </a>
+                    <img
+                      src={detail.profilePhotoUrl}
+                      alt={`${detail.name} profile`}
+                      className="max-h-48 rounded-lg border border-white/10 object-contain"
+                    />
+                  </div>
+                ) : (
+                  <p>-</p>
+                )}
+              </div>
             </div>
+          </div>
 
-            <p className="text-slate-400">Profile Photo</p>
-            <div>
-              {detail.profilePhotoUrl ? (
-                <div className="space-y-2">
-                  <a href={detail.profilePhotoUrl} target="_blank" rel="noreferrer" className="text-emerald-300 underline">
-                    Open profile photo
-                  </a>
-                  <img
-                    src={detail.profilePhotoUrl}
-                    alt={`${detail.name} profile`}
-                    className="max-h-48 rounded-lg border border-white/10 object-contain"
-                  />
-                </div>
-              ) : (
-                <p>-</p>
-              )}
-            </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <h3 className="text-sm uppercase tracking-[0.2em] text-slate-300">Subscription</h3>
+            {subscriptionLoading && (
+              <p className="mt-3 text-sm text-slate-300">Loading subscription...</p>
+            )}
+            {!subscriptionLoading && subscriptionError && (
+              <p className="mt-3 text-sm text-rose-300">{subscriptionError}</p>
+            )}
+            {!subscriptionLoading && !subscriptionError && !subscription && (
+              <p className="mt-3 text-sm text-slate-300">No active subscription</p>
+            )}
+            {!subscriptionLoading && !subscriptionError && subscription && (
+              <div className="mt-4 grid gap-x-6 gap-y-3 md:grid-cols-[180px_minmax(0,1fr)]">
+                <p className="text-slate-400">Approved Plan</p>
+                <p>{toTitleCase(subscription.approvedPlanType)}</p>
+
+                <p className="text-slate-400">Requested Plan</p>
+                <p>{toTitleCase(subscription.requestedPlanType)}</p>
+
+                <p className="text-slate-400">Status</p>
+                <p>{toTitleCase(subscription.status)}</p>
+
+                <p className="text-slate-400">Start Date</p>
+                <p>{formatDateValue(subscription.startDate)}</p>
+
+                <p className="text-slate-400">End Date</p>
+                <p>{formatDateValue(subscription.endDate)}</p>
+
+                <p className="text-slate-400">Payment Mode</p>
+                <p>{withDash(subscription.paymentMode)}</p>
+
+                <p className="text-slate-400">Transaction ID</p>
+                <p>{withDash(subscription.transactionId)}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -213,7 +277,7 @@ export default function AdminArtistDetailPage() {
         onClose={() => setIsEditOpen(false)}
         onSaved={async () => {
           setSuccess('Artist updated successfully.');
-          await load();
+          await Promise.all([load(), reloadSubscription()]);
         }}
       />
     </AppShell>

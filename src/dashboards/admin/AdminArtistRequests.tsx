@@ -35,7 +35,14 @@ type ArtistRequest = {
   aboutMe: string;
   profilePhotoUrl: string;
   messageForFans: string;
+  requestedPlanType: string;
   rejectionComment: string;
+};
+
+type ApproveFieldErrors = {
+  finalPlanType?: string;
+  paymentMode?: string;
+  transactionId?: string;
 };
 
 const formatStatus = (status?: string) => (status ? status.toUpperCase() : 'PENDING');
@@ -73,6 +80,21 @@ const normalizeSocials = (value: any): SocialItem[] => {
   return [];
 };
 
+const normalizePlanType = (value: unknown) => String(value ?? '').trim().toLowerCase();
+
+const isPremiumEnabledFromConfig = (payload: any): boolean => {
+  if (!payload || typeof payload !== 'object') return false;
+  if (typeof payload.premium_plan_enabled === 'boolean') return payload.premium_plan_enabled;
+  if (typeof payload.premiumPlanEnabled === 'boolean') return payload.premiumPlanEnabled;
+  if (Array.isArray(payload.enabled_plan_types)) {
+    return payload.enabled_plan_types.map(normalizePlanType).includes('premium');
+  }
+  if (Array.isArray(payload.enabledPlans)) {
+    return payload.enabledPlans.map(normalizePlanType).includes('premium');
+  }
+  return false;
+};
+
 export default function AdminArtistRequests() {
   const token = getAccessToken();
   const { notify } = useToast();
@@ -87,6 +109,11 @@ export default function AdminArtistRequests() {
   const [reviewRequest, setReviewRequest] = useState<ArtistRequest | null>(null);
   const [rejectComment, setRejectComment] = useState('');
   const [modalError, setModalError] = useState<string | null>(null);
+  const [finalPlanType, setFinalPlanType] = useState<'basic' | 'advanced' | 'premium'>('basic');
+  const [paymentMode, setPaymentMode] = useState<'cash' | 'online' | ''>('');
+  const [transactionId, setTransactionId] = useState('');
+  const [approveFieldErrors, setApproveFieldErrors] = useState<ApproveFieldErrors>({});
+  const [premiumPlanEnabled, setPremiumPlanEnabled] = useState(false);
 
   const pageSize = LIMIT;
   const offset = (page - 1) * pageSize;
@@ -156,6 +183,9 @@ export default function AdminArtistRequests() {
           messageForFans: String(
             (item as any).message_for_fans ?? item.messageForFans ?? (item as any).fan_message ?? ''
           ).trim(),
+          requestedPlanType: normalizePlanType(
+            (item as any).requested_plan_type ?? item.requestedPlanType ?? 'basic'
+          ),
           rejectionComment: String(
             (item as any).rejection_comment ?? item.rejectionComment ?? ''
           ).trim(),
@@ -180,14 +210,67 @@ export default function AdminArtistRequests() {
     loadRequests();
   }, [loadRequests]);
 
+  useEffect(() => {
+    if (!token) {
+      setPremiumPlanEnabled(false);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const payload = await apiFetch('/config');
+        if (!cancelled) {
+          setPremiumPlanEnabled(isPremiumEnabledFromConfig(payload));
+        }
+      } catch {
+        if (!cancelled) {
+          setPremiumPlanEnabled(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!reviewRequest) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [reviewRequest]);
+
   const openReview = (request: ArtistRequest) => {
+    const requested = normalizePlanType(request.requestedPlanType);
+    const defaultPlan: 'basic' | 'advanced' | 'premium' =
+      requested === 'advanced'
+        ? 'advanced'
+        : requested === 'premium' && premiumPlanEnabled
+        ? 'premium'
+        : 'basic';
     setReviewRequest(request);
+    setFinalPlanType(defaultPlan);
+    setPaymentMode('');
+    setTransactionId('');
+    setApproveFieldErrors({});
     setRejectComment('');
     setModalError(null);
   };
 
   const closeReview = () => {
     setReviewRequest(null);
+    setFinalPlanType('basic');
+    setPaymentMode('');
+    setTransactionId('');
+    setApproveFieldErrors({});
     setRejectComment('');
     setModalError(null);
   };
@@ -201,14 +284,49 @@ export default function AdminArtistRequests() {
         return;
       }
 
+      if (action === 'approve') {
+        const nextFieldErrors: ApproveFieldErrors = {};
+        if (!finalPlanType) {
+          nextFieldErrors.finalPlanType = 'Final Approved Plan Type is required.';
+        }
+        if (finalPlanType === 'premium' && !premiumPlanEnabled) {
+          nextFieldErrors.finalPlanType = 'Premium plan is not enabled.';
+        }
+        if (finalPlanType === 'advanced' || finalPlanType === 'premium') {
+          if (!paymentMode) {
+            nextFieldErrors.paymentMode = 'Payment Mode is required.';
+          }
+          if (!transactionId.trim()) {
+            nextFieldErrors.transactionId = 'Transaction ID is required.';
+          }
+        }
+        if (Object.keys(nextFieldErrors).length > 0) {
+          setApproveFieldErrors(nextFieldErrors);
+          setModalError('Please fix the approval fields.');
+          return;
+        }
+      }
+
       setSavingId(request.id);
       setSavingAction(action);
+      setApproveFieldErrors({});
       setModalError(null);
 
       try {
+        const approvalBody =
+          action === 'approve'
+            ? {
+                final_plan_type: finalPlanType,
+                payment_mode: finalPlanType === 'basic' ? 'NA' : paymentMode,
+                transaction_id: finalPlanType === 'basic' ? 'NA' : transactionId.trim(),
+              }
+            : undefined;
+
         await apiFetch(`${endpoint}/${request.id}/${action}`, {
           method: 'POST',
-          ...(action === 'reject' ? { body: { comment: trimmedComment } } : {}),
+          ...(action === 'reject'
+            ? { body: { comment: trimmedComment } }
+            : { body: approvalBody }),
         });
 
         notify(
@@ -221,13 +339,40 @@ export default function AdminArtistRequests() {
         await loadRequests();
         closeReview();
       } catch (err: any) {
-        setModalError(err?.message ?? 'Action failed');
+        if (action === 'approve' && Number(err?.status) === 400) {
+          const message = String(
+            err?.payload?.message ?? err?.message ?? 'Approval validation failed'
+          );
+          const lower = message.toLowerCase();
+          const nextFieldErrors: ApproveFieldErrors = {};
+          if (lower.includes('final_plan_type')) {
+            nextFieldErrors.finalPlanType = message;
+          }
+          if (lower.includes('payment_mode')) {
+            nextFieldErrors.paymentMode = message;
+          }
+          if (lower.includes('transaction_id')) {
+            nextFieldErrors.transactionId = message;
+          }
+          setApproveFieldErrors(nextFieldErrors);
+          setModalError(message);
+        } else {
+          setModalError(err?.message ?? 'Action failed');
+        }
       } finally {
         setSavingId(null);
         setSavingAction(null);
       }
     },
-    [loadRequests, notify, rejectComment]
+    [
+      finalPlanType,
+      loadRequests,
+      notify,
+      paymentMode,
+      premiumPlanEnabled,
+      rejectComment,
+      transactionId,
+    ]
   );
 
   if (!token) {
@@ -308,6 +453,12 @@ export default function AdminArtistRequests() {
                     <p className="text-lg font-semibold text-white">{request.artistName}</p>
                     {request.handle && <p className="text-xs text-white/60">@{request.handle}</p>}
                     <p className="text-xs text-white/60">{request.email || request.phone || 'No contact info'}</p>
+                    <p className="text-xs text-white/60">
+                      Requested Plan:{' '}
+                      <span className="font-semibold text-white/80">
+                        {request.requestedPlanType ? request.requestedPlanType.toUpperCase() : 'BASIC'}
+                      </span>
+                    </p>
                   </div>
                   <div className="flex flex-col items-end gap-2 text-[11px] uppercase tracking-[0.3em] text-white/60">
                     <span>{formatStatus(request.status)}</span>
@@ -348,94 +499,214 @@ export default function AdminArtistRequests() {
 
       {reviewRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">Review Artist Request</h2>
-              <button
-                type="button"
-                onClick={closeReview}
-                className="rounded-full border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/80 hover:bg-white/10"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="space-y-3 text-sm text-white/85">
-              <p><span className="text-white/60">Artist Name:</span> {reviewRequest.artistName || '—'}</p>
-              <p><span className="text-white/60">Handle:</span> {reviewRequest.handle || '—'}</p>
-              <p><span className="text-white/60">Email:</span> {reviewRequest.email || '—'}</p>
-              <p><span className="text-white/60">Phone:</span> {reviewRequest.phone || '—'}</p>
-              <div>
-                <p className="text-white/60">Socials:</p>
-                {reviewRequest.socials.length > 0 ? (
-                  <ul className="mt-1 list-disc space-y-1 pl-5">
-                    {reviewRequest.socials.map((social, idx) => (
-                      <li key={`${reviewRequest.id}-social-${idx}`}>
-                        {(social.platform || 'platform').toUpperCase()}: {social.profileLink || '—'}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-1 text-white/70">—</p>
-                )}
+          <div className="w-full max-w-3xl max-h-[85vh] overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl">
+            <div className="flex max-h-[85vh] flex-col">
+              <div className="shrink-0 border-b border-white/10 px-5 pb-4 pt-5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold text-white">Review Artist Request</h2>
+                  <button
+                    type="button"
+                    onClick={closeReview}
+                    className="rounded-full border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/80 hover:bg-white/10"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-              <p><span className="text-white/60">About Me:</span> {reviewRequest.aboutMe || '—'}</p>
-              <div>
-                <p className="text-white/60">Profile Photo:</p>
-                {reviewRequest.profilePhotoUrl ? (
-                  <div className="mt-2 space-y-2">
-                    <a
-                      href={reviewRequest.profilePhotoUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-emerald-300 underline"
-                    >
-                      Open profile photo
-                    </a>
-                    <img
-                      src={reviewRequest.profilePhotoUrl}
-                      alt={`${reviewRequest.artistName} profile`}
-                      className="max-h-48 rounded-lg border border-white/10 object-contain"
-                    />
+
+              <div className="grow overflow-y-auto px-5 pb-4 pr-4 pt-4">
+                <div className="space-y-3 text-sm text-white/85">
+                  <p><span className="text-white/60">Artist Name:</span> {reviewRequest.artistName || '—'}</p>
+                  <p><span className="text-white/60">Handle:</span> {reviewRequest.handle || '—'}</p>
+                  <p><span className="text-white/60">Email:</span> {reviewRequest.email || '—'}</p>
+                  <p><span className="text-white/60">Phone:</span> {reviewRequest.phone || '—'}</p>
+                  <p>
+                    <span className="text-white/60">Requested Plan Type:</span>{' '}
+                    {(reviewRequest.requestedPlanType || 'basic').toUpperCase()}
+                  </p>
+                  <div>
+                    <p className="text-white/60">Socials:</p>
+                    {reviewRequest.socials.length > 0 ? (
+                      <ul className="mt-1 list-disc space-y-1 pl-5">
+                        {reviewRequest.socials.map((social, idx) => (
+                          <li key={`${reviewRequest.id}-social-${idx}`}>
+                            {(social.platform || 'platform').toUpperCase()}: {social.profileLink || '—'}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 text-white/70">—</p>
+                    )}
                   </div>
-                ) : (
-                  <p className="mt-1 text-white/70">—</p>
-                )}
+                  <p><span className="text-white/60">About Me:</span> {reviewRequest.aboutMe || '—'}</p>
+                  <div>
+                    <p className="text-white/60">Profile Photo:</p>
+                    {reviewRequest.profilePhotoUrl ? (
+                      <div className="mt-2 space-y-2">
+                        <a
+                          href={reviewRequest.profilePhotoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-emerald-300 underline"
+                        >
+                          Open profile photo
+                        </a>
+                        <img
+                          src={reviewRequest.profilePhotoUrl}
+                          alt={`${reviewRequest.artistName} profile`}
+                          className="max-h-48 rounded-lg border border-white/10 object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-white/70">—</p>
+                    )}
+                  </div>
+                  <p><span className="text-white/60">Message For Fans:</span> {reviewRequest.messageForFans || '—'}</p>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/60">Approval</p>
+
+                    <label className="mt-3 block text-sm font-medium text-white/80">
+                      Final Approved Plan Type *
+                      <select
+                        value={finalPlanType}
+                        onChange={(event) => {
+                          const next = event.target.value as 'basic' | 'advanced' | 'premium';
+                          setFinalPlanType(next);
+                          setModalError(null);
+                          setApproveFieldErrors((prev) => {
+                            const updated = { ...prev };
+                            delete updated.finalPlanType;
+                            if (next === 'basic') {
+                              delete updated.paymentMode;
+                              delete updated.transactionId;
+                            }
+                            return updated;
+                          });
+                        }}
+                        disabled={savingId === reviewRequest.id}
+                        className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+                      >
+                        <option value="basic">Basic</option>
+                        <option value="advanced">Advanced</option>
+                        <option value="premium" disabled={!premiumPlanEnabled}>
+                          {premiumPlanEnabled ? 'Premium' : 'Premium (Coming soon)'}
+                        </option>
+                      </select>
+                      {approveFieldErrors.finalPlanType && (
+                        <p className="mt-1 text-xs text-rose-300">{approveFieldErrors.finalPlanType}</p>
+                      )}
+                    </label>
+
+                    {finalPlanType === 'basic' ? (
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <label className="block text-sm font-medium text-white/80">
+                          Payment Mode
+                          <input
+                            type="text"
+                            value="NA"
+                            disabled
+                            className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white/70"
+                          />
+                        </label>
+                        <label className="block text-sm font-medium text-white/80">
+                          Transaction ID
+                          <input
+                            type="text"
+                            value="NA"
+                            disabled
+                            className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white/70"
+                          />
+                        </label>
+                      </div>
+                    ) : (
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <label className="block text-sm font-medium text-white/80">
+                          Payment Mode *
+                          <select
+                            value={paymentMode}
+                            onChange={(event) => {
+                              setPaymentMode(event.target.value as 'cash' | 'online' | '');
+                              setModalError(null);
+                              setApproveFieldErrors((prev) => {
+                                const updated = { ...prev };
+                                delete updated.paymentMode;
+                                return updated;
+                              });
+                            }}
+                            disabled={savingId === reviewRequest.id}
+                            className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+                          >
+                            <option value="">Select payment mode</option>
+                            <option value="cash">Cash</option>
+                            <option value="online">Online</option>
+                          </select>
+                          {approveFieldErrors.paymentMode && (
+                            <p className="mt-1 text-xs text-rose-300">{approveFieldErrors.paymentMode}</p>
+                          )}
+                        </label>
+
+                        <label className="block text-sm font-medium text-white/80">
+                          Transaction ID *
+                          <input
+                            type="text"
+                            value={transactionId}
+                            onChange={(event) => {
+                              setTransactionId(event.target.value);
+                              setModalError(null);
+                              setApproveFieldErrors((prev) => {
+                                const updated = { ...prev };
+                                delete updated.transactionId;
+                                return updated;
+                              });
+                            }}
+                            disabled={savingId === reviewRequest.id}
+                            className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+                            placeholder="Enter transaction id"
+                          />
+                          {approveFieldErrors.transactionId && (
+                            <p className="mt-1 text-xs text-rose-300">{approveFieldErrors.transactionId}</p>
+                          )}
+                        </label>
+                      </div>
+                    )}
+                  </div>
+
+                  <label className="block text-sm font-medium text-white/80">
+                    Rejection Comment * (required to reject)
+                    <textarea
+                      value={rejectComment}
+                      onChange={(event) => setRejectComment(event.target.value)}
+                      rows={3}
+                      className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+                      placeholder="Explain why this request is being rejected"
+                    />
+                  </label>
+                </div>
               </div>
-              <p><span className="text-white/60">Message For Fans:</span> {reviewRequest.messageForFans || '—'}</p>
-            </div>
 
-            <div className="mt-4 space-y-3">
-              <label className="block text-sm font-medium text-white/80">
-                Rejection Comment * (required to reject)
-                <textarea
-                  value={rejectComment}
-                  onChange={(event) => setRejectComment(event.target.value)}
-                  rows={3}
-                  className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                  placeholder="Explain why this request is being rejected"
-                />
-              </label>
-
-              {modalError && <p className="text-xs text-rose-300">{modalError}</p>}
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => performAction(reviewRequest, 'approve')}
-                  disabled={savingId === reviewRequest.id || reviewRequest.status.toLowerCase() !== 'pending'}
-                  className="inline-flex items-center rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 disabled:opacity-40"
-                >
-                  {savingId === reviewRequest.id && savingAction === 'approve' ? 'Approving...' : 'Approve'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => performAction(reviewRequest, 'reject')}
-                  disabled={savingId === reviewRequest.id || reviewRequest.status.toLowerCase() !== 'pending'}
-                  className="inline-flex items-center rounded-full border border-rose-500/60 bg-rose-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-rose-200 hover:border-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:opacity-40"
-                >
-                  {savingId === reviewRequest.id && savingAction === 'reject' ? 'Rejecting...' : 'Reject'}
-                </button>
+              <div className="shrink-0 border-t border-white/10 px-5 pb-5 pt-4">
+                {modalError && <p className="mb-3 text-xs text-rose-300">{modalError}</p>}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => performAction(reviewRequest, 'approve')}
+                    disabled={savingId === reviewRequest.id || reviewRequest.status.toLowerCase() !== 'pending'}
+                    className="inline-flex items-center rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 disabled:opacity-40"
+                  >
+                    {savingId === reviewRequest.id && savingAction === 'approve' ? 'Approving...' : 'Approve'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => performAction(reviewRequest, 'reject')}
+                    disabled={savingId === reviewRequest.id || reviewRequest.status.toLowerCase() !== 'pending'}
+                    className="inline-flex items-center rounded-full border border-rose-500/60 bg-rose-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-rose-200 hover:border-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:opacity-40"
+                  >
+                    {savingId === reviewRequest.id && savingAction === 'reject' ? 'Rejecting...' : 'Reject'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -362,6 +362,58 @@ test.describe('Admin smoke', () => {
     await expect(featuredToggle).toBeEnabled({ timeout: 15000 });
   });
 
+  test('onboarding request flow supports required plan + admin approval payload fields', async ({ page }) => {
+    test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
+
+    const stamp = Date.now();
+    const artistName = `Smoke Plan Artist ${stamp}`;
+    const handle = `smoke-plan-${stamp}`;
+    const email = `smoke.plan.${stamp}@example.invalid`;
+    const phone = `999${String(stamp).slice(-7)}`;
+    const transactionId = `TX-${stamp}`;
+
+    await gotoApp(page, '/apply/artist', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/apply\/artist/, { timeout: 15000 });
+
+    await page.getByLabel(/artist name/i).fill(artistName);
+    await page.getByLabel(/handle/i).fill(handle);
+    await page.getByLabel(/^email/i).fill(email);
+    await page.getByLabel(/^phone/i).fill(phone);
+    await page.getByLabel(/plan type/i).selectOption('basic');
+    await page.getByRole('button', { name: /request onboarding/i }).click();
+
+    await expect(page.getByText(/request submitted/i)).toBeVisible({ timeout: 15000 });
+
+    await loginAdmin(page);
+    await gotoApp(page, '/partner/admin/artist-requests', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/partner\/admin\/artist-requests/, { timeout: 15000 });
+
+    const requestCard = page
+      .locator('div.rounded-2xl.border')
+      .filter({ hasText: `@${handle}` })
+      .first();
+    await expect(requestCard).toBeVisible({ timeout: 20000 });
+    await expect(requestCard.getByText(/requested plan:\s*basic/i)).toBeVisible({ timeout: 15000 });
+
+    await requestCard.getByRole('button', { name: /review/i }).click();
+    await expect(page.getByRole('heading', { name: /review artist request/i })).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByText(/requested plan type:\s*basic/i)).toBeVisible({ timeout: 15000 });
+
+    await page.getByLabel(/final approved plan type/i).selectOption('advanced');
+    await page.getByLabel(/payment mode/i).selectOption('online');
+    await page.getByLabel(/transaction id/i).fill(transactionId);
+    await page.getByRole('button', { name: /^approve$/i }).click();
+
+    await expect(page.getByText(/artist request approved successfully/i)).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(
+      page.locator('div.rounded-2xl.border').filter({ hasText: `@${handle}` })
+    ).toHaveCount(0, { timeout: 20000 });
+  });
+
 });
 
 test.describe('Label smoke', () => {

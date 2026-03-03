@@ -13,6 +13,7 @@ type FormState = {
   handle: string;
   email: string;
   phone: string;
+  requestedPlanType: string;
   socials: SocialRow[];
   aboutMe: string;
   messageForFans: string;
@@ -23,12 +24,18 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 const HTTP_RE = /^https?:\/\//i;
 const MAX_SOCIAL_ROWS = 5;
 const SOCIAL_PLATFORMS = ['instagram', 'youtube', 'spotify', 'facebook', 'x', 'website', 'other'];
+const PLAN_OPTIONS = [
+  { value: 'basic', label: 'Basic' },
+  { value: 'advanced', label: 'Advanced' },
+  { value: 'premium', label: 'Premium (Coming soon)', disabled: true },
+];
 
 const INITIAL_FORM: FormState = {
   artistName: '',
   handle: '',
   email: '',
   phone: '',
+  requestedPlanType: 'basic',
   socials: [],
   aboutMe: '',
   messageForFans: '',
@@ -64,6 +71,7 @@ const mapValidationDetails = (details: any[]): ValidationErrors => {
     else if (field === 'handle') next.handle = message;
     else if (field === 'email') next.email = message;
     else if (field === 'phone') next.phone = message;
+    else if (field === 'requested_plan_type' || field === 'planType') next.requestedPlanType = message;
     else if (field === 'about') next.aboutMe = message;
     else if (field === 'message_for_fans') next.messageForFans = message;
     else if (field.startsWith('socials[')) {
@@ -93,6 +101,7 @@ export default function ApplyArtistPage() {
     if (!form.handle.trim()) next.handle = 'Handle is required.';
     if (!form.email.trim()) next.email = 'Email is required.';
     if (!form.phone.trim()) next.phone = 'Phone is required.';
+    if (!form.requestedPlanType.trim()) next.requestedPlanType = 'Plan Type is required.';
     if (form.handle.trim() && normalizeHandle(form.handle).length < 2) {
       next.handle = 'Handle must be at least 2 characters.';
     }
@@ -113,7 +122,7 @@ export default function ApplyArtistPage() {
 
   const onFieldChange =
     (field: keyof Omit<FormState, 'socials' | 'profilePhoto'>) =>
-    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const value = event.target.value;
       setForm((prev) => ({ ...prev, [field]: value }));
       setErrors((prev) => {
@@ -207,6 +216,7 @@ export default function ApplyArtistPage() {
         fd.append('handle', handle);
         fd.append('email', form.email.trim().toLowerCase());
         fd.append('phone', form.phone.trim());
+        fd.append('requested_plan_type', form.requestedPlanType);
         fd.append('about_me', form.aboutMe.trim());
         fd.append('message_for_fans', form.messageForFans.trim());
         fd.append('profile_photo', form.profilePhoto as File);
@@ -224,6 +234,7 @@ export default function ApplyArtistPage() {
             handle,
             email: form.email.trim().toLowerCase(),
             phone: form.phone.trim(),
+            requested_plan_type: form.requestedPlanType,
             about_me: form.aboutMe.trim(),
             message_for_fans: form.messageForFans.trim(),
             socials: socialsArray,
@@ -334,6 +345,26 @@ export default function ApplyArtistPage() {
               aria-invalid={Boolean(errors.phone)}
             />
             {errors.phone && <p className="text-xs text-rose-300">{errors.phone}</p>}
+          </label>
+
+          <label className="block text-sm font-medium text-white/80">
+            Plan Type *
+            <select
+              value={form.requestedPlanType}
+              onChange={onFieldChange('requestedPlanType')}
+              required
+              className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+              aria-invalid={Boolean(errors.requestedPlanType)}
+            >
+              {PLAN_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value} disabled={option.disabled}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {errors.requestedPlanType && (
+              <p className="text-xs text-rose-300">{errors.requestedPlanType}</p>
+            )}
           </label>
 
           <div className="space-y-2">
