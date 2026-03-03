@@ -21,20 +21,32 @@ function resolveRole(payload: any): string {
   return String(role || '').toLowerCase();
 }
 
+function getPartnerDefaultPath(role: string): string {
+  if (role === 'artist') return '/partner/artist';
+  if (role === 'label') return '/partner/label';
+  return '/partner/admin';
+}
+
 export default function PartnerLoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
   const portalError = params.get('portalError');
-  const rawReturn =
-    params.get('returnTo') || params.get('returnUrl') || params.get('next') || '/';
-  let redirectTarget = rawReturn;
-  try {
-    redirectTarget = decodeURIComponent(rawReturn);
-  } catch {
-    redirectTarget = rawReturn;
+  const rawReturnTo = params.get('returnTo');
+  let decodedReturnTo = rawReturnTo || '';
+  if (rawReturnTo) {
+    try {
+      decodedReturnTo = decodeURIComponent(rawReturnTo);
+    } catch {
+      decodedReturnTo = rawReturnTo;
+    }
   }
-  const fanLinkTarget = `/fan/login?returnTo=${encodeURIComponent(redirectTarget)}`;
+  const safeReturnTo =
+    decodedReturnTo.startsWith('/') && !decodedReturnTo.startsWith('//')
+      ? decodedReturnTo
+      : null;
+  const redirectHint = safeReturnTo || '/partner/admin';
+  const fanLinkTarget = `/fan/login?returnTo=${encodeURIComponent(redirectHint)}`;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -87,8 +99,8 @@ export default function PartnerLoginPage() {
         return;
       }
 
-      // Redirect resolution is centralized in App loginEntryElement.
-      navigate(`/login${location.search}`, { replace: true });
+      localStorage.removeItem(LOGIN_CONTEXT_KEY);
+      navigate(safeReturnTo || getPartnerDefaultPath(role), { replace: true });
     } catch (err: any) {
       if (err?.message === 'fan_account' || err?.message === 'portal_fan_account') {
         clearTokens();

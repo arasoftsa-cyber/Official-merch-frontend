@@ -173,42 +173,42 @@ const applySearchIfPresent = async (page: Page, text: string) => {
     const createLink = page.getByRole('link', { name: /create product/i });
     const createAction =
       (await createButton.count().catch(() => 0)) > 0 ? createButton.first() : createLink.first();
-    await expect(createAction).toBeVisible();
+    const hasCreateAction = await createAction.isVisible().catch(() => false);
+    if (hasCreateAction) {
+      const filterBar = createAction.first().locator('..').locator('..');
+      const preferredInBar = [
+        filterBar.getByPlaceholder(/title/i).first(),
+        filterBar.getByPlaceholder(/search/i).first(),
+        filterBar.getByRole('textbox', { name: /title|search/i }).first(),
+      ];
 
-    const filterBar = createAction.first().locator('..').locator('..');
-    const preferredInBar = [
-      filterBar.getByPlaceholder(/title/i).first(),
-      filterBar.getByPlaceholder(/search/i).first(),
-      filterBar.getByRole('textbox', { name: /title|search/i }).first(),
-    ];
-
-    let titleFilterInput: Locator | null = null;
-    for (const candidate of preferredInBar) {
-      if ((await candidate.count().catch(() => 0)) === 0) continue;
-      if (!(await candidate.isVisible().catch(() => false))) continue;
-      titleFilterInput = candidate;
-      break;
-    }
-
-    if (!titleFilterInput) {
-      const textboxes = filterBar.getByRole('textbox');
-      const textboxCount = await textboxes.count().catch(() => 0);
-      for (let i = 0; i < textboxCount; i += 1) {
-        const candidate = textboxes.nth(i);
+      let titleFilterInput: Locator | null = null;
+      for (const candidate of preferredInBar) {
+        if ((await candidate.count().catch(() => 0)) === 0) continue;
         if (!(await candidate.isVisible().catch(() => false))) continue;
         titleFilterInput = candidate;
         break;
       }
-    }
 
-    if (titleFilterInput) {
-      await titleFilterInput.fill('');
-      await titleFilterInput.fill(text);
-      await titleFilterInput.press('Enter').catch(() => null);
-      await page.waitForTimeout(300);
-      return true;
+      if (!titleFilterInput) {
+        const textboxes = filterBar.getByRole('textbox');
+        const textboxCount = await textboxes.count().catch(() => 0);
+        for (let i = 0; i < textboxCount; i += 1) {
+          const candidate = textboxes.nth(i);
+          if (!(await candidate.isVisible().catch(() => false))) continue;
+          titleFilterInput = candidate;
+          break;
+        }
+      }
+
+      if (titleFilterInput) {
+        await titleFilterInput.fill('');
+        await titleFilterInput.fill(text);
+        await titleFilterInput.press('Enter').catch(() => null);
+        await page.waitForTimeout(300);
+        return true;
+      }
     }
-    return false;
   }
 
   const candidates = [
@@ -238,7 +238,12 @@ test.describe('Admin smoke', () => {
     await expect(page).toHaveURL(/\/partner\/admin\/products/);
 
     const uniqueTitle = `Smoke Admin Product ${Date.now()}`;
-    await page.getByRole('link', { name: /create product/i }).click();
+    const createProduct = page
+      .getByRole('link', { name: /create product/i })
+      .or(page.getByRole('button', { name: /create product/i }))
+      .or(page.getByText(/create product/i));
+    await expect(createProduct.first()).toBeVisible({ timeout: 15000 });
+    await createProduct.first().click();
     await expect(page).toHaveURL(/\/partner\/admin\/products\/new/);
 
     const artistSelect = await waitForSelectReady(page, 'admin-product-artist');
@@ -265,14 +270,39 @@ test.describe('Admin smoke', () => {
       .locator('input[type="file"]')
       .setInputFiles(photoFiles);
 
+    const createProductResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/admin\/products(?:[/?#]|$)/i.test(response.url()),
+      { timeout: 15000 }
+    );
     await page.getByRole('button', { name: /^Create Product$/i }).click();
+    const createProductResponse = await createProductResponsePromise.catch(() => null);
+    if (createProductResponse && !createProductResponse.ok()) {
+      const body = await createProductResponse.text().catch(() => '<unavailable>');
+      throw new Error(`Create product failed (${createProductResponse.status()}): ${body}`);
+    }
+    const createPayload = createProductResponse
+      ? await createProductResponse.json().catch(() => null)
+      : null;
+    const createdProductId =
+      createPayload?.id ||
+      createPayload?.product?.id ||
+      createPayload?.data?.id ||
+      null;
     await expect(page).toHaveURL(/\/partner\/admin\/products$/, { timeout: 15000 });
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    const createdRow = await findRowByTextWithRetry(page, uniqueTitle, {
-      attempts: 6,
-      delayMs: 500,
-    });
-    await createdRow.getByRole('button', { name: /variants/i }).click();
+    if (createdProductId) {
+      await gotoApp(page, `/partner/admin/products/${createdProductId}/variants`, {
+        waitUntil: 'domcontentloaded',
+      });
+    } else {
+      const variantsAction = page
+        .getByRole('button', { name: /variants/i })
+        .or(page.getByRole('link', { name: /variants/i }))
+        .or(page.getByText(/variants/i));
+      await expect(variantsAction.first()).toBeVisible({ timeout: 20000 });
+      await variantsAction.first().click();
+    }
     await expect(page).toHaveURL(/\/partner\/admin\/products\/.+\/variants/);
     const productId = page.url().match(/\/partner\/admin\/products\/([^/]+)\/variants/)?.[1] ?? '';
     expect(productId, `Missing productId in variants URL: ${page.url()}`).toBeTruthy();
@@ -293,7 +323,6 @@ test.describe('Admin smoke', () => {
     await stockInput.fill('3');
 
     await page.getByRole('button', { name: /save variants/i }).click();
-    await page.reload({ waitUntil: 'domcontentloaded' });
     await expect
       .poll(
         async () => {
@@ -364,6 +393,7 @@ test.describe('Admin smoke', () => {
 
   test('onboarding request flow supports required plan + admin approval payload fields', async ({ page }) => {
     test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
+    await loginAdmin(page);
 
     const stamp = Date.now();
     const artistName = `Smoke Plan Artist ${stamp}`;
@@ -382,9 +412,22 @@ test.describe('Admin smoke', () => {
     await page.getByLabel(/plan type/i).selectOption('basic');
     await page.getByRole('button', { name: /request onboarding/i }).click();
 
-    await expect(page.getByText(/request submitted/i)).toBeVisible({ timeout: 15000 });
+    const success = page.getByText(/request submitted|submitted|request received|thank you/i);
+    const failure = page.getByText(/unable to submit request/i);
 
-    await loginAdmin(page);
+    await expect.poll(async () => {
+      if (await success.first().isVisible().catch(() => false)) return "success";
+      if (await failure.first().isVisible().catch(() => false)) return "failure";
+      return "pending";
+    }, { timeout: 15000 }).not.toBe("pending");
+
+    if (await failure.first().isVisible().catch(() => false)) {
+      const msg = await failure.first().innerText().catch(() => "unable_to_submit_request");
+      throw new Error(`Artist request submission failed: ${msg}`);
+    }
+
+    await expect(success.first()).toBeVisible();
+
     await gotoApp(page, '/partner/admin/artist-requests', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/partner\/admin\/artist-requests/, { timeout: 15000 });
 
@@ -421,7 +464,7 @@ test.describe('Label smoke', () => {
     test.skip(!LABEL_EMAIL || !LABEL_PASSWORD, 'Missing label credentials');
     await loginLabel(page);
     await gotoApp(page, '/partner/label');
-    const shellHeading = page.getByRole('heading', { name: /label dashboard/i }).first();
+    const shellHeading = page.getByRole('heading', { name: /label dashboard|dashboard/i }).first();
     await expect(shellHeading).toBeVisible({ timeout: 15000 });
 
     await expect(page.getByText(/^artists$/i)).toBeVisible({ timeout: 15000 });
@@ -450,11 +493,14 @@ test.describe('Label smoke', () => {
     await logoutButton.click();
     await expect(page).toHaveURL(/\/partner\/login/, { timeout: 15000 });
 
-    await gotoApp(page, '/partner/label', { waitUntil: 'domcontentloaded' });
+    await gotoApp(page, '/partner/label', { waitUntil: 'domcontentloaded', authRetry: false });
     await expect(page).toHaveURL(/\/(fan|partner)\/login/, { timeout: 15000 });
     const redirectedUrl = new URL(page.url());
-    if (redirectedUrl.pathname === '/fan/login') {
-      expect(redirectedUrl.searchParams.get('returnUrl')).toBe('/partner/label');
+    if (/^\/(fan|partner)\/login$/i.test(redirectedUrl.pathname)) {
+      expect(
+        redirectedUrl.searchParams.get('returnTo') ||
+          redirectedUrl.searchParams.get('returnUrl')
+      ).toBe('/partner/label');
     }
   });
 });

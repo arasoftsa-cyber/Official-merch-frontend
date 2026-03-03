@@ -29,7 +29,7 @@ export default function FanRegisterPage() {
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
   const rawReturn =
-    params.get('returnTo') || params.get('returnUrl') || params.get('next') || '/';
+    params.get('returnTo') || params.get('next') || '/';
   let redirectTarget = rawReturn;
   try {
     redirectTarget = decodeURIComponent(rawReturn);

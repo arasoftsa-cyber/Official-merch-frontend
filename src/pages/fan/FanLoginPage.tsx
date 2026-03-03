@@ -30,20 +30,24 @@ export default function FanLoginPage() {
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
   const portalError = params.get('portalError');
-  const rawReturn =
-    params.get('returnTo') || params.get('returnUrl') || params.get('next') || '/fan';
-  let redirectTarget = rawReturn;
-  try {
-    redirectTarget = decodeURIComponent(rawReturn);
-  } catch {
-    redirectTarget = rawReturn;
+  const rawReturnTo = params.get('returnTo');
+  let decodedReturnTo = rawReturnTo || '';
+  if (rawReturnTo) {
+    try {
+      decodedReturnTo = decodeURIComponent(rawReturnTo);
+    } catch {
+      decodedReturnTo = rawReturnTo;
+    }
   }
-  const safeRedirectTarget =
-    redirectTarget.startsWith('/') && !redirectTarget.startsWith('//') ? redirectTarget : '/';
+  const safeReturnTo =
+    decodedReturnTo.startsWith('/') && !decodedReturnTo.startsWith('//')
+      ? decodedReturnTo
+      : null;
+  const redirectHint = safeReturnTo || '/';
   const partnerLinkTarget = `/partner/login?returnTo=${encodeURIComponent(
-    safeRedirectTarget
+    redirectHint
   )}`;
-  const registerLinkTarget = `/fan/register?returnTo=${encodeURIComponent(safeRedirectTarget)}`;
+  const registerLinkTarget = `/fan/register?returnTo=${encodeURIComponent(redirectHint)}`;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -100,7 +104,7 @@ export default function FanLoginPage() {
       }
 
       localStorage.removeItem(LOGIN_CONTEXT_KEY);
-      navigate(safeRedirectTarget || '/', { replace: true });
+      navigate(safeReturnTo || '/', { replace: true });
     } catch (err: any) {
       setFormError(err?.message ?? 'Login failed');
     } finally {

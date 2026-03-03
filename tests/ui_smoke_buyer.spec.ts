@@ -544,7 +544,7 @@ test.describe('Buyer smoke', () => {
         .first()
     ).toBeVisible({ timeout: 15000 });
 
-    await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded' });
+    await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded', authRetry: false });
     await expect(page).toHaveURL(/\/(fan|partner)\/login/, { timeout: 15000 });
   });
 });

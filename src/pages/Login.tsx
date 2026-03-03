@@ -52,19 +52,19 @@ export default function Login() {
       }
 
       const params = new URLSearchParams(location.search);
-      const encodedReturnUrl = params.get('returnUrl') || '/';
-      const decodedReturnUrl = (() => {
+      const encodedReturnTo = params.get('returnTo') || '/';
+      const decodedReturnTo = (() => {
         try {
-          return decodeURIComponent(encodedReturnUrl);
+          return decodeURIComponent(encodedReturnTo);
         } catch {
-          return encodedReturnUrl;
+          return encodedReturnTo;
         }
       })();
-      const returnUrl =
-        decodedReturnUrl.startsWith('/') && !decodedReturnUrl.startsWith('//')
-          ? decodedReturnUrl
+      const returnTo =
+        decodedReturnTo.startsWith('/') && !decodedReturnTo.startsWith('//')
+          ? decodedReturnTo
           : '/';
-      navigate(returnUrl, { replace: true });
+      navigate(returnTo, { replace: true });
     } catch (err: any) {
       setError(err?.message ?? 'Login failed');
     } finally {

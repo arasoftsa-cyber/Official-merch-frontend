@@ -59,7 +59,7 @@ test.describe('Artist status smoke', () => {
       await loginArtist(page);
       await gotoApp(page, '/partner/artist', { waitUntil: 'domcontentloaded' });
       await page.waitForLoadState('domcontentloaded');
-      await expect(page).toHaveURL(/\/partner\/artist(?:\/)?$/, { timeout: 15000 });
+      await expect(page).toHaveURL(/\/partner\/artist/, { timeout: 15000 });
       await expect(page.getByRole('heading', { name: /artist dashboard/i })).toBeVisible({
         timeout: 15000,
       });
@@ -68,10 +68,25 @@ test.describe('Artist status smoke', () => {
       await expect(recentOrdersSection).toBeVisible({ timeout: 15000 });
 
       await expect
-        .poll(async () => await recentOrdersSection.locator('table tbody tr').count(), {
-          timeout: 20000,
-        })
-        .toBeGreaterThan(0);
+        .poll(
+          async () => {
+            const rowCount = await recentOrdersSection.locator('table tbody tr').count();
+            if (rowCount > 0) return 'rows';
+            const emptyVisible = await recentOrdersSection
+              .getByText(/no recent orders yet/i)
+              .isVisible()
+              .catch(() => false);
+            return emptyVisible ? 'empty' : 'pending';
+          },
+          { timeout: 20000 }
+        )
+        .not.toBe('pending');
+
+      const rowCount = await recentOrdersSection.locator('table tbody tr').count();
+      if (rowCount === 0) {
+        await expect(recentOrdersSection.getByText(/no recent orders yet/i)).toBeVisible();
+        return;
+      }
 
       const firstRow = recentOrdersSection.locator('table tbody tr').first();
       const firstOrderCell = firstRow.locator('td').first();

@@ -63,6 +63,7 @@ import { CartProvider } from '../cart/CartContext';
 const LOGIN_PATHS = ['/fan/login', '/partner/login', '/login'];
 const AUTH_BYPASS_PATHS = [...LOGIN_PATHS, '/logout'];
 const LOGIN_CONTEXT_KEY = 'om_login_context';
+const LOGIN_OR_REGISTER_PATH_RE = /^\/(fan|partner)\/(login|register)(?:\/|$)/i;
 
 function isExactPath(pathname: string, candidate: string): boolean {
   return pathname === candidate || pathname === `${candidate}/`;
@@ -86,7 +87,7 @@ function roleHomePath(role: string | null): string {
 
 function getRequestedLoginPath(search: string): string | null {
   const params = new URLSearchParams(search);
-  const raw = params.get('returnTo') || params.get('returnUrl') || params.get('next') || '';
+  const raw = params.get('returnTo') || params.get('next') || '';
   if (!raw) return null;
   let decoded = raw;
   try {
@@ -774,6 +775,48 @@ function useAuthStatus() {
   const [role, setRole] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [hasToken, setHasToken] = useState(() => Boolean(getAccessToken()));
+  const refreshAttemptedRef = useRef(false);
+
+  const ensureSessionForProtectedRoute = useCallback(async (pathname: string) => {
+    const currentPath = getPathnameOnly(pathname || '/');
+    const isLoginOrRegisterPath = LOGIN_OR_REGISTER_PATH_RE.test(currentPath);
+    const isProtectedPortalPath =
+      currentPath === '/fan' ||
+      currentPath.startsWith('/fan/') ||
+      currentPath === '/partner' ||
+      currentPath.startsWith('/partner/');
+
+    if (isLoginOrRegisterPath || !isProtectedPortalPath) return null;
+    if (refreshAttemptedRef.current) return null;
+    refreshAttemptedRef.current = true;
+
+    try {
+      const refreshResponse = await apiFetch('/api/auth/refresh', {
+        method: 'POST',
+        body: {},
+      });
+      const refreshedToken =
+        refreshResponse?.accessToken ||
+        refreshResponse?.token ||
+        refreshResponse?.data?.accessToken ||
+        refreshResponse?.access_token ||
+        null;
+      if (!refreshedToken) {
+        return null;
+      }
+      setAccessToken(refreshedToken);
+      return refreshedToken;
+    } catch (err: any) {
+      const status = Number(err?.status || 0);
+      if (status === 401) {
+        return null;
+      }
+      if (status >= 500 || !status) {
+        console.error('[auth] refresh failed', err);
+      }
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -795,21 +838,16 @@ function useAuthStatus() {
       };
 
       try {
-        if (!currentToken) {
-          const refreshResponse = await apiFetch('/auth/refresh', {
-            method: 'POST',
-            body: {},
-          });
-          const refreshedToken =
-            refreshResponse?.accessToken ||
-            refreshResponse?.token ||
-            refreshResponse?.data?.accessToken ||
-            refreshResponse?.access_token ||
-            null;
-          if (!refreshedToken) {
-            throw new Error('No refreshed token');
+        let tokenForRequest = currentToken;
+        if (!tokenForRequest) {
+          tokenForRequest = await ensureSessionForProtectedRoute(location.pathname);
+        }
+        if (!tokenForRequest) {
+          if (isMounted) {
+            setRole(null);
+            setHasToken(false);
           }
-          setAccessToken(refreshedToken);
+          return;
         }
         await fetchRole();
       } catch (err: any) {
@@ -832,7 +870,7 @@ function useAuthStatus() {
     return () => {
       isMounted = false;
     };
-  }, [location.pathname]);
+  }, [location.pathname, ensureSessionForProtectedRoute]);
 
   return { role, authChecked, hasToken };
 }
@@ -923,8 +961,14 @@ function AppRoutes() {
     }
 
     if (!hasToken) {
-      const returnUrl = encodeURIComponent(location.pathname + location.search);
-      return <Navigate to={`/login?returnUrl=${returnUrl}`} replace />;
+      const returnTo = encodeURIComponent(location.pathname + location.search + location.hash);
+      if (location.pathname.startsWith('/partner')) {
+        return <Navigate to={`/partner/login?returnTo=${returnTo}`} replace />;
+      }
+      if (location.pathname.startsWith('/fan')) {
+        return <Navigate to={`/fan/login?returnTo=${returnTo}`} replace />;
+      }
+      return element;
     }
 
     if (!authChecked) {
