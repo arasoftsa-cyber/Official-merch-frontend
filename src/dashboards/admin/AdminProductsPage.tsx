@@ -11,6 +11,7 @@ type Artist = {
 
 type Product = {
   id: string;
+  productId?: string;
   title?: string;
   name?: string;
   description?: string;
@@ -477,7 +478,7 @@ export default function AdminProductsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate(`/partner/admin/products/${product.id}/variants`)}
+                        onClick={() => navigate(`/partner/admin/products/${(product.productId || product.id).trim()}/variants`)}
                         className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-950 transition-all shadow-sm"
                       >
                         Variants

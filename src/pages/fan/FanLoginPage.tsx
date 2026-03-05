@@ -1,21 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
-import Input from '../../components/ui/Input';
-import Label from '../../components/ui/Label';
+import { apiPost } from '../../lib/api';
 import PublicLayout from '../../shared/layout/PublicLayout';
-import { logoutAuth } from '../../lib/api/auth';
-import {
-  setAccessToken,
-  setRefreshToken,
-  clearTokens,
-} from '../../shared/auth/tokenStore';
-import { apiFetch } from '../../shared/api/http';
+import { clearTokens, setAccessToken, setRefreshToken } from '../../shared/auth/tokenStore';
 
-const LOGIN_CONTEXT_KEY = 'om_login_context';
 const FAN_ALLOWED_ROLES = new Set(['buyer', 'fan', 'customer']);
-const PARTNER_PORTAL_ERROR_MESSAGE =
-  'This is a partner/admin account. Please log in via the partner portal.';
+const ROLE_NOT_ALLOWED_MESSAGE = 'This account is for the Partner Portal. Go to Partner Login';
 
 function resolveRole(payload: any): string {
   const role =
@@ -26,55 +17,70 @@ function resolveRole(payload: any): string {
   return String(role || '').toLowerCase();
 }
 
+function toSafeReturnTo(raw: string | null): string {
+  const value = String(raw || '').trim();
+  if (!value) return '/fan';
+  try {
+    const decoded = decodeURIComponent(value);
+    if (decoded.startsWith('/') && !decoded.startsWith('//')) return decoded;
+  } catch {
+    // ignore malformed returnTo
+  }
+  return '/fan';
+}
+
 export default function FanLoginPage() {
   const navigate = useNavigate();
-  const params = new URLSearchParams(location.search);
-  const portalError = params.get('portalError');
-  const rawReturnTo = params.get('returnTo');
-  let decodedReturnTo = rawReturnTo || '';
-  if (rawReturnTo) {
-    try {
-      decodedReturnTo = decodeURIComponent(rawReturnTo);
-    } catch {
-      decodedReturnTo = rawReturnTo;
-    }
-  }
-  const safeReturnTo =
-    decodedReturnTo.startsWith('/') && !decodedReturnTo.startsWith('//')
-      ? decodedReturnTo
-      : null;
-  const redirectHint = safeReturnTo || '/';
-  const partnerLinkTarget = `/partner/login?returnTo=${encodeURIComponent(
-    redirectHint
-  )}`;
-  const registerLinkTarget = `/fan/register?returnTo=${encodeURIComponent(redirectHint)}`;
+  const location = useLocation();
+  const returnTo = new URLSearchParams(location.search).get('returnTo') ?? '/fan';
+  const safeReturnTo = toSafeReturnTo(returnTo);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [partnerRedirect, setPartnerRedirect] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setError(null);
-    try {
-      const res: any = await apiPost('/auth/login', { email, password });
+    setPartnerRedirect(null);
 
-      const token = res?.accessToken || res?.token;
-      if (token) {
-        setAccessToken(token);
-        navigate(returnTo);
-      } else {
-        setError('Invalid credentials');
+    try {
+      const res: any = await apiPost('/auth/fan/login', { email, password });
+      const role = resolveRole(res);
+      if (role && !FAN_ALLOWED_ROLES.has(role)) {
+        clearTokens();
+        setError(ROLE_NOT_ALLOWED_MESSAGE);
+        setPartnerRedirect('/partner/login');
+        return;
       }
 
-      localStorage.removeItem(LOGIN_CONTEXT_KEY);
-      navigate(safeReturnTo || '/', { replace: true });
+      const accessToken = res?.accessToken || res?.token || '';
+      const refreshToken = res?.refreshToken || '';
+      if (accessToken) {
+        setAccessToken(accessToken);
+      }
+      if (refreshToken) {
+        setRefreshToken(refreshToken);
+      }
+
+      navigate(safeReturnTo, { replace: true });
     } catch (err: any) {
-      setError(err?.message || 'Login failed');
+      const status = Number(err?.status || 0);
+      const body = err?.payload || null;
+      if (status === 403 && body?.error === 'ROLE_NOT_ALLOWED') {
+        clearTokens();
+        setError(ROLE_NOT_ALLOWED_MESSAGE);
+        setPartnerRedirect(String(body?.redirectTo || '/partner/login'));
+      } else {
+        setError(err?.message || 'Login failed');
+      }
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -86,60 +92,41 @@ export default function FanLoginPage() {
           <div className="absolute right-0 bottom-0 h-64 w-64 blur-[160px] bg-gradient-to-br from-purple-600/20 via-transparent to-transparent" />
         </div>
         <Card className="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.06] p-10 shadow-2xl backdrop-blur">
-        <div className="space-y-2 text-center">
-          <span className="inline-flex items-center justify-center gap-1 rounded-full border border-white/15 bg-white/10 px-3 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.35em] text-slate-200">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-slate-900 text-[0.55rem] font-bold">OM</span>
-            OfficialMerch
-          </span>
-          <h1 className="text-3xl font-semibold tracking-tight text-white">Fan login</h1>
-          <p className="mt-2 text-sm text-white/70">Welcome back. Access your orders and favorites.</p>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-5 mt-8">
-          <div className="space-y-2">
-            <Label htmlFor="fan-email" className="text-sm text-white/60">
-              Email
-            </Label>
-            <Input
-              id="fan-email"
-              type="email"
-              name="email"
-              value={email}
-              ref={emailRef}
-              onChange={(event) => setEmail(event.target.value)}
-              autoFocus
-              required
-              placeholder="you@example.com"
-              data-testid="login-email"
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none transition focus:ring-2 focus:ring-white/20 placeholder:text-slate-400"
-            />
-          </div>
-
           <div className="mb-10 text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
-              Fan login
-            </h1>
+            <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">Fan login</h1>
             <p className="mt-4 text-sm text-slate-500 dark:text-white/60">
               Welcome back. Access your orders and favorites.
             </p>
           </div>
 
           {error && (
-            <div className="mb-6 w-full rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-600 dark:border-rose-500/20 dark:bg-rose-500/5 dark:text-rose-400">
-              {error}
+            <div
+              data-testid={partnerRedirect ? 'fan-login-role-not-allowed' : undefined}
+              className="mb-6 w-full rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-600 dark:border-rose-500/20 dark:bg-rose-500/5 dark:text-rose-400"
+            >
+              <p>{error}</p>
+              {partnerRedirect && (
+                <Link
+                  data-testid="fan-login-partner-link"
+                  to={`${partnerRedirect}?returnTo=${encodeURIComponent(safeReturnTo)}`}
+                  className="mt-2 inline-block font-semibold underline underline-offset-4"
+                >
+                  Go to Partner Login
+                </Link>
+              )}
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="w-full space-y-6">
+          <form onSubmit={handleSubmit} className="w-full space-y-6">
             <div className="space-y-2">
-              <label
-                htmlFor="email"
-                className="px-1 text-sm font-medium text-slate-500 dark:text-white/40"
-              >
+              <label htmlFor="email" className="px-1 text-sm font-medium text-slate-500 dark:text-white/40">
                 Email
               </label>
               <input
                 id="email"
+                data-testid="fan-login-email"
                 type="email"
+                name="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -150,10 +137,7 @@ export default function FanLoginPage() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between px-1">
-                <label
-                  htmlFor="password"
-                  className="text-sm font-medium text-slate-500 dark:text-white/40"
-                >
+                <label htmlFor="password" className="text-sm font-medium text-slate-500 dark:text-white/40">
                   Password
                 </label>
                 <Link
@@ -166,12 +150,14 @@ export default function FanLoginPage() {
               <div className="relative">
                 <input
                   id="password"
+                  data-testid="fan-login-password"
                   type={showPassword ? 'text' : 'password'}
+                  name="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 pr-20 text-base text-slate-900 outline-none transition focus:border-slate-900 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:focus:border-white/30"
-                  placeholder="••••••••"
+                  placeholder="********"
                 />
                 <button
                   type="button"
@@ -184,11 +170,12 @@ export default function FanLoginPage() {
             </div>
 
             <button
+              data-testid="fan-login-submit"
               type="submit"
-              disabled={loading}
+              disabled={isSubmitting}
               className="h-14 w-full rounded-2xl bg-slate-900 text-base font-bold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-[#9c9c9c] dark:text-black dark:hover:bg-[#b0b0b0]"
             >
-              {loading ? 'Authenticating...' : 'Sign In'}
+              {isSubmitting ? 'Authenticating...' : 'Sign In'}
             </button>
           </form>
 
@@ -196,7 +183,7 @@ export default function FanLoginPage() {
             <p>
               New here?{' '}
               <Link
-                to={`/fan/register?returnTo=${encodeURIComponent(returnTo)}`}
+                to={`/fan/register?returnTo=${encodeURIComponent(safeReturnTo)}`}
                 className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
               >
                 Sign up
@@ -205,35 +192,13 @@ export default function FanLoginPage() {
             <p>
               Are you an artist?{' '}
               <Link
-                to={`/partner/login?returnTo=${encodeURIComponent(returnTo)}`}
+                to={`/partner/login?returnTo=${encodeURIComponent(safeReturnTo)}`}
                 className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
               >
                 Partner Login
               </Link>
             </p>
           </div>
-          <button
-            type="submit"
-            disabled={isSubmitting || !email || !password}
-            aria-busy={isSubmitting}
-            data-testid="login-submit"
-            className="mt-2 w-full rounded-2xl bg-white/95 text-black py-3 font-medium transition hover:bg-white active:opacity-90 disabled:opacity-60"
-          >
-            {isSubmitting ? 'Logging in…' : 'Login'}
-          </button>
-        </form>
-        <div className="text-xs text-center text-slate-400 mt-4 space-y-2">
-          <p>
-            Need an account? <Link className="underline" to={registerLinkTarget}>Create one</Link>.
-          </p>
-          <p>
-            Partner?{' '}
-            <Link className="underline" to={partnerLinkTarget}>
-              Login here
-            </Link>
-            .
-          </p>
-        </div>
         </Card>
       </div>
     </PublicLayout>

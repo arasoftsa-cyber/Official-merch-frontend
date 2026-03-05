@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { apiFetch } from '../../shared/api/http';
+import { getAccessToken } from '../../shared/auth/tokenStore';
+import { API_BASE, apiFetch } from '../../shared/api/http';
 
 type Variant = {
   id?: string;
@@ -12,7 +13,7 @@ type Variant = {
 };
 
 export default function AdminProductVariants() {
-  const { id } = useParams<{ id: string }>();
+  const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const [variants, setVariants] = useState<Variant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,11 +21,11 @@ export default function AdminProductVariants() {
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    if (!id) return;
+    if (!productId) return;
     setLoading(true);
     setError(null);
     try {
-      const payload = await apiFetch(`/admin/products/${id}/variants`);
+      const payload = await apiFetch(`/api/admin/products/${productId}/variants`);
       const items = Array.isArray(payload?.variants)
         ? payload.variants
         : Array.isArray(payload)
@@ -40,7 +41,7 @@ export default function AdminProductVariants() {
 
   useEffect(() => {
     load();
-  }, [id]);
+  }, [productId]);
 
   const updateVariant = (index: number, key: keyof Variant, value: string) => {
     setVariants((prev) =>
@@ -66,23 +67,44 @@ export default function AdminProductVariants() {
   };
 
   const saveAll = async () => {
-    if (!id) return;
+    if (!productId) return;
     setSaving(true);
     setError(null);
     try {
-      await apiFetch(`/admin/products/${id}/variants`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          variants: variants.map((v) => ({
-            id: v.id,
-            sku: v.sku,
-            size: v.size,
-            color: v.color,
-            priceCents: Number(v.priceCents),
-            stock: Number(v.stock),
-          })),
-        }) as any,
+      const normalizedVariants = variants.map((v) => {
+        const priceCentsNum = Number(String(v.priceCents ?? '').trim());
+        const unitsNum = Number(String(v.stock ?? '').trim());
+        const normalizedUnits = Number.isFinite(unitsNum) ? unitsNum : 0;
+        return {
+          id: v.id,
+          sku: String(v.sku ?? ''),
+          size: String(v.size ?? ''),
+          color: String(v.color ?? ''),
+          priceCents: Number.isFinite(priceCentsNum) ? priceCentsNum : 0,
+          stock: normalizedUnits,
+          units: normalizedUnits,
+        };
       });
+      const payload = { variants: normalizedVariants };
+      console.log('[variants] PUT payload', payload);
+
+      const token = getAccessToken();
+      const response = await fetch(`${API_BASE}/api/admin/products/${productId}/variants`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        console.error('[variants] PUT failed', response.status, text);
+        throw new Error(text || `HTTP_${response.status}`);
+      }
+
       await load();
     } catch (err: any) {
       setError(err?.message ?? 'Failed to save variants');

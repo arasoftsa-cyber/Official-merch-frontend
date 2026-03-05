@@ -1189,7 +1189,7 @@ function AppRoutes() {
           element={requireAuthElement(<AdminHomepageBannersPage />)}
         />
         <Route
-          path="admin/products/:id/variants"
+          path="admin/products/:productId/variants"
           element={requireAuthElement(<AdminProductVariants />)}
         />
         <Route
@@ -1318,10 +1318,10 @@ function AppRoutes() {
         element={<LegacyRedirect to="/partner/admin/homepage-banners" />}
       />
       <Route
-        path="/admin/products/:id/variants"
+        path="/admin/products/:productId/variants"
         element={
           <ParamsRedirect
-            to={(params) => `/partner/admin/products/${params.id ?? ''}/variants`}
+            to={(params) => `/partner/admin/products/${params.productId ?? ''}/variants`}
           />
         }
       />

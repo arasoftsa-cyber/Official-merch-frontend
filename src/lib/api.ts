@@ -30,11 +30,35 @@ function errorFromPayload(payload: any, status: number) {
     `HTTP_${status}`;
   const error = new Error(String(message));
   (error as any).status = status;
+  (error as any).payload = payload;
+  (error as any).error = payload?.error;
   return error;
 }
 
+function normalizePath(path: string) {
+  const rawPath = String(path ?? '');
+  const trimmedPath = rawPath.trim();
+  const queryIndex = trimmedPath.indexOf('?');
+  const hashIndex = trimmedPath.indexOf('#');
+  const splitIndex =
+    queryIndex >= 0 && hashIndex >= 0
+      ? Math.min(queryIndex, hashIndex)
+      : Math.max(queryIndex, hashIndex);
+
+  const pathSegment = splitIndex === -1 ? trimmedPath : trimmedPath.slice(0, splitIndex);
+  const suffix = splitIndex === -1 ? '' : trimmedPath.slice(splitIndex);
+  const noWhitespacePath = pathSegment.replace(/\s+/g, '');
+  const withLeadingSlash = noWhitespacePath.startsWith('/') ? noWhitespacePath : `/${noWhitespacePath}`;
+  const apiPath = withLeadingSlash.startsWith('/api/') || withLeadingSlash === '/api'
+    ? withLeadingSlash
+    : `/api${withLeadingSlash}`;
+
+  return `${apiPath}${suffix}`;
+}
+
 export async function apiGet(path: string) {
-  const url = `${API_BASE}${path}`;
+  const clean = normalizePath(path);
+  const url = `${API_BASE}${clean}`;
   const response = await fetch(url, {
     method: 'GET',
     headers: buildHeaders(),
@@ -48,7 +72,8 @@ export async function apiGet(path: string) {
 }
 
 export async function apiPost(path: string, body?: any) {
-  const url = `${API_BASE}${path}`;
+  const clean = normalizePath(path);
+  const url = `${API_BASE}${clean}`;
   const response = await fetch(url, {
     method: 'POST',
     headers: {

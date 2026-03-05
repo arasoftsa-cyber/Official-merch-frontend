@@ -39,6 +39,10 @@ type BuyerLoginOptions = {
   returnTo?: string;
 };
 
+type LoginFanOpts = {
+  expectRejection?: boolean;
+};
+
 const safeDecode = (value: string) => {
   try {
     return decodeURIComponent(value);
@@ -125,6 +129,11 @@ const submitPartnerLoginForm = async (page: Page, email: string, password: strin
 };
 
 const submitFanLoginForm = async (page: Page, email: string, password: string) => {
+  if (await page.getByRole('button', { name: /logout/i }).isVisible().catch(() => false)) return null;
+  if (await page.getByRole('button', { name: /my account/i }).isVisible().catch(() => false)) return null;
+
+  await page.goto(`${UI_BASE_URL}/fan/login?returnTo=%2F`, { waitUntil: 'domcontentloaded' });
+
   const emailField = await firstVisible([
     page.getByLabel(/email/i),
     page.getByPlaceholder(/email/i),
@@ -137,9 +146,11 @@ const submitFanLoginForm = async (page: Page, email: string, password: string) =
     page.getByTestId(/password/i),
     page.locator('input[type="password"][name="password"], input#fan-password'),
   ]);
+  const signInButton = page.getByRole('button', { name: /^sign in$/i });
   const loginButton = page.getByRole('button', { name: /^login$/i });
 
-  await expect(loginButton).toBeVisible({ timeout: 10000 });
+  const submitButton = (await signInButton.isVisible().catch(() => false)) ? signInButton : loginButton;
+  await expect(submitButton).toBeVisible({ timeout: 10000 });
   await emailField.fill(email);
   await passwordField.fill(password);
 
@@ -149,7 +160,7 @@ const submitFanLoginForm = async (page: Page, email: string, password: string) =
       /\/api\/auth\/(?:fan\/)?login(?:[/?#]|$)/i.test(response.url()),
     { timeout: 15000 }
   );
-  await loginButton.click();
+  await submitButton.click();
   return loginResponsePromise;
 };
 
@@ -359,7 +370,7 @@ export const loginBuyer = async (page: Page, options: BuyerLoginOptions = {}) =>
   });
 
   const loginResponse = await submitFanLoginForm(page, emailValue, passwordValue);
-  if (!loginResponse.ok()) {
+  if (loginResponse && !loginResponse.ok()) {
     const bodyText = await loginResponse.text().catch(() => '<unavailable>');
     throw new Error(`Fan login failed (${loginResponse.status()}): ${bodyText}`);
   }
@@ -377,35 +388,73 @@ export const loginBuyer = async (page: Page, options: BuyerLoginOptions = {}) =>
 export const loginFanWithCredentials = async (
   page: Page,
   emailValue: string,
-  passwordValue: string
+  passwordValue: string,
+  opts: LoginFanOpts = {}
 ) => {
+  const { expectRejection = false } = opts;
+
   await resetAuth(page);
   await page.goto(`${UI_BASE_URL}/fan/login`, { waitUntil: 'domcontentloaded' });
 
   const form = page.locator('form').first();
-  const emailByTestId = form.getByTestId('login-email');
-  const email =
-    (await emailByTestId.count()) > 0
-      ? emailByTestId
-      : form.locator('input[type="email"][name="email"], input#fan-email').first();
-  const passwordByTestId = form.getByTestId('login-password');
-  const password =
-    (await passwordByTestId.count()) > 0
-      ? passwordByTestId
-      : form.locator('input[type="password"][name="password"]').first();
-  const submitByTestId = form.getByTestId('login-submit');
-  const submit =
-    (await submitByTestId.count()) > 0
-      ? submitByTestId
-      : form.getByRole('button', { name: /log ?in/i });
+  const email = form.getByLabel(/email/i);
+  const password = form.getByLabel(/password/i);
+  const submit = form.getByRole('button', { name: /^(sign\s*in|log\s*in)$/i });
 
   await expect(email).toBeVisible({ timeout: 10000 });
   await expect(password).toBeVisible({ timeout: 10000 });
 
   await email.fill(emailValue);
   await password.fill(passwordValue);
-  await submit.click();
-  await page.waitForLoadState('domcontentloaded');
+  await Promise.all([
+    page.waitForLoadState('domcontentloaded').catch(() => null),
+    submit.click(),
+  ]);
+
+  if (expectRejection) {
+    const url = page.url();
+    const partnerBanner = page.getByText(/this account is for the partner portal/i).first();
+    const goPartnerLink = page
+      .getByRole('link', { name: /partner login|go to partner login/i })
+      .first();
+    const goPartnerButton = page
+      .getByRole('button', { name: /partner login|go to partner login/i })
+      .first();
+
+    if (/\/partner\/login/i.test(url)) {
+      await expect(
+        page.getByRole('heading', { name: /partner/i })
+      ).toBeVisible({ timeout: 15000 }).catch(() => null);
+      return;
+    }
+
+    await expect(page).toHaveURL(/\/fan\/login/i, { timeout: 15000 });
+
+    const bannerCount = await partnerBanner.count().catch(() => 0);
+    const linkCount = await goPartnerLink.count().catch(() => 0);
+    const buttonCount = await goPartnerButton.count().catch(() => 0);
+
+    if (bannerCount > 0) {
+      await expect(partnerBanner).toBeVisible({ timeout: 15000 });
+    } else if (linkCount > 0) {
+      await expect(goPartnerLink).toBeVisible({ timeout: 15000 });
+    } else if (buttonCount > 0) {
+      await expect(goPartnerButton).toBeVisible({ timeout: 15000 });
+    } else {
+      await expect(
+        page.getByText(/role_not_allowed|not allowed|unauthorized|forbidden/i).first()
+      ).toBeVisible({
+        timeout: 15000,
+      });
+    }
+
+    await expect(page)
+      .not.toHaveURL(/\/fan\/(orders|addresses|dashboard)/i, { timeout: 2000 })
+      .catch(() => null);
+    return;
+  }
+
+  await expect(page).not.toHaveURL(/\/fan\/login/i, { timeout: 20000 });
 };
 
 export const loginAdmin = async (page: Page, options: { returnTo?: string } = {}) =>

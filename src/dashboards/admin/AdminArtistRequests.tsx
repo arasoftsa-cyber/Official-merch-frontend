@@ -81,6 +81,13 @@ const normalizeSocials = (value: any): SocialItem[] => {
 };
 
 const normalizePlanType = (value: unknown) => String(value ?? '').trim().toLowerCase();
+const normalizePlan = (value: string) => {
+  const s = (value || '').toLowerCase().trim();
+  if (s === 'basic') return 'basic';
+  if (s === 'advanced') return 'advanced';
+  if (s === 'premium') return 'premium';
+  return s;
+};
 
 const isPremiumEnabledFromConfig = (payload: any): boolean => {
   if (!payload || typeof payload !== 'object') return false;
@@ -109,7 +116,7 @@ export default function AdminArtistRequests() {
   const [reviewRequest, setReviewRequest] = useState<ArtistRequest | null>(null);
   const [rejectComment, setRejectComment] = useState('');
   const [modalError, setModalError] = useState<string | null>(null);
-  const [finalPlanType, setFinalPlanType] = useState<'basic' | 'advanced' | 'premium'>('basic');
+  const [finalPlanType, setFinalPlanType] = useState<string>('basic');
   const [paymentMode, setPaymentMode] = useState<'cash' | 'online' | ''>('');
   const [transactionId, setTransactionId] = useState('');
   const [approveFieldErrors, setApproveFieldErrors] = useState<ApproveFieldErrors>({});
@@ -249,13 +256,8 @@ export default function AdminArtistRequests() {
   }, [reviewRequest]);
 
   const openReview = (request: ArtistRequest) => {
-    const requested = normalizePlanType(request.requestedPlanType);
-    const defaultPlan: 'basic' | 'advanced' | 'premium' =
-      requested === 'advanced'
-        ? 'advanced'
-        : requested === 'premium' && premiumPlanEnabled
-          ? 'premium'
-          : 'basic';
+    const requested = normalizePlan(String(request.requestedPlanType || ''));
+    const defaultPlan = requested || 'basic';
     setReviewRequest(request);
     setFinalPlanType(defaultPlan);
     setPaymentMode('');
@@ -285,14 +287,15 @@ export default function AdminArtistRequests() {
       }
 
       if (action === 'approve') {
+        const normalizedFinalPlanType = normalizePlan(finalPlanType);
         const nextFieldErrors: ApproveFieldErrors = {};
-        if (!finalPlanType) {
-          nextFieldErrors.finalPlanType = 'Final Approved Plan Type is required.';
+        if (!normalizedFinalPlanType) {
+          nextFieldErrors.finalPlanType = 'FINAL_PLAN_TYPE IS REQUIRED';
         }
-        if (finalPlanType === 'premium' && !premiumPlanEnabled) {
+        if (normalizedFinalPlanType === 'premium' && !premiumPlanEnabled) {
           nextFieldErrors.finalPlanType = 'Premium plan is not enabled.';
         }
-        if (finalPlanType === 'advanced' || finalPlanType === 'premium') {
+        if (normalizedFinalPlanType === 'advanced' || normalizedFinalPlanType === 'premium') {
           if (!paymentMode) {
             nextFieldErrors.paymentMode = 'Payment Mode is required.';
           }
@@ -313,20 +316,24 @@ export default function AdminArtistRequests() {
       setModalError(null);
 
       try {
+        const normalizedFinalPlanType = normalizePlan(finalPlanType);
         const approvalBody =
           action === 'approve'
             ? {
-              final_plan_type: finalPlanType,
-              payment_mode: finalPlanType === 'basic' ? 'NA' : paymentMode,
-              transaction_id: finalPlanType === 'basic' ? 'NA' : transactionId.trim(),
+              final_plan_type: normalizedFinalPlanType,
+              payment_mode: normalizedFinalPlanType === 'basic' ? 'NA' : paymentMode,
+              transaction_id: normalizedFinalPlanType === 'basic' ? 'NA' : transactionId.trim(),
             }
             : undefined;
+        if (action === 'approve') {
+          console.log('[approve] payload', approvalBody);
+        }
 
         await apiFetch(`${endpoint}/${request.id}/${action}`, {
           method: 'POST',
           ...(action === 'reject'
-            ? { body: JSON.stringify({ comment: trimmedComment }) }
-            : { body: JSON.stringify(approvalBody) }),
+            ? { body: { comment: trimmedComment } }
+            : { body: approvalBody }),
         });
 
         notify(
@@ -688,7 +695,7 @@ export default function AdminArtistRequests() {
                           <select
                             value={finalPlanType}
                             onChange={(event) => {
-                              const next = event.target.value as 'basic' | 'advanced' | 'premium';
+                              const next = normalizePlan(event.target.value || '');
                               setFinalPlanType(next);
                               setModalError(null);
                               setApproveFieldErrors((prev) => {
