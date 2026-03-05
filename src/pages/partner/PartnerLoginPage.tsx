@@ -21,12 +21,6 @@ function resolveRole(payload: any): string {
   return String(role || '').toLowerCase();
 }
 
-function getPartnerDefaultPath(role: string): string {
-  if (role === 'artist') return '/partner/artist';
-  if (role === 'label') return '/partner/label';
-  return '/partner/admin';
-}
-
 export default function PartnerLoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -100,7 +94,11 @@ export default function PartnerLoginPage() {
       }
 
       localStorage.removeItem(LOGIN_CONTEXT_KEY);
-      navigate(safeReturnTo || getPartnerDefaultPath(role), { replace: true });
+      if (role === 'artist' || role === 'label' || role === 'admin') {
+        navigate('/partner/dashboard', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     } catch (err: any) {
       if (err?.message === 'fan_account' || err?.message === 'portal_fan_account') {
         clearTokens();

@@ -97,7 +97,13 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
     }
   };
 
-  const showMyAccount = loggedIn && !roleLoading;
+  const isLoggedIn = loggedIn && !roleLoading;
+  const userRole = String(role || '').toLowerCase();
+  const isPartner =
+    userRole.includes('admin') ||
+    userRole.includes('artist') ||
+    userRole.includes('label') ||
+    userRole.includes('partner');
   const actionPadding = variant === 'buyer' ? 'px-3 py-1.5' : 'px-3 py-1.5';
   const loginTarget = `/login?returnTo=${encodeURIComponent(
     `${location.pathname}${location.search}`
@@ -132,8 +138,24 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
             )}
           </Link>
 
-          {showMyAccount ? (
+          {isLoggedIn ? (
             <>
+              {isPartner && (
+                <Link
+                  to="/partner"
+                  className="hidden rounded-lg border border-white/20 px-3 py-1.5 text-sm text-white hover:bg-white/10 md:inline-flex"
+                >
+                  Partner Dashboard
+                </Link>
+              )}
+              {!isPartner && (
+                <Link
+                  to="/fan"
+                  className="hidden rounded-lg border border-white/20 px-3 py-1.5 text-sm text-white hover:bg-white/10 md:inline-flex"
+                >
+                  My Account
+                </Link>
+              )}
               <button
                 type="button"
                 aria-label="Logout"
@@ -142,12 +164,6 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
               >
                 Logout
               </button>
-              <Link
-                to="/fan"
-                className={`hidden rounded-md border border-white/25 text-sm text-white hover:bg-white/10 md:inline-flex ${actionPadding}`}
-              >
-                My Account
-              </Link>
             </>
           ) : (
             <Link
@@ -186,8 +202,24 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
                 </span>
               )}
             </Link>
-            {showMyAccount ? (
+            {isLoggedIn ? (
               <>
+                {isPartner && (
+                  <Link
+                    to="/partner"
+                    className="inline-flex w-fit rounded-lg border border-white/20 px-3 py-1.5 text-sm text-white hover:bg-white/10"
+                  >
+                    Partner Dashboard
+                  </Link>
+                )}
+                {!isPartner && (
+                  <Link
+                    to="/fan"
+                    className="inline-flex w-fit rounded-lg border border-white/20 px-3 py-1.5 text-sm text-white hover:bg-white/10"
+                  >
+                    My Account
+                  </Link>
+                )}
                 <button
                   type="button"
                   aria-label="Logout"
@@ -196,12 +228,6 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
                 >
                   Logout
                 </button>
-                <Link
-                  to="/fan"
-                  className="inline-flex w-fit rounded-md border border-white/25 px-3 py-1.5 text-sm text-white hover:bg-white/10"
-                >
-                  My Account
-                </Link>
               </>
             ) : (
               <Link

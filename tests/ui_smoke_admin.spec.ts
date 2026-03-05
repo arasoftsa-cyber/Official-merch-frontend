@@ -467,10 +467,12 @@ test.describe('Label smoke', () => {
     const shellHeading = page.getByRole('heading', { name: /label dashboard|dashboard/i }).first();
     await expect(shellHeading).toBeVisible({ timeout: 15000 });
 
-    await expect(page.getByText(/^artists$/i)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/^active artists$/i)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/^inactive artists$/i)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/^label gross$/i)).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.locator("main").getByRole("paragraph").filter({ hasText: /^artists$/i }).first()
+    ).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("label-metric-active-artists")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("label-metric-inactive-artists")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("label-metric-label-gross")).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/artist performance/i)).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('button', { name: /logout/i })).toBeVisible({ timeout: 15000 });
 
@@ -491,7 +493,7 @@ test.describe('Label smoke', () => {
     const logoutButton = page.getByRole('button', { name: /logout/i });
     await expect(logoutButton).toBeVisible({ timeout: 15000 });
     await logoutButton.click();
-    await expect(page).toHaveURL(/\/partner\/login/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/($|\?)/, { timeout: 15000 });
 
     await gotoApp(page, '/partner/label', { waitUntil: 'domcontentloaded', authRetry: false });
     await expect(page).toHaveURL(/\/(fan|partner)\/login/, { timeout: 15000 });

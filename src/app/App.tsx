@@ -14,10 +14,11 @@ import { apiFetch } from '../shared/api/http';
 import { getAccessToken, setAccessToken, clearTokens } from '../shared/auth/tokenStore';
 import { API_BASE } from '../shared/api/http';
 import { getMe, getConfig } from '../shared/api/appApi';
-import { logoutAuth } from '../lib/api/auth';
 import FanLoginPage from '../pages/fan/FanLoginPage';
 import FanRegisterPage from '../pages/fan/FanRegisterPage';
 import PartnerLoginPage from '../pages/partner/PartnerLoginPage';
+import PartnerEntryRedirect from '../pages/partner/PartnerEntryRedirect';
+import PartnerLayout from '../layouts/PartnerLayout';
 import CartPage from '../pages/CartPage';
 import LabelDashboard from '../dashboards/label/LabelDashboard';
 import LabelArtistDetailPage from '../dashboards/label/LabelArtistDetailPage';
@@ -919,38 +920,6 @@ function AppRoutes() {
     return <Loading />;
   }
 
-  const withPartnerLogout = (element: React.ReactNode) => {
-    if (!location.pathname.startsWith('/partner/')) {
-      return element;
-    }
-
-    return (
-      <div className="space-y-4">
-        <div className="mx-auto flex w-full max-w-6xl justify-end px-6 pt-4">
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                await logoutAuth();
-              } catch {
-                // Best-effort server logout.
-              } finally {
-                clearTokens();
-                sessionStorage.clear();
-                localStorage.removeItem(LOGIN_CONTEXT_KEY);
-                window.location.assign('/partner/login');
-              }
-            }}
-            className="rounded-full border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.3em] text-slate-300 hover:bg-white/10 hover:text-white"
-          >
-            Logout
-          </button>
-        </div>
-        {element}
-      </div>
-    );
-  };
-
   const requireAuthElement = (element: React.ReactNode) => {
     if (isAuthBypassPath(location.pathname)) {
       return element;
@@ -984,7 +953,7 @@ function AppRoutes() {
         return <Navigate to="/forbidden" replace />;
       }
 
-    return withPartnerLogout(element);
+    return element;
   };
 
   const loginEntryElement = (element: React.ReactNode) => {
@@ -1099,9 +1068,130 @@ function AppRoutes() {
       />
       <Route path="/fan/register" element={<FanRegisterPage />} />
       <Route
-        path="/partner/login"
-        element={loginEntryElement(<PartnerLoginPage />)}
-      />
+        path="/partner"
+        element={<PartnerLayout />}
+      >
+        <Route index element={<PartnerEntryRedirect />} />
+        <Route
+          path="login"
+          element={loginEntryElement(<PartnerLoginPage />)}
+        />
+        <Route path="dashboard" element={<PartnerEntryRedirect />} />
+        <Route
+          path="artist"
+          element={requireAuthElement(<Outlet />)}
+        >
+          <Route index element={<ArtistDashboard />} />
+          <Route
+            path="dashboard"
+            element={<Navigate to="/partner/artist" replace />}
+          />
+          <Route
+            path="orders"
+            element={<ArtistOrdersPage />}
+          />
+          <Route
+            path="orders/:orderId"
+            element={<ArtistOrderDetailPage />}
+          />
+          <Route
+            path="drop/:id"
+            element={<Navigate to="/partner/artist/drops" replace />}
+          />
+          <Route
+            path="products"
+            element={<ArtistProductsPage />}
+          />
+          <Route
+            path="products/:id/variants"
+            element={<ArtistProductVariantsPage />}
+          />
+          <Route
+            path="drops"
+            element={<ArtistDropsPage />}
+          />
+        </Route>
+        <Route
+          path="label"
+          element={requireAuthElement(<LabelDashboard />)}
+        />
+        <Route
+          path="label/orders"
+          element={requireAuthElement(<LabelDashboard />)}
+        />
+        <Route
+          path="label/orders/:id"
+          element={requireAuthElement(<LabelDashboard />)}
+        />
+        <Route
+          path="label/artists"
+          element={requireAuthElement(<LabelDashboard />)}
+        />
+        <Route
+          path="label/artists/:artistId"
+          element={requireAuthElement(<LabelArtistDetailPage />)}
+        />
+        <Route
+          path="label/artist/:artistId"
+          element={requireAuthElement(<ParamsRedirect to={(params) => `/partner/label/artists/${params.artistId ?? ''}`} />)}
+        />
+        <Route
+          path="admin"
+          element={requireAuthElement(<AdminDashboard />)}
+        />
+        <Route
+          path="admin/orders"
+          element={requireAuthElement(<AdminOrders />)}
+        />
+        <Route
+          path="admin/artist-requests"
+          element={requireAuthElement(<AdminArtistRequests />)}
+        />
+        <Route
+          path="admin/leads"
+          element={requireAuthElement(<AdminLeadsPage />)}
+        />
+        <Route
+          path="admin/artists"
+          element={requireAuthElement(<AdminArtistsPage />)}
+        />
+        <Route
+          path="admin/artists/:id"
+          element={requireAuthElement(<AdminArtistDetailPage />)}
+        />
+        <Route
+          path="admin/artists/:id/edit"
+          element={requireAuthElement(<AdminArtistEditPage />)}
+        />
+        <Route
+          path="admin/products"
+          element={requireAuthElement(<AdminProductsPage />)}
+        />
+        <Route
+          path="admin/products/new"
+          element={requireAuthElement(<AdminCreateProductPage />)}
+        />
+        <Route
+          path="admin/drops"
+          element={requireAuthElement(<AdminDropsPage />)}
+        />
+        <Route
+          path="admin/homepage-banners"
+          element={requireAuthElement(<AdminHomepageBannersPage />)}
+        />
+        <Route
+          path="admin/products/:id/variants"
+          element={requireAuthElement(<AdminProductVariants />)}
+        />
+        <Route
+          path="admin/orders/:id"
+          element={requireAuthElement(<AdminOrderDetail />)}
+        />
+        <Route
+          path="admin/order/:id"
+          element={requireAuthElement(<AdminOrderDetail />)}
+        />
+      </Route>
       <Route path="/logout" element={<LogoutPage />} />
       <Route path="/status" element={<StatusPage />} />
       <Route path="/me" element={<MePage />} />
@@ -1114,121 +1204,11 @@ function AppRoutes() {
         <Route path="addresses" element={<BuyerAddressesPage />} />
         <Route path="payment-methods" element={<BuyerPaymentMethodsPage />} />
       </Route>
-      <Route
-        path="/partner/artist"
-        element={requireAuthElement(<Outlet />)}
-      >
-        <Route index element={<ArtistDashboard />} />
-        <Route
-          path="dashboard"
-          element={<Navigate to="/partner/artist" replace />}
-        />
-        <Route
-          path="orders"
-          element={<ArtistOrdersPage />}
-        />
-        <Route
-          path="orders/:orderId"
-          element={<ArtistOrderDetailPage />}
-        />
-        <Route
-          path="drop/:id"
-          element={<Navigate to="/partner/artist/drops" replace />}
-        />
-        <Route
-          path="products"
-          element={<ArtistProductsPage />}
-        />
-        <Route
-          path="products/:id/variants"
-          element={<ArtistProductVariantsPage />}
-        />
-        <Route
-          path="drops"
-          element={<ArtistDropsPage />}
-        />
-      </Route>
-      <Route
-        path="/partner/label"
-        element={requireAuthElement(<LabelDashboard />)}
-      />
-      <Route
-        path="/partner/label/orders"
-        element={requireAuthElement(<LabelDashboard />)}
-      />
-      <Route
-        path="/partner/label/orders/:id"
-        element={requireAuthElement(<LabelDashboard />)}
-      />
-      <Route
-        path="/partner/label/artists"
-        element={requireAuthElement(<LabelDashboard />)}
-      />
-      <Route
-        path="/partner/label/artists/:artistId"
-        element={requireAuthElement(<LabelArtistDetailPage />)}
-      />
-      <Route
-        path="/partner/label/artist/:artistId"
-        element={requireAuthElement(<ParamsRedirect to={(params) => `/partner/label/artists/${params.artistId ?? ''}`} />)}
-      />
-      <Route
-        path="/partner/admin"
-        element={requireAuthElement(<AdminDashboard />)}
-      />
-      <Route
-        path="/partner/admin/orders"
-        element={requireAuthElement(<AdminOrders />)}
-      />
-      <Route
-        path="/partner/admin/artist-requests"
-        element={requireAuthElement(<AdminArtistRequests />)}
-      />
-      <Route
-        path="/partner/admin/leads"
-        element={requireAuthElement(<AdminLeadsPage />)}
-      />
-      <Route
-        path="/partner/admin/artists"
-        element={requireAuthElement(<AdminArtistsPage />)}
-      />
-      <Route
-        path="/partner/admin/artists/:id"
-        element={requireAuthElement(<AdminArtistDetailPage />)}
-      />
-      <Route
-        path="/partner/admin/artists/:id/edit"
-        element={requireAuthElement(<AdminArtistEditPage />)}
-      />
-      <Route
-        path="/partner/admin/products"
-        element={requireAuthElement(<AdminProductsPage />)}
-      />
-      <Route
-        path="/partner/admin/products/new"
-        element={requireAuthElement(<AdminCreateProductPage />)}
-      />
-      <Route
-        path="/partner/admin/drops"
-        element={requireAuthElement(<AdminDropsPage />)}
-      />
-      <Route
-        path="/partner/admin/homepage-banners"
-        element={requireAuthElement(<AdminHomepageBannersPage />)}
-      />
-      <Route
-        path="/partner/admin/products/:id/variants"
-        element={requireAuthElement(<AdminProductVariants />)}
-      />
-      <Route
-        path="/partner/admin/orders/:id"
-        element={requireAuthElement(<AdminOrderDetail />)}
-      />
-      <Route
-        path="/partner/admin/order/:id"
-        element={requireAuthElement(<AdminOrderDetail />)}
-      />
       <Route path="/buyer" element={<LegacyRedirect to="/fan" />} />
+      <Route
+        path="/account"
+        element={<Navigate to="/fan" replace />}
+      />
       <Route path="/buyer/orders" element={<LegacyRedirect to="/fan/orders" />} />
       <Route
         path="/buyer/orders/:id"
