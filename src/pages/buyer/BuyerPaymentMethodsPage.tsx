@@ -1,29 +1,26 @@
 import React from 'react';
-
-const methods = [
-  { name: 'UPI', status: 'coming soon' },
-  { name: 'Card', status: 'coming soon' },
-  { name: 'Wallets', status: 'coming soon' },
-];
+import { Card } from '../../ui/Page';
 
 export default function BuyerPaymentMethodsPage() {
   return (
     <section className="space-y-6">
       <div>
-        <p className="text-xs uppercase tracking-[0.4em] text-white/60">Payment Methods</p>
-        <h1 className="text-3xl font-semibold text-white">Payment Methods</h1>
-        <p className="text-sm text-white/70">
-          Saved methods will be available once we enable a payment provider.
-        </p>
+        <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-white/60">Manage</p>
+        <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Payment Methods</h1>
+        <p className="text-sm text-slate-600 dark:text-white/70">Save your cards for faster checkout.</p>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        {methods.map((method) => (
-          <article key={method.name} className="rounded-2xl border border-white/10 bg-white/5 p-6 text-white/70">
-            <h2 className="text-lg font-semibold text-white">{method.name}</h2>
-            <p className="mt-2 text-sm uppercase tracking-[0.3em] text-white/40">{method.status}</p>
-            <p className="mt-4 text-xs text-white/50">We’ll notify you when this option becomes available.</p>
-          </article>
-        ))}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed">
+          <p className="text-sm text-slate-500 dark:text-white/40">You have not saved any payment methods yet.</p>
+          <button
+            type="button"
+            disabled
+            className="mt-4 rounded-full border border-slate-200 dark:border-white/10 px-6 py-2 text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-white/40 cursor-not-allowed"
+          >
+            Add payment method
+          </button>
+        </Card>
       </div>
     </section>
   );

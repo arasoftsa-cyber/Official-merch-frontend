@@ -78,12 +78,12 @@ export default function ArtistPage() {
       const rawProducts = Array.isArray(productsData)
         ? productsData
         : Array.isArray(productsData?.items)
-        ? productsData.items
-        : Array.isArray(productsData?.shelf)
-        ? productsData.shelf
-        : Array.isArray(productsData?.products)
-        ? productsData.products
-        : [];
+          ? productsData.items
+          : Array.isArray(productsData?.shelf)
+            ? productsData.shelf
+            : Array.isArray(productsData?.products)
+              ? productsData.products
+              : [];
 
       const mappedProducts = rawProducts
         .map((entry) => {
@@ -129,12 +129,12 @@ export default function ArtistPage() {
       setActiveDrop(
         artistDrop
           ? {
-              id: artistDrop.id,
-              title: artistDrop.title,
-              handle: artistDrop.handle,
-              artistId: artistDrop.artistId ?? artistDrop.artist_id,
-              artistHandle: artistDrop.artistHandle ?? artistDrop.artist_handle,
-            }
+            id: artistDrop.id,
+            title: artistDrop.title,
+            handle: artistDrop.handle,
+            artistId: artistDrop.artistId ?? artistDrop.artist_id,
+            artistHandle: artistDrop.artistHandle ?? artistDrop.artist_handle,
+          }
           : null
       );
       setStatus('success');
@@ -172,66 +172,28 @@ export default function ArtistPage() {
 
   return (
     <section>
-      <header
-        style={{
-          padding: '1.5rem',
-          borderRadius: 12,
-          background: '#1b1b1b',
-          border: '1px solid rgba(255,255,255,0.1)',
-          marginBottom: '1.5rem',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-          <div
-            style={{
-              width: 96,
-              height: 96,
-              borderRadius: 12,
-              overflow: 'hidden',
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: '#181818',
-              flex: '0 0 auto',
-            }}
-          >
+      <header className="p-6 rounded-xl bg-slate-50 dark:bg-[#1b1b1b] border border-slate-200 dark:border-white/10 mb-6">
+        <div className="flex items-start gap-4">
+          <div className="w-24 h-24 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-[#181818] flex-shrink-0">
             {showCoverImage ? (
               <img
                 src={coverImageUrl}
                 alt={`${artist?.name ?? handle ?? 'Artist'} cover`}
                 onError={() => setCoverImageFailed(true)}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  display: 'block',
-                }}
+                className="w-full h-full object-cover block"
               />
             ) : (
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '0.75rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  color: 'rgba(255,255,255,0.85)',
-                  background: 'linear-gradient(135deg, rgba(16,185,129,0.35) 0%, rgba(59,130,246,0.2) 55%, rgba(30,41,59,0.55) 100%)',
-                }}
-              >
+              <div className="w-full h-full flex items-center justify-center text-xs uppercase tracking-[0.1em] text-slate-500 dark:text-white/85 bg-gradient-to-br from-emerald-500/35 via-blue-500/20 to-slate-700/55">
                 Cover
               </div>
             )}
           </div>
-          <div style={{ minHeight: 96, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <h1 style={{ margin: 0 }}>{artist?.name ?? handle ?? 'Artist'}</h1>
-            <p style={{ opacity: 0.7 }}>/{artist?.handle ?? handle}</p>
+          <div className="flex flex-col justify-center min-h-24">
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-white m-0">{artist?.name ?? handle ?? 'Artist'}</h1>
+            <p className="text-sm text-slate-500 dark:text-white/70">/{artist?.handle ?? handle}</p>
             <p
+              className="mt-2 text-sm text-slate-600 dark:text-white/80 overflow-hidden"
               style={{
-                marginTop: '0.5rem',
-                opacity: 0.8,
-                overflow: 'hidden',
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
@@ -244,25 +206,15 @@ export default function ArtistPage() {
         </div>
       </header>
 
-      <section style={{ marginBottom: '1.5rem' }}>
-        <h2>Story</h2>
-        <p>{artist?.story?.trim() ? artist.story : 'Story coming soon.'}</p>
+      <section className="mb-6">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Story</h2>
+        <p className="text-slate-600 dark:text-white/80">{artist?.story?.trim() ? artist.story : 'Story coming soon.'}</p>
 
-        <div style={{ marginTop: '1rem', minHeight: 44, display: 'flex', alignItems: 'center' }}>
+        <div className="mt-4 min-h-11 flex items-center">
           {activeDrop?.handle ? (
             <Link
               to={`/drops/${activeDrop.handle}`}
-              style={{
-                display: 'inline-block',
-                textDecoration: 'none',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: 999,
-                padding: '0.5rem 0.9rem',
-                fontSize: '0.8rem',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-              }}
+              className="inline-block no-underline text-slate-800 dark:text-white border border-slate-300 dark:border-white/30 rounded-full px-4 py-2 text-xs uppercase tracking-[0.08em] transition hover:bg-slate-100 dark:hover:bg-white/10"
             >
               View drop
             </Link>
@@ -271,18 +223,7 @@ export default function ArtistPage() {
               type="button"
               disabled
               aria-disabled="true"
-              style={{
-                display: 'inline-block',
-                color: 'rgba(255,255,255,0.6)',
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 999,
-                padding: '0.5rem 0.9rem',
-                fontSize: '0.8rem',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                cursor: 'not-allowed',
-              }}
+              className="inline-block text-slate-400 dark:text-white/60 bg-transparent border border-slate-200 dark:border-white/20 rounded-full px-4 py-2 text-xs uppercase tracking-[0.08em] cursor-not-allowed"
             >
               Drop unavailable
             </button>
@@ -292,7 +233,7 @@ export default function ArtistPage() {
 
       <section>
         <div className="flex items-center justify-between">
-          <h2>Products</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Products</h2>
         </div>
 
         {status === 'error' && (
@@ -305,49 +246,24 @@ export default function ArtistPage() {
 
         {isLoading && <LoadingSkeleton count={3} className="mt-4" />}
 
-        <div
-          style={{
-            maxWidth: '72rem',
-            margin: '1rem auto 0',
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-              gap: '1rem',
-            }}
-          >
-          {!isLoading && products.length > 0
-            ? products.map((product) => (
+        <div className="max-w-6xl mx-auto mt-4">
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+            {!isLoading && products.length > 0
+              ? products.map((product) => (
                 <ProductCardPublic key={product.id} product={product} href={`/products/${product.id}`} />
               ))
-            : null}
+              : null}
 
-          {!isLoading && products.length === 0
-            ? Array.from({ length: PLACEHOLDER_PRODUCT_COUNT }).map((_, index) => (
+            {!isLoading && products.length === 0
+              ? Array.from({ length: PLACEHOLDER_PRODUCT_COUNT }).map((_, index) => (
                 <div
                   key={`artist-product-placeholder-${index}`}
-                  style={{
-                    borderRadius: 16,
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    background: 'rgba(255,255,255,0.03)',
-                    minHeight: 240,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '1rem',
-                    textAlign: 'center',
-                    fontSize: '0.82rem',
-                    letterSpacing: '0.04em',
-                    textTransform: 'uppercase',
-                    color: 'rgba(255,255,255,0.6)',
-                  }}
+                  className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.03] text-slate-400 dark:text-white/60 min-h-60 flex items-center justify-center p-4 text-center text-xs tracking-[0.04em] uppercase"
                 >
                   Product coming soon
                 </div>
               ))
-            : null}
+              : null}
           </div>
         </div>
       </section>

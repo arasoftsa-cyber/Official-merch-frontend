@@ -91,7 +91,7 @@ export default function LandingPage() {
         : Array.isArray(payload?.items)
           ? payload.items
           : [];
-      const items = artistRows.map(mapArtist).filter((item): item is ArtistCard => Boolean(item));
+      const items = artistRows.map(mapArtist).filter((item: any): item is ArtistCard => Boolean(item));
       setArtistsRow({ status: 'success', items, error: null });
     } catch (error: any) {
       setArtistsRow({
@@ -106,7 +106,7 @@ export default function LandingPage() {
     setDropsRow({ status: 'loading', items: [], error: null });
     try {
       const payload = await fetchFeaturedDrops<any>();
-      const items = payload.map(mapDrop).filter((item): item is DropCard => Boolean(item));
+      const items = payload.map(mapDrop).filter((item: any): item is DropCard => Boolean(item));
       setDropsRow({ status: 'success', items, error: null });
     } catch (error: any) {
       setDropsRow({
@@ -123,15 +123,15 @@ export default function LandingPage() {
       const banners = Array.isArray(payload?.banners) ? payload.banners : [];
       const candidateUrls = banners
         .map((banner: any) => resolveMediaUrl(String(banner?.public_url ?? '').trim()))
-        .filter((url): url is string => Boolean(url));
+        .filter((url: any): url is string => Boolean(url));
 
       if (candidateUrls.length === 0) {
         setHeroImages(DEFAULT_HERO_IMAGES);
         return;
       }
 
-      const preloaded = await Promise.all(candidateUrls.map((url) => preloadImage(url)));
-      const validUrls = candidateUrls.filter((_, index) => preloaded[index]);
+      const preloaded = await Promise.all(candidateUrls.map((url: string) => preloadImage(url)));
+      const validUrls = candidateUrls.filter((_: string, index: number) => preloaded[index]);
       setHeroImages(validUrls.length > 0 ? validUrls : DEFAULT_HERO_IMAGES);
     } catch (_error) {
       setHeroImages(DEFAULT_HERO_IMAGES);
@@ -151,24 +151,24 @@ export default function LandingPage() {
         />
         <div className="relative z-10">
           <div className="mx-auto max-w-[820px] space-y-4 px-4 py-12 sm:px-6 md:py-16">
-            <p className="text-xs uppercase tracking-[0.25em] text-slate-400">OfficialMerch Public Release</p>
-            <h1 className="text-4xl font-semibold leading-tight text-white">
+            <p className="text-xs uppercase tracking-[0.25em] text-slate-600 dark:text-slate-400">OfficialMerch Public Release</p>
+            <h1 className="text-4xl font-semibold leading-tight text-slate-900 dark:text-white">
               Limited drops curated with maker-first intent
             </h1>
-            <p className="text-base text-slate-300">
+            <p className="text-base text-slate-600 dark:text-slate-300">
               Discover artists across genres, preview upcoming drops, and support creators through high-contrast merch experiences.
             </p>
             <div className="flex flex-wrap gap-3 pt-2">
               <Link
                 to="/products"
-                className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-xs font-bold uppercase tracking-[0.12em] text-black"
+                className="inline-flex items-center justify-center rounded-full bg-indigo-600 dark:bg-white px-6 py-3 text-xs font-bold uppercase tracking-[0.12em] text-white dark:text-black"
                 aria-label="Browse featured products"
               >
                 Browse Products
               </Link>
               <Link
                 to="/apply/artist"
-                className="inline-flex items-center justify-center rounded-full border border-white/60 px-6 py-3 text-xs font-bold uppercase tracking-[0.12em] text-white"
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 dark:border-white/60 px-6 py-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-700 dark:text-white"
                 aria-label="Apply to join OfficialMerch"
               >
                 Apply as Artist
@@ -179,16 +179,16 @@ export default function LandingPage() {
       </section>
 
       <div className="mt-12">
-        <h2 className="text-2xl font-semibold text-white">Featured Artists</h2>
+        <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Featured Artists</h2>
 
         {artistsRow.status === 'loading' && (
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 5 }).map((_, index) => (
-              <div key={`artist-skeleton-${index}`} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-                <div className="h-32 animate-pulse bg-white/10" />
+              <div key={`artist-skeleton-${index}`} className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5">
+                <div className="h-32 animate-pulse bg-slate-200 dark:bg-white/10" />
                 <div className="space-y-2 p-4">
-                  <div className="h-4 w-3/4 animate-pulse rounded bg-white/10" />
-                  <div className="h-3 w-1/2 animate-pulse rounded bg-white/10" />
+                  <div className="h-4 w-3/4 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
+                  <div className="h-3 w-1/2 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
                 </div>
               </div>
             ))}
@@ -196,12 +196,12 @@ export default function LandingPage() {
         )}
 
         {artistsRow.status === 'error' && (
-          <div className="mt-4 rounded-2xl border border-rose-400/35 bg-rose-500/10 p-4">
-            <p className="text-sm text-rose-100">Failed to load featured artists ({artistsRow.error || 'unknown error'}).</p>
+          <div className="mt-4 rounded-2xl border border-rose-200 dark:border-rose-400/35 bg-rose-50 dark:bg-rose-500/10 p-4">
+            <p className="text-sm text-rose-600 dark:text-rose-100">Failed to load featured artists ({artistsRow.error || 'unknown error'}).</p>
             <button
               type="button"
               onClick={loadFeaturedArtists}
-              className="mt-3 rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-white"
+              className="mt-3 rounded-lg border border-slate-300 dark:border-white/25 px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-slate-700 dark:text-white"
             >
               Retry
             </button>
@@ -209,8 +209,8 @@ export default function LandingPage() {
         )}
 
         {artistsRow.status === 'success' && artistsRow.items.length === 0 && (
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-6">
-            <p className="text-sm text-slate-300">No featured artists yet. Come back soon.</p>
+          <div className="mt-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-6">
+            <p className="text-sm text-slate-600 dark:text-slate-300">No featured artists yet. Come back soon.</p>
           </div>
         )}
 
@@ -220,7 +220,7 @@ export default function LandingPage() {
               <Link
                 key={artist.handle}
                 to={`/artists/${artist.handle}`}
-                className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 transition hover:border-white/30"
+                className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 transition hover:border-slate-300 dark:hover:border-white/30"
               >
                 <PublicCardCover
                   title={artist.name}
@@ -231,9 +231,9 @@ export default function LandingPage() {
                   className="h-32 w-full rounded-none"
                 />
                 <div className="space-y-1 p-4">
-                  <p className="truncate text-sm font-semibold text-white">{artist.name}</p>
-                  <p className="truncate text-xs text-slate-400">@{artist.handle}</p>
-                  <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/80">View Artist</p>
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{artist.name}</p>
+                  <p className="truncate text-xs text-slate-600 dark:text-slate-400">@{artist.handle}</p>
+                  <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-white/80">View Artist</p>
                 </div>
               </Link>
             ))}
@@ -242,16 +242,16 @@ export default function LandingPage() {
       </div>
 
       <div className="mt-10">
-        <h2 className="text-2xl font-semibold text-white">Featured Drops</h2>
+        <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Featured Drops</h2>
 
         {dropsRow.status === 'loading' && (
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 5 }).map((_, index) => (
-              <div key={`drop-skeleton-${index}`} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-                <div className="h-28 animate-pulse bg-white/10" />
+              <div key={`drop-skeleton-${index}`} className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5">
+                <div className="h-28 animate-pulse bg-slate-200 dark:bg-white/10" />
                 <div className="space-y-2 p-4">
-                  <div className="h-4 w-3/4 animate-pulse rounded bg-white/10" />
-                  <div className="h-3 w-1/2 animate-pulse rounded bg-white/10" />
+                  <div className="h-4 w-3/4 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
+                  <div className="h-3 w-1/2 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
                 </div>
               </div>
             ))}
@@ -259,12 +259,12 @@ export default function LandingPage() {
         )}
 
         {dropsRow.status === 'error' && (
-          <div className="mt-4 rounded-2xl border border-rose-400/35 bg-rose-500/10 p-4">
-            <p className="text-sm text-rose-100">Failed to load featured drops ({dropsRow.error || 'unknown error'}).</p>
+          <div className="mt-4 rounded-2xl border border-rose-200 dark:border-rose-400/35 bg-rose-50 dark:bg-rose-500/10 p-4">
+            <p className="text-sm text-rose-600 dark:text-rose-100">Failed to load featured drops ({dropsRow.error || 'unknown error'}).</p>
             <button
               type="button"
               onClick={loadFeaturedDrops}
-              className="mt-3 rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-white"
+              className="mt-3 rounded-lg border border-slate-300 dark:border-white/25 px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-slate-700 dark:text-white"
             >
               Retry
             </button>
@@ -272,8 +272,8 @@ export default function LandingPage() {
         )}
 
         {dropsRow.status === 'success' && dropsRow.items.length === 0 && (
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-6">
-            <p className="text-sm text-slate-300">No drops are live yet. Check back shortly.</p>
+          <div className="mt-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-6">
+            <p className="text-sm text-slate-600 dark:text-slate-300">No drops are live yet. Check back shortly.</p>
           </div>
         )}
 
@@ -284,29 +284,29 @@ export default function LandingPage() {
                 <Link
                   key={drop.id}
                   to={`/drops/${drop.handle}`}
-                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 transition hover:border-white/30"
+                  className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 transition hover:border-slate-300 dark:hover:border-white/30"
                 >
-                  <div className="flex h-28 items-center justify-center bg-white/10 text-xs font-bold uppercase tracking-[0.2em] text-slate-300">
+                  <div className="flex h-28 items-center justify-center bg-slate-200 dark:bg-white/10 text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300">
                     Drop
                   </div>
                   <div className="space-y-1 p-4">
-                    <p className="truncate text-sm font-semibold text-white">{drop.title}</p>
-                    <p className="truncate text-xs text-slate-400">{drop.artistName || 'Featured Artist'}</p>
-                    <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/80">View Drop</p>
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{drop.title}</p>
+                    <p className="truncate text-xs text-slate-600 dark:text-slate-400">{drop.artistName || 'Featured Artist'}</p>
+                    <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-white/80">View Drop</p>
                   </div>
                 </Link>
               ) : (
                 <div
                   key={drop.id}
-                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 opacity-70"
+                  className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 opacity-70"
                 >
-                  <div className="flex h-28 items-center justify-center bg-white/10 text-xs font-bold uppercase tracking-[0.2em] text-slate-300">
+                  <div className="flex h-28 items-center justify-center bg-slate-200 dark:bg-white/10 text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300">
                     Drop
                   </div>
                   <div className="space-y-1 p-4">
-                    <p className="truncate text-sm font-semibold text-white">{drop.title}</p>
-                    <p className="truncate text-xs text-slate-400">{drop.artistName || 'Featured Artist'}</p>
-                    <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/60">Drop unavailable</p>
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{drop.title}</p>
+                    <p className="truncate text-xs text-slate-600 dark:text-slate-400">{drop.artistName || 'Featured Artist'}</p>
+                    <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-white/60">Drop unavailable</p>
                   </div>
                 </div>
               )

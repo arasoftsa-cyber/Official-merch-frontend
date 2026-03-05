@@ -67,39 +67,39 @@ function normalizeProductListingPhotos(
   const fromProduct = Array.isArray(productSource?.listing_photos)
     ? productSource.listing_photos
     : Array.isArray(productSource?.listingPhotos)
-    ? productSource.listingPhotos
-    : Array.isArray(productSource?.listingPhotoUrls)
-    ? productSource.listingPhotoUrls
-    : Array.isArray(productSource?.photoUrls)
-    ? productSource.photoUrls
-    : Array.isArray(productSource?.photos)
-    ? productSource.photos
-    : [];
+      ? productSource.listingPhotos
+      : Array.isArray(productSource?.listingPhotoUrls)
+        ? productSource.listingPhotoUrls
+        : Array.isArray(productSource?.photoUrls)
+          ? productSource.photoUrls
+          : Array.isArray(productSource?.photos)
+            ? productSource.photos
+            : [];
   const fromPayload = Array.isArray(root?.listing_photos)
     ? root.listing_photos
     : Array.isArray(root?.listingPhotos)
-    ? root.listingPhotos
-    : Array.isArray(root?.listingPhotoUrls)
-    ? root.listingPhotoUrls
-    : Array.isArray(data?.listing_photos)
-    ? data.listing_photos
-    : Array.isArray(data?.listingPhotos)
-    ? data.listingPhotos
-    : Array.isArray(data?.listingPhotoUrls)
-    ? data.listingPhotoUrls
-    : Array.isArray(root?.photoUrls)
-    ? root.photoUrls
-    : Array.isArray(data?.photoUrls)
-    ? data.photoUrls
-    : Array.isArray(root?.photos)
-    ? root.photos
-    : Array.isArray(data?.photos)
-    ? data.photos
-    : [];
+      ? root.listingPhotos
+      : Array.isArray(root?.listingPhotoUrls)
+        ? root.listingPhotoUrls
+        : Array.isArray(data?.listing_photos)
+          ? data.listing_photos
+          : Array.isArray(data?.listingPhotos)
+            ? data.listingPhotos
+            : Array.isArray(data?.listingPhotoUrls)
+              ? data.listingPhotoUrls
+              : Array.isArray(root?.photoUrls)
+                ? root.photoUrls
+                : Array.isArray(data?.photoUrls)
+                  ? data.photoUrls
+                  : Array.isArray(root?.photos)
+                    ? root.photos
+                    : Array.isArray(data?.photos)
+                      ? data.photos
+                      : [];
 
   return (fromProduct.length ? fromProduct : fromPayload)
     .filter(
-    (value): value is string => typeof value === 'string' && value.trim().length > 0
+      (value): value is string => typeof value === 'string' && value.trim().length > 0
     )
     .slice(0, 4);
 }
@@ -213,10 +213,10 @@ export default function ProductDetail() {
   const displayPriceLabel = showPriceUnavailable
     ? 'Price unavailable'
     : formatCurrency(
-        typeof displayPriceCents === 'number' && Number.isFinite(displayPriceCents)
-          ? displayPriceCents
-          : 0
-      );
+      typeof displayPriceCents === 'number' && Number.isFinite(displayPriceCents)
+        ? displayPriceCents
+        : 0
+    );
   const photos = useMemo(
     () =>
       (Array.isArray(product?.listing_photos) ? product.listing_photos : [])
@@ -241,8 +241,8 @@ export default function ProductDetail() {
 
   const hasStock = Boolean(
     !hasVariants ||
-      (selectedVariant &&
-        (typeof selectedVariant.stock !== 'number' || selectedVariant.stock > 0))
+    (selectedVariant &&
+      (typeof selectedVariant.stock !== 'number' || selectedVariant.stock > 0))
   );
 
   const getVariantSelectionError = useCallback(() => {
@@ -383,18 +383,18 @@ export default function ProductDetail() {
     try {
       const items = hasVariants
         ? [
-            {
-              productId: id,
-              productVariantId: selectedVariant?.id ?? selectedVariantIdentifier,
-              quantity: qtyNum,
-            },
-          ]
+          {
+            productId: id,
+            productVariantId: selectedVariant?.id ?? selectedVariantIdentifier,
+            quantity: qtyNum,
+          },
+        ]
         : [
-            {
-              productId: id,
-              quantity: qtyNum,
-            },
-          ];
+          {
+            productId: id,
+            quantity: qtyNum,
+          },
+        ];
       const response = await apiFetch('/api/orders', {
         method: 'POST',
         body: { items },
@@ -438,18 +438,18 @@ export default function ProductDetail() {
     <Page>
       <Container className="space-y-6">
         <div className="space-y-2">
-          <p className="text-sm uppercase tracking-[0.4em] text-slate-400">Product</p>
+          <p className="text-sm uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Product</p>
           <h1 className="om-title" data-testid="product-title">
             {isLoading ? 'Loading product...' : product?.title?.trim() || `Product ${id ?? ''}`}
           </h1>
           {product?.description && (
-            <p className="text-sm text-slate-300 leading-relaxed max-w-3xl">{product.description}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl">{product.description}</p>
           )}
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="om-card p-4">
-            <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-900/40">
+            <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-900/40">
               {mainImageUrl && !mainImageLoadError ? (
                 <img
                   src={mainImageUrl}
@@ -458,7 +458,7 @@ export default function ProductDetail() {
                   onError={() => setMainImageLoadError(true)}
                 />
               ) : (
-                <div className="h-full w-full bg-gradient-to-b from-white/20 to-transparent" aria-hidden />
+                <div className="h-full w-full bg-gradient-to-b from-slate-200 dark:from-white/20 to-transparent" aria-hidden />
               )}
             </div>
             <div className="mt-3 grid grid-cols-4 gap-2">
@@ -468,9 +468,10 @@ export default function ProductDetail() {
                     key={`${photoUrl}-${idx}`}
                     type="button"
                     onClick={() => setActiveIdx(idx)}
-                    className={`aspect-square overflow-hidden rounded-lg border ${
-                      idx === activeIdx ? 'border-white/60' : 'border-white/20'
-                    } bg-slate-900/40`}
+                    className={`aspect-square overflow-hidden rounded-lg border ${idx === activeIdx
+                        ? 'border-indigo-500 dark:border-white/60'
+                        : 'border-slate-200 dark:border-white/20'
+                      } bg-slate-100 dark:bg-slate-900/40`}
                     aria-label={`View product photo ${idx + 1}`}
                   >
                     <img
@@ -481,7 +482,7 @@ export default function ProductDetail() {
                   </button>
                 ))
               ) : (
-                <div className="col-span-4 flex h-16 items-center justify-center rounded-lg border border-white/20 bg-slate-900/40 text-xs uppercase tracking-[0.2em] text-slate-400">
+                <div className="col-span-4 flex h-16 items-center justify-center rounded-lg border border-slate-200 dark:border-white/20 bg-slate-100 dark:bg-slate-900/40 text-xs uppercase tracking-[0.2em] text-slate-400">
                   No photos
                 </div>
               )}
@@ -497,8 +498,8 @@ export default function ProductDetail() {
 
               {!isLoading && !isError && (
                 <div className="space-y-1">
-                  <p className="om-title text-3xl font-bold text-white">{displayPriceLabel}</p>
-                  <p className="text-sm text-slate-300 leading-relaxed">
+                  <p className="om-title text-3xl font-bold text-slate-900 dark:text-white">{displayPriceLabel}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                     {selectedVariant?.size && `Size: ${selectedVariant.size}`}
                     {selectedVariant?.color && ` · Color: ${selectedVariant.color}`}
                     {!selectedVariant?.size &&
@@ -506,7 +507,7 @@ export default function ProductDetail() {
                       selectedVariant?.sku &&
                       `SKU: ${selectedVariant.sku}`}
                   </p>
-                  {selectedVariantLabel && <p className="text-xs text-slate-400">{selectedVariantLabel}</p>}
+                  {selectedVariantLabel && <p className="text-xs text-slate-500 dark:text-slate-400">{selectedVariantLabel}</p>}
                 </div>
               )}
 
@@ -525,7 +526,7 @@ export default function ProductDetail() {
                         setSelectedColor(nextVariant?.color ?? '');
                         setSelectionError(null);
                       }}
-                      className="ui-input w-full min-w-[240px] h-10 rounded-md border border-white/20 bg-neutral-900 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      className="ui-input w-full min-w-[240px] h-10 rounded-md border border-slate-300 dark:border-white/20 bg-white dark:bg-neutral-900 text-slate-900 dark:text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                     >
                       <option value="">Select a variant</option>
                       {variants.map((variant) => (
@@ -547,7 +548,7 @@ export default function ProductDetail() {
                         setSelectedVariantId('');
                         setSelectionError(null);
                       }}
-                      className="ui-input w-full min-w-[240px] h-10 rounded-md border border-white/20 bg-neutral-900 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      className="ui-input w-full min-w-[240px] h-10 rounded-md border border-slate-300 dark:border-white/20 bg-white dark:bg-neutral-900 text-slate-900 dark:text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                       disabled={sizeOptions.length === 0}
                     >
                       <option value="">
@@ -572,7 +573,7 @@ export default function ProductDetail() {
                         setSelectedVariantId('');
                         setSelectionError(null);
                       }}
-                      className="ui-input w-full min-w-[240px] h-10 rounded-md border border-white/20 bg-neutral-900 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      className="ui-input w-full min-w-[240px] h-10 rounded-md border border-slate-300 dark:border-white/20 bg-white dark:bg-neutral-900 text-slate-900 dark:text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                       disabled={colorOptions.length === 0}
                     >
                       <option value="">
@@ -602,7 +603,7 @@ export default function ProductDetail() {
                     const nextValue = Number(event.target.value);
                     setQty(Number.isFinite(nextValue) && nextValue > 0 ? Math.floor(nextValue) : 1);
                   }}
-                  className="max-w-[120px] text-white bg-slate-900/60 border border-white/20 px-3 py-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                  className="max-w-[120px] text-slate-900 dark:text-white bg-white dark:bg-slate-900/60 border border-slate-300 dark:border-white/20 px-3 py-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                 />
               </div>
 
@@ -633,7 +634,7 @@ export default function ProductDetail() {
                     qtyNum < 1 ||
                     !hasStock
                   }
-                  className="w-full om-btn om-focus bg-white/90 px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-white active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full om-btn om-focus bg-slate-200 dark:bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-black transition hover:bg-slate-300 dark:hover:bg-white active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {buyNowLoading ? 'Processing...' : 'Add to cart'}
                 </button>
@@ -657,11 +658,11 @@ export default function ProductDetail() {
                 {cartFeedback && <p className="text-sm text-emerald-300">{cartFeedback}</p>}
               </div>
 
-              <div className="mt-4 text-xs uppercase tracking-[0.4em] text-slate-400">
+              <div className="mt-4 text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">
                 Secure checkout • Fast updates in Orders
               </div>
               {!isLoading && !isError && addToCartDisabledReason === 'missing_variant' && (
-                <p className="text-xs text-slate-400">Choose a unique variant combination to continue.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Choose a unique variant combination to continue.</p>
               )}
             </div>
           </div>

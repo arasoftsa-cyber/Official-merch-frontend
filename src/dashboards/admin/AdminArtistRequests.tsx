@@ -174,10 +174,10 @@ export default function AdminArtistRequests() {
             resolveMediaUrl(
               String(
                 (item as any).profile_photo_url ??
-                  (item as any).profile_photo_path ??
-                  item.profilePhotoUrl ??
-                  item.profilePhotoPath ??
-                  ''
+                (item as any).profile_photo_path ??
+                item.profilePhotoUrl ??
+                item.profilePhotoPath ??
+                ''
               ).trim() || null
             ) ?? '',
           messageForFans: String(
@@ -254,8 +254,8 @@ export default function AdminArtistRequests() {
       requested === 'advanced'
         ? 'advanced'
         : requested === 'premium' && premiumPlanEnabled
-        ? 'premium'
-        : 'basic';
+          ? 'premium'
+          : 'basic';
     setReviewRequest(request);
     setFinalPlanType(defaultPlan);
     setPaymentMode('');
@@ -316,17 +316,17 @@ export default function AdminArtistRequests() {
         const approvalBody =
           action === 'approve'
             ? {
-                final_plan_type: finalPlanType,
-                payment_mode: finalPlanType === 'basic' ? 'NA' : paymentMode,
-                transaction_id: finalPlanType === 'basic' ? 'NA' : transactionId.trim(),
-              }
+              final_plan_type: finalPlanType,
+              payment_mode: finalPlanType === 'basic' ? 'NA' : paymentMode,
+              transaction_id: finalPlanType === 'basic' ? 'NA' : transactionId.trim(),
+            }
             : undefined;
 
         await apiFetch(`${endpoint}/${request.id}/${action}`, {
           method: 'POST',
           ...(action === 'reject'
-            ? { body: { comment: trimmedComment } }
-            : { body: approvalBody }),
+            ? { body: JSON.stringify({ comment: trimmedComment }) }
+            : { body: JSON.stringify(approvalBody) }),
         });
 
         notify(
@@ -379,11 +379,15 @@ export default function AdminArtistRequests() {
     return (
       <Page>
         <Container className="space-y-3">
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Admin</p>
-            <h1 className="text-3xl font-semibold text-white">Artist Requests</h1>
-          </div>
-          <p>Authentication required.</p>
+          <Page>
+            <Container className="space-y-3">
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Admin</p>
+                <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Artist Requests</h1>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400">Authentication required.</p>
+            </Container>
+          </Page>
         </Container>
       </Page>
     );
@@ -393,11 +397,15 @@ export default function AdminArtistRequests() {
     return (
       <Page>
         <Container className="space-y-3">
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Admin</p>
-            <h1 className="text-3xl font-semibold text-white">Artist Requests</h1>
-          </div>
-          <LoadingSkeleton count={3} />
+          <Page>
+            <Container className="space-y-3">
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Admin</p>
+                <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Artist Requests</h1>
+              </div>
+              <LoadingSkeleton count={3} />
+            </Container>
+          </Page>
         </Container>
       </Page>
     );
@@ -407,68 +415,113 @@ export default function AdminArtistRequests() {
     <Page>
       <Container className="space-y-6">
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Admin</p>
-          <h1 className="text-3xl font-semibold text-white">Artist Requests</h1>
-          <p className="text-xs text-white/60">Manage incoming artist applications.</p>
+          <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Admin</p>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Artist Requests</h1>
+          <p className="text-xs text-slate-600 dark:text-white/60">Manage incoming artist applications.</p>
         </div>
 
         <div className="flex items-center gap-3">
-          <label className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400" htmlFor="status-filter">
-            Filter
+          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400" htmlFor="status-filter">
+            Filter Status
           </label>
-          <select
-            id="status-filter"
-            value={statusFilter}
-            onChange={(event) => {
-              setStatusFilter(event.target.value as (typeof STATUS_OPTIONS)[number]);
-              setPage(1);
-            }}
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
-          >
-            {STATUS_OPTIONS.map((status) => (
-              <option key={status} value={status} className="bg-slate-900">
-                {STATUS_LABELS[status]}
-              </option>
-            ))}
-          </select>
-          <span className="text-xs text-white/60">
-            Showing {requests.length} of {total}
+          <div className="relative">
+            <select
+              id="status-filter"
+              value={statusFilter}
+              onChange={(event) => {
+                setStatusFilter(event.target.value as (typeof STATUS_OPTIONS)[number]);
+                setPage(1);
+              }}
+              className="appearance-none rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 pl-4 pr-10 py-2 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 dark:focus:ring-emerald-500/20 focus:outline-none transition shadow-sm cursor-pointer"
+            >
+              {STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                  {STATUS_LABELS[status]}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+              <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+              </svg>
+            </div>
+          </div>
+          <span className="text-xs font-medium text-slate-500 dark:text-white/60">
+            {total} total requests
           </span>
         </div>
 
         {error && <ErrorBanner message={error} onRetry={loadRequests} />}
 
         {requests.length === 0 ? (
-          <p className="text-sm text-white/60">No pending artist requests</p>
+          <p className="text-sm text-slate-500 dark:text-white/60">No pending artist requests</p>
         ) : (
           <div className="space-y-4">
             {requests.map((request) => (
               <div
                 key={request.id}
-                className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm"
+                className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-6 shadow-sm hover:shadow-md dark:hover:bg-white/[0.07] transition-all duration-300"
               >
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">{request.source}</p>
-                    <p className="text-lg font-semibold text-white">{request.artistName}</p>
-                    {request.handle && <p className="text-xs text-white/60">@{request.handle}</p>}
-                    <p className="text-xs text-white/60">{request.email || request.phone || 'No contact info'}</p>
-                    <p className="text-xs text-white/60">
-                      Requested Plan:{' '}
-                      <span className="font-semibold text-white/80">
-                        {request.requestedPlanType ? request.requestedPlanType.toUpperCase() : 'BASIC'}
+                <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <span className="rounded-md bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20">
+                        {request.source.replace(/_/g, ' ')}
                       </span>
-                    </p>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                        ID: {request.id}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-emerald-400 transition-colors">
+                        {request.artistName}
+                      </h3>
+                      {request.handle && (
+                        <p className="font-mono text-sm text-indigo-600 dark:text-emerald-400">@{request.handle}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                        <svg className="h-4 w-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        {request.email || 'No email provided'}
+                      </p>
+                      {request.phone && (
+                        <p className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                          <svg className="h-4 w-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5.25L3 18.75C3 19.3023 3.44772 19.75 4 19.75H20C20.5523 19.75 21 19.3023 21 18.75V5.25C21 4.69772 20.5523 4.25 20 4.25H4C3.44772 4.25 3 4.69772 3 5.25Z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5.25L12 11.25L21 5.25" />
+                          </svg>
+                          {request.phone}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-black/20 px-3 py-2 border border-slate-100 dark:border-white/5 w-fit">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Requested Plan</span>
+                      <span className="text-xs font-bold text-slate-700 dark:text-white uppercase tracking-wider">
+                        {request.requestedPlanType || 'BASIC'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2 text-[11px] uppercase tracking-[0.3em] text-white/60">
-                    <span>{formatStatus(request.status)}</span>
-                    <span>Submitted {new Date(request.createdAt).toLocaleString()}</span>
+                  <div className="flex flex-col items-end gap-4 min-w-[200px]">
+                    <div className="flex flex-col items-end">
+                      <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ring-1 ring-inset ${request.status === 'approved' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/20' :
+                          request.status === 'rejected' ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-rose-500/20' :
+                            'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-amber-500/20'
+                        }`}>
+                        {formatStatus(request.status)}
+                      </span>
+                      <span className="mt-2 text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                        {new Date(request.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => openReview(request)}
-                      className="inline-flex items-center rounded-full border border-white/20 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                      className="group/btn relative inline-flex items-center justify-center rounded-xl bg-slate-900 dark:bg-white px-8 py-3 text-xs font-bold uppercase tracking-widest text-white dark:text-slate-950 transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-slate-900/10 dark:shadow-white/5"
                     >
-                      Review
+                      Review Application
                     </button>
                   </div>
                 </div>
@@ -477,234 +530,320 @@ export default function AdminArtistRequests() {
           </div>
         )}
 
-        <div className="flex items-center justify-between text-xs text-white/60">
-          <button
-            type="button"
-            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-            disabled={page === 1}
-            className="rounded-full border border-white/10 px-3 py-1 uppercase tracking-[0.3em] disabled:opacity-40"
-          >
-            Prev
-          </button>
-          <button
-            type="button"
-            onClick={() => setPage((prev) => prev + 1)}
-            disabled={offset + pageSize >= total}
-            className="rounded-full border border-white/10 px-3 py-1 uppercase tracking-[0.3em] disabled:opacity-40"
-          >
-            Next
-          </button>
+        <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-white/5">
+          <div className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Page {page} of {Math.ceil(total / pageSize) || 1}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={page === 1}
+              className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 disabled:opacity-40 transition hover:bg-slate-50 dark:hover:bg-white/10 shadow-sm"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((prev) => prev + 1)}
+              disabled={offset + pageSize >= total}
+              className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300 disabled:opacity-40 transition hover:bg-slate-50 dark:hover:bg-white/10 shadow-sm"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </Container>
 
       {reviewRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-3xl max-h-[85vh] overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl">
-            <div className="flex max-h-[85vh] flex-col">
-              <div className="shrink-0 border-b border-white/10 px-5 pb-4 pt-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="flex max-h-[90vh] flex-col">
+              <div className="shrink-0 border-b border-slate-100 dark:border-white/10 px-8 pb-6 pt-8 bg-slate-50/50 dark:bg-black/20">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold text-white">Review Artist Request</h2>
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Review Application</h2>
+                    <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">Processing entry: {reviewRequest.id}</p>
+                  </div>
                   <button
                     type="button"
                     onClick={closeReview}
-                    className="rounded-full border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/80 hover:bg-white/10"
+                    className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition shadow-sm"
                   >
-                    Close
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 </div>
               </div>
 
-              <div className="grow overflow-y-auto px-5 pb-4 pr-4 pt-4">
-                <div className="space-y-3 text-sm text-white/85">
-                  <p><span className="text-white/60">Artist Name:</span> {reviewRequest.artistName || '—'}</p>
-                  <p><span className="text-white/60">Handle:</span> {reviewRequest.handle || '—'}</p>
-                  <p><span className="text-white/60">Email:</span> {reviewRequest.email || '—'}</p>
-                  <p><span className="text-white/60">Phone:</span> {reviewRequest.phone || '—'}</p>
-                  <p>
-                    <span className="text-white/60">Requested Plan Type:</span>{' '}
-                    {(reviewRequest.requestedPlanType || 'basic').toUpperCase()}
-                  </p>
-                  <div>
-                    <p className="text-white/60">Socials:</p>
-                    {reviewRequest.socials.length > 0 ? (
-                      <ul className="mt-1 list-disc space-y-1 pl-5">
-                        {reviewRequest.socials.map((social, idx) => (
-                          <li key={`${reviewRequest.id}-social-${idx}`}>
-                            {(social.platform || 'platform').toUpperCase()}: {social.profileLink || '—'}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="mt-1 text-white/70">—</p>
-                    )}
-                  </div>
-                  <p><span className="text-white/60">About Me:</span> {reviewRequest.aboutMe || '—'}</p>
-                  <div>
-                    <p className="text-white/60">Profile Photo:</p>
-                    {reviewRequest.profilePhotoUrl ? (
-                      <div className="mt-2 space-y-2">
-                        <a
-                          href={reviewRequest.profilePhotoUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-emerald-300 underline"
-                        >
-                          Open profile photo
-                        </a>
-                        <img
-                          src={reviewRequest.profilePhotoUrl}
-                          alt={`${reviewRequest.artistName} profile`}
-                          className="max-h-48 rounded-lg border border-white/10 object-contain"
-                        />
+              <div className="grow overflow-y-auto px-8 pb-8 pr-6 pt-6 custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-6">
+                    <section>
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Applicant Details</h4>
+                      <div className="space-y-4">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Artist Name</span>
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">{reviewRequest.artistName || '—'}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Handle</span>
+                          <span className="text-sm font-mono text-indigo-600 dark:text-emerald-400">@{reviewRequest.handle || '—'}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Email</span>
+                          <span className="text-sm font-medium text-slate-900 dark:text-white">{reviewRequest.email || '—'}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Phone</span>
+                          <span className="text-sm font-medium text-slate-900 dark:text-white">{reviewRequest.phone || '—'}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Requested Plan Type</span>
+                          <span className="text-xs font-black text-indigo-600 dark:text-emerald-400 uppercase tracking-widest">{(reviewRequest.requestedPlanType || 'basic').toUpperCase()}</span>
+                        </div>
                       </div>
-                    ) : (
-                      <p className="mt-1 text-white/70">—</p>
-                    )}
+                    </section>
+
+                    <section>
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Social Media</h4>
+                      {reviewRequest.socials.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {reviewRequest.socials.map((social, idx) => (
+                            <a
+                              key={`${reviewRequest.id}-social-${idx}`}
+                              href={social.profileLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-white/5 px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 transition"
+                            >
+                              <span className="uppercase opacity-60">{(social.platform || 'Link').substring(0, 2)}</span>
+                              {social.platform || 'Visit Profile'}
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-400 italic">No social links provided.</p>
+                      )}
+                    </section>
                   </div>
-                  <p><span className="text-white/60">Message For Fans:</span> {reviewRequest.messageForFans || '—'}</p>
+
+                  <div className="space-y-6">
+                    <section>
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Profile Photo</h4>
+                      {reviewRequest.profilePhotoUrl ? (
+                        <div className="group relative aspect-square w-full max-w-[200px] overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-black/40 shadow-inner">
+                          <img
+                            src={reviewRequest.profilePhotoUrl}
+                            alt={`${reviewRequest.artistName} profile`}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                          />
+                          <a
+                            href={reviewRequest.profilePhotoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-white text-[10px] font-bold uppercase tracking-widest"
+                          >
+                            View Original
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="aspect-square w-full max-w-[200px] flex items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-300">
+                          No Photo
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="space-y-4">
+                      <div>
+                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Pitch / About</h4>
+                        <div className="rounded-xl bg-slate-50 dark:bg-black/20 p-4 border border-slate-100 dark:border-white/5">
+                          <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{reviewRequest.aboutMe || 'No details provided.'}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Message For Fans</h4>
+                        <div className="rounded-xl bg-slate-50 dark:bg-black/20 p-4 border border-slate-100 dark:border-white/5">
+                          <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 italic">"{reviewRequest.messageForFans || '—'}"</p>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
                 </div>
 
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/60">Approval</p>
+                <div className="mt-8 space-y-6">
+                  <div className="rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 p-6 shadow-sm">
+                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-6 flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1"></span>
+                      Final Decision and Billing
+                    </h4>
 
-                    <label className="mt-3 block text-sm font-medium text-white/80">
-                      Final Approved Plan Type *
-                      <select
-                        value={finalPlanType}
-                        onChange={(event) => {
-                          const next = event.target.value as 'basic' | 'advanced' | 'premium';
-                          setFinalPlanType(next);
-                          setModalError(null);
-                          setApproveFieldErrors((prev) => {
-                            const updated = { ...prev };
-                            delete updated.finalPlanType;
-                            if (next === 'basic') {
-                              delete updated.paymentMode;
-                              delete updated.transactionId;
-                            }
-                            return updated;
-                          });
-                        }}
-                        disabled={savingId === reviewRequest.id}
-                        className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                      >
-                        <option value="basic">Basic</option>
-                        <option value="advanced">Advanced</option>
-                        <option value="premium" disabled={!premiumPlanEnabled}>
-                          {premiumPlanEnabled ? 'Premium' : 'Premium (Coming soon)'}
-                        </option>
-                      </select>
-                      {approveFieldErrors.finalPlanType && (
-                        <p className="mt-1 text-xs text-rose-300">{approveFieldErrors.finalPlanType}</p>
-                      )}
-                    </label>
-
-                    {finalPlanType === 'basic' ? (
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <label className="block text-sm font-medium text-white/80">
-                          Payment Mode
-                          <input
-                            type="text"
-                            value="NA"
-                            disabled
-                            className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white/70"
-                          />
-                        </label>
-                        <label className="block text-sm font-medium text-white/80">
-                          Transaction ID
-                          <input
-                            type="text"
-                            value="NA"
-                            disabled
-                            className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white/70"
-                          />
-                        </label>
-                      </div>
-                    ) : (
-                      <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <label className="block text-sm font-medium text-white/80">
-                          Payment Mode *
+                    <div className="space-y-6">
+                      <label className="block">
+                        <span className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2 block">
+                          Final Approved Plan Type *
+                        </span>
+                        <div className="relative">
                           <select
-                            value={paymentMode}
+                            value={finalPlanType}
                             onChange={(event) => {
-                              setPaymentMode(event.target.value as 'cash' | 'online' | '');
+                              const next = event.target.value as 'basic' | 'advanced' | 'premium';
+                              setFinalPlanType(next);
                               setModalError(null);
                               setApproveFieldErrors((prev) => {
                                 const updated = { ...prev };
-                                delete updated.paymentMode;
+                                delete updated.finalPlanType;
+                                if (next === 'basic') {
+                                  delete updated.paymentMode;
+                                  delete updated.transactionId;
+                                }
                                 return updated;
                               });
                             }}
                             disabled={savingId === reviewRequest.id}
-                            className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+                            className="block w-full appearance-none rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/40 px-5 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 dark:focus:ring-emerald-500/20 outline-none transition shadow-inner cursor-pointer"
                           >
-                            <option value="">Select payment mode</option>
-                            <option value="cash">Cash</option>
-                            <option value="online">Online</option>
+                            <option value="basic" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Basic</option>
+                            <option value="advanced" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Advanced</option>
+                            <option value="premium" disabled={!premiumPlanEnabled} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                              {premiumPlanEnabled ? 'Premium' : 'Premium (Coming soon)'}
+                            </option>
                           </select>
-                          {approveFieldErrors.paymentMode && (
-                            <p className="mt-1 text-xs text-rose-300">{approveFieldErrors.paymentMode}</p>
-                          )}
-                        </label>
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                            <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                            </svg>
+                          </div>
+                        </div>
+                        {approveFieldErrors.finalPlanType && (
+                          <p className="mt-2 text-[10px] font-bold text-rose-600 dark:text-rose-300 uppercase tracking-widest">{approveFieldErrors.finalPlanType}</p>
+                        )}
+                      </label>
 
-                        <label className="block text-sm font-medium text-white/80">
-                          Transaction ID *
-                          <input
-                            type="text"
-                            value={transactionId}
-                            onChange={(event) => {
-                              setTransactionId(event.target.value);
-                              setModalError(null);
-                              setApproveFieldErrors((prev) => {
-                                const updated = { ...prev };
-                                delete updated.transactionId;
-                                return updated;
-                              });
-                            }}
-                            disabled={savingId === reviewRequest.id}
-                            className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                            placeholder="Enter transaction id"
-                          />
-                          {approveFieldErrors.transactionId && (
-                            <p className="mt-1 text-xs text-rose-300">{approveFieldErrors.transactionId}</p>
-                          )}
-                        </label>
-                      </div>
-                    )}
+                      {finalPlanType === 'basic' ? (
+                        <div className="grid gap-6 md:grid-cols-2">
+                          <label className="block">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 block">Payment Mode</span>
+                            <input
+                              type="text"
+                              value="NA"
+                              disabled
+                              className="block w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-black/30 px-5 py-3 text-sm font-medium text-slate-500 dark:text-white/50 cursor-not-allowed uppercase tracking-widest"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 block">Transaction ID</span>
+                            <input
+                              type="text"
+                              value="NA"
+                              disabled
+                              className="block w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-black/30 px-5 py-3 text-sm font-medium text-slate-500 dark:text-white/50 cursor-not-allowed uppercase tracking-widest"
+                            />
+                          </label>
+                        </div>
+                      ) : (
+                        <div className="grid gap-6 md:grid-cols-2">
+                          <label className="block">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2 block">Payment Mode *</span>
+                            <div className="relative">
+                              <select
+                                value={paymentMode}
+                                onChange={(event) => {
+                                  setPaymentMode(event.target.value as 'cash' | 'online' | '');
+                                  setModalError(null);
+                                  setApproveFieldErrors((prev) => {
+                                    const updated = { ...prev };
+                                    delete updated.paymentMode;
+                                    return updated;
+                                  });
+                                }}
+                                disabled={savingId === reviewRequest.id}
+                                className="block w-full appearance-none rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/40 px-5 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 dark:focus:ring-emerald-500/20 outline-none transition shadow-inner cursor-pointer"
+                              >
+                                <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Select mode</option>
+                                <option value="cash" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Cash</option>
+                                <option value="online" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Online</option>
+                              </select>
+                              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                                <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
+                                  <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                                </svg>
+                              </div>
+                            </div>
+                            {approveFieldErrors.paymentMode && (
+                              <p className="mt-2 text-[10px] font-bold text-rose-600 dark:text-rose-300 uppercase tracking-widest">{approveFieldErrors.paymentMode}</p>
+                            )}
+                          </label>
+
+                          <label className="block">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2 block">Transaction ID *</span>
+                            <input
+                              type="text"
+                              value={transactionId}
+                              onChange={(event) => {
+                                setTransactionId(event.target.value);
+                                setModalError(null);
+                                setApproveFieldErrors((prev) => {
+                                  const updated = { ...prev };
+                                  delete updated.transactionId;
+                                  return updated;
+                                });
+                              }}
+                              disabled={savingId === reviewRequest.id}
+                              className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/40 px-5 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 dark:focus:ring-emerald-500/20 outline-none transition shadow-inner"
+                              placeholder="Enter receipt/transaction ref"
+                            />
+                            {approveFieldErrors.transactionId && (
+                              <p className="mt-2 text-[10px] font-bold text-rose-600 dark:text-rose-300 uppercase tracking-widest">{approveFieldErrors.transactionId}</p>
+                            )}
+                          </label>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <label className="block text-sm font-medium text-white/80">
-                    Rejection Comment * (required to reject)
-                    <textarea
-                      value={rejectComment}
-                      onChange={(event) => setRejectComment(event.target.value)}
-                      rows={3}
-                      className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                      placeholder="Explain why this request is being rejected"
-                    />
-                  </label>
+                  <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-white/10">
+                    <label className="block">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2 block">Internal Feedback / Rejection Reason</span>
+                      <textarea
+                        value={rejectComment}
+                        onChange={(event) => setRejectComment(event.target.value)}
+                        rows={4}
+                        className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/40 px-5 py-3 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 dark:focus:ring-emerald-500/20 outline-none transition shadow-inner"
+                        placeholder="If rejecting, please explain why. This note is helpful for future audits."
+                      />
+                      <p className="mt-2 text-[10px] text-slate-400 italic">This field is mandatory for rejection but optional for approval.</p>
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              <div className="shrink-0 border-t border-white/10 px-5 pb-5 pt-4">
-                {modalError && <p className="mb-3 text-xs text-rose-300">{modalError}</p>}
-                <div className="flex flex-wrap gap-2">
+              <div className="shrink-0 border-t border-slate-100 dark:border-white/10 px-8 pb-8 pt-6 bg-slate-50/50 dark:bg-black/20">
+                {modalError && (
+                  <div className="mb-4 flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-500/20 bg-rose-50 dark:bg-rose-500/10 px-4 py-3 text-xs font-bold text-rose-600 dark:text-rose-300 uppercase tracking-widest">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    {modalError}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-4">
                   <button
                     type="button"
                     onClick={() => performAction(reviewRequest, 'approve')}
                     disabled={savingId === reviewRequest.id || reviewRequest.status.toLowerCase() !== 'pending'}
-                    className="inline-flex items-center rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-200 hover:border-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 disabled:opacity-40"
+                    className="flex-1 rounded-2xl bg-indigo-600 dark:bg-emerald-500 px-8 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-white shadow-xl shadow-indigo-500/20 dark:shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
                   >
-                    {savingId === reviewRequest.id && savingAction === 'approve' ? 'Approving...' : 'Approve'}
+                    {savingId === reviewRequest.id && savingAction === 'approve' ? 'Processing...' : 'Approve Application'}
                   </button>
                   <button
                     type="button"
                     onClick={() => performAction(reviewRequest, 'reject')}
                     disabled={savingId === reviewRequest.id || reviewRequest.status.toLowerCase() !== 'pending'}
-                    className="inline-flex items-center rounded-full border border-rose-500/60 bg-rose-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-rose-200 hover:border-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:opacity-40"
+                    className="flex-1 rounded-2xl border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-transparent px-8 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-rose-400 hover:text-slate-900 dark:hover:text-rose-300 hover:border-slate-900 dark:hover:border-rose-500/40 transition-all disabled:opacity-50"
                   >
-                    {savingId === reviewRequest.id && savingAction === 'reject' ? 'Rejecting...' : 'Reject'}
+                    {savingId === reviewRequest.id && savingAction === 'reject' ? 'Processing...' : 'Reject Application'}
                   </button>
                 </div>
               </div>

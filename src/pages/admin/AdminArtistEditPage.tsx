@@ -57,10 +57,10 @@ export default function AdminArtistEditPage() {
   return (
     <AppShell title="Edit Artist" subtitle="Admin artist editor">
       <div className="flex items-center justify-between">
-        <Link className="text-sm text-slate-300 underline" to={id ? `/partner/admin/artists/${id}` : '/partner/admin/artists'}>
+        <Link className="text-sm text-indigo-600 dark:text-slate-300 underline hover:text-indigo-800 dark:hover:text-white transition-colors" to={id ? `/partner/admin/artists/${id}` : '/partner/admin/artists'}>
           Back to artist detail
         </Link>
-        <Link className="text-sm text-slate-300 underline" to="/partner/admin/artists">
+        <Link className="text-sm text-indigo-600 dark:text-slate-300 underline hover:text-indigo-800 dark:hover:text-white transition-colors" to="/partner/admin/artists">
           Back to artists
         </Link>
       </div>
@@ -69,49 +69,50 @@ export default function AdminArtistEditPage() {
       {error && <ErrorBanner message={error} onRetry={load} />}
 
       {!loading && !error && detail && (
-        <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+        <div className="space-y-6 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-6 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+            <span className="w-1 h-3 bg-indigo-500 dark:bg-emerald-500 rounded-full"></span>
             Edit flow entry point is enabled. Field updates can be wired next.
           </p>
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="text-sm text-white">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Name
               <input
                 value={detail.name}
                 readOnly
-                className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-slate-300"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/30 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-400 cursor-not-allowed"
               />
             </label>
-            <label className="text-sm text-white">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Handle
               <input
                 value={detail.handle ? `@${detail.handle}` : '-'}
                 readOnly
-                className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-slate-300"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/30 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-400 cursor-not-allowed"
               />
             </label>
-            <label className="text-sm text-white">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Email
               <input
                 value={detail.email || '-'}
                 readOnly
-                className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-slate-300"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/30 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-400 cursor-not-allowed"
               />
             </label>
-            <label className="text-sm text-white">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Status
               <input
                 value={detail.status || '-'}
                 readOnly
-                className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-slate-300"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/30 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-400 cursor-not-allowed"
               />
             </label>
-            <label className="text-sm text-white md:col-span-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 md:col-span-2">
               Phone
               <input
                 value={detail.phone || '-'}
                 readOnly
-                className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-slate-300"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/30 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-400 cursor-not-allowed"
               />
             </label>
           </div>

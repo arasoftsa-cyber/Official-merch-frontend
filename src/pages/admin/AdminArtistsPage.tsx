@@ -42,8 +42,8 @@ const normalizeRows = (payload: any): AdminArtistRow[] => {
   const items = Array.isArray(payload?.items)
     ? payload.items
     : Array.isArray(payload)
-    ? payload
-    : [];
+      ? payload
+      : [];
   return items.map((item: any) => ({
     id: String(item?.id ?? ''),
     name: toText(item?.name ?? item?.artist_name ?? item?.artistName),
@@ -107,7 +107,7 @@ export default function AdminArtistsPage() {
     try {
       const response = await apiFetch(`/admin/artists/${row.id}`, {
         method: 'PATCH',
-        body: { is_featured: nextValue },
+        body: JSON.stringify({ is_featured: nextValue }) as any,
       });
       const persisted = Boolean(response?.is_featured ?? response?.isFeatured ?? nextValue);
       setRows((current) =>
@@ -154,7 +154,7 @@ export default function AdminArtistsPage() {
               className="flex flex-col items-start gap-1"
               onClick={(event) => event.stopPropagation()}
             >
-              <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+              <label className="inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-300 cursor-pointer group">
                 <input
                   type="checkbox"
                   checked={Boolean(row.is_featured)}
@@ -165,11 +165,13 @@ export default function AdminArtistsPage() {
                     event.stopPropagation();
                     void toggleFeatured(row, event.target.checked);
                   }}
-                  className="h-4 w-4 rounded border border-white/20 bg-black/30 accent-emerald-400 disabled:opacity-60"
+                  className="h-4 w-4 rounded border border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-black/30 accent-emerald-500 disabled:opacity-60 transition"
                 />
-                {isSaving ? 'Saving...' : row.is_featured ? 'Yes' : 'No'}
+                <span className="group-hover:text-indigo-600 dark:group-hover:text-white transition-colors">
+                  {isSaving ? 'Saving...' : row.is_featured ? 'Yes' : 'No'}
+                </span>
               </label>
-              {rowError ? <p className="text-xs text-rose-300">{rowError}</p> : null}
+              {rowError ? <p className="text-xs text-rose-600 dark:text-rose-300">{rowError}</p> : null}
             </div>
           );
         },
@@ -181,7 +183,7 @@ export default function AdminArtistsPage() {
             <Link
               to={`/partner/admin/artists/${row.id}`}
               onClick={(event) => event.stopPropagation()}
-              className="rounded-lg border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.25em] text-white"
+              className="rounded-lg border border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-sm"
             >
               View
             </Link>
@@ -191,7 +193,7 @@ export default function AdminArtistsPage() {
                 event.stopPropagation();
                 setEditingArtistId(row.id);
               }}
-              className="rounded-lg border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.25em] text-white"
+              className="rounded-lg border border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-sm"
             >
               Edit
             </button>
@@ -205,7 +207,7 @@ export default function AdminArtistsPage() {
   return (
     <AppShell title="Admin Artists" subtitle="Onboarded artists list">
       <div className="flex items-center justify-between">
-        <Link className="text-sm text-slate-300 underline" to="/partner/admin">
+        <Link className="text-sm text-indigo-600 dark:text-slate-300 underline hover:text-indigo-800 dark:hover:text-white transition-colors" to="/partner/admin">
           Back to admin dashboard
         </Link>
       </div>
@@ -213,15 +215,15 @@ export default function AdminArtistsPage() {
       {loading && <LoadingSkeleton count={2} />}
       {error && <ErrorBanner message={error} onRetry={load} />}
       {success && (
-        <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200">
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-200 shadow-sm transition-all animate-in fade-in slide-in-from-top-2">
           {success}
         </div>
       )}
 
       {!loading && endpointUnavailable && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-300">
-          <p>Artists endpoint is not available yet.</p>
-          <p className="mt-2 text-slate-400">Expected endpoint: <code>/api/admin/artists</code></p>
+        <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-6 text-sm text-slate-700 dark:text-slate-300 shadow-sm">
+          <p className="font-medium">Artists endpoint is not available yet.</p>
+          <p className="mt-2 text-slate-500 dark:text-slate-400">Expected endpoint: <code className="bg-slate-200 dark:bg-white/10 px-1 py-0.5 rounded text-xs font-mono">/api/admin/artists</code></p>
         </div>
       )}
 

@@ -92,7 +92,7 @@ export default function ProductsPage() {
       const rawItems = Array.isArray(payload) ? payload : chooseArray(payload);
       const mapped = rawItems
         .map(mapProduct)
-        .filter((item): item is ProductDTO => Boolean(item));
+        .filter((item: any): item is ProductDTO => Boolean(item));
       setProducts(mapped);
       setStatus('success');
     } catch (err: any) {
@@ -156,13 +156,13 @@ export default function ProductsPage() {
   const pageItems = displayedProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+    <div className="min-h-screen bg-white dark:bg-black text-neutral-900 dark:text-neutral-100">
       <div className="mx-auto max-w-6xl px-4 py-10 space-y-8">
         <header className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.4em] text-neutral-400">Catalog</p>
+          <p className="text-xs uppercase tracking-[0.4em] text-neutral-600 dark:text-neutral-400">Catalog</p>
           <div className="space-y-2">
-            <h1 className="text-4xl font-semibold tracking-tight text-white">Merch catalog</h1>
-            <p className="text-base text-neutral-300 max-w-3xl">
+            <h1 className="text-4xl font-semibold tracking-tight text-neutral-900 dark:text-white">Merch catalog</h1>
+            <p className="text-base text-neutral-600 dark:text-neutral-300 max-w-3xl">
               Browse products from featured artists and fresh OfficialMerch releases. Search by
               title, artist, or keywords to find the right item and open the detail page for full
               purchase information.
@@ -170,7 +170,7 @@ export default function ProductsPage() {
           </div>
         </header>
 
-        <section className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-neutral-900/50 p-4 shadow-lg shadow-black/30 sm:flex-row sm:items-center sm:justify-between">
+        <section className="flex flex-col gap-3 rounded-2xl border border-neutral-200 dark:border-white/10 bg-white dark:bg-neutral-900/50 p-4 shadow-lg shadow-black/5 dark:shadow-black/30 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
             <label htmlFor="product-search" className="sr-only">
               Search catalog
@@ -181,21 +181,21 @@ export default function ProductsPage() {
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
               placeholder="Search artists, merchandise, vibes..."
-              className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none"
+              className="flex-1 rounded-2xl border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 px-4 py-3 text-sm text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-white/40 focus:border-neutral-300 dark:focus:border-white/30 focus:outline-none"
             />
-            <div className="text-xs text-neutral-400 sm:hidden">
+            <div className="text-xs text-neutral-600 dark:text-neutral-400 sm:hidden">
               Showing {displayedProducts.length} match{displayedProducts.length === 1 ? '' : 'es'}
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <label htmlFor="product-sort" className="text-xs uppercase tracking-[0.3em] text-neutral-400">
+            <label htmlFor="product-sort" className="text-xs uppercase tracking-[0.3em] text-neutral-600 dark:text-neutral-400">
               Sort by
             </label>
             <select
               id="product-sort"
               value={sortKey}
               onChange={(event) => setSortKey(event.target.value as any)}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white focus:border-white/30 focus:outline-none"
+              className="rounded-2xl border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 px-4 py-3 text-sm text-neutral-900 dark:text-white focus:border-neutral-300 dark:focus:border-white/30 focus:outline-none"
             >
               <option value="relevance">Curated relevance</option>
               <option value="price-asc">Price: low to high (detail pricing)</option>
@@ -220,7 +220,7 @@ export default function ProductsPage() {
           )}
 
           {isLoading && (
-            <div className="rounded-2xl border border-white/10 bg-neutral-900/60 p-6 shadow-lg shadow-black/40">
+            <div className="rounded-2xl border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-neutral-900/60 p-6 shadow-lg shadow-black/5 dark:shadow-black/40">
               <LoadingSkeleton count={4} className="gap-5 sm:grid-cols-2 lg:grid-cols-3" />
             </div>
           )}
@@ -240,12 +240,12 @@ export default function ProductsPage() {
                     products={pageItems}
                     emptyMessage="No products available yet."
                   />
-                  <div className="flex flex-wrap items-center justify-center gap-3 text-xs uppercase tracking-[0.3em] text-neutral-400">
+                  <div className="flex flex-wrap items-center justify-center gap-3 text-xs uppercase tracking-[0.3em] text-neutral-600 dark:text-neutral-400">
                     <button
                       type="button"
                       onClick={() => setPage((current) => Math.max(1, current - 1))}
                       disabled={page === 1}
-                      className="rounded-full border border-white/20 px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="rounded-full border border-neutral-300 dark:border-white/20 px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Previous
                     </button>
@@ -256,7 +256,7 @@ export default function ProductsPage() {
                       type="button"
                       onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
                       disabled={page === pageCount}
-                      className="rounded-full border border-white/20 px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="rounded-full border border-neutral-300 dark:border-white/20 px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Next
                     </button>

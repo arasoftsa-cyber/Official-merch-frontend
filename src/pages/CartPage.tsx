@@ -257,7 +257,7 @@ export default function CartPage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 px-4 py-12">
+    <div className="min-h-screen px-4 py-12">
       <div className="mx-auto w-full max-w-5xl space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-semibold tracking-tight">Cart</h1>
@@ -326,28 +326,28 @@ export default function CartPage() {
                   <p className="text-sm text-neutral-400">Subtotal</p>
                   <p className="text-2xl font-semibold">{subtotalLabel}</p>
                 </div>
-                  <div className="flex flex-wrap gap-3">
-                    <Button
-                      type="button"
-                      className="rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold"
-                      onClick={clearCart}
-                    >
-                      Clear cart
-                    </Button>
-                    <Button
-                      type="button"
-                      className="rounded-2xl bg-white/90 px-4 py-2 text-sm font-semibold text-black"
-                      onClick={handleCheckout}
-                      disabled={cartIsEmpty || checkoutLoading}
-                      aria-busy={checkoutLoading}
-                    >
-                      {checkoutLoading
-                        ? 'Processing...'
-                        : loggedIn
-                          ? 'Checkout'
-                          : 'Login to checkout'}
-                    </Button>
-                  </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    className="rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold"
+                    onClick={clearCart}
+                  >
+                    Clear cart
+                  </Button>
+                  <Button
+                    type="button"
+                    className="rounded-2xl bg-white/90 px-4 py-2 text-sm font-semibold text-black"
+                    onClick={handleCheckout}
+                    disabled={cartIsEmpty || checkoutLoading}
+                    aria-busy={checkoutLoading}
+                  >
+                    {checkoutLoading
+                      ? 'Processing...'
+                      : loggedIn
+                        ? 'Checkout'
+                        : 'Login to checkout'}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
