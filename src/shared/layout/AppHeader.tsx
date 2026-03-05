@@ -110,15 +110,15 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
   )}`;
 
   return (
-    <header className="border-b border-white/15 bg-black">
+    <header className="border-b border-slate-200 dark:border-white/15 bg-white dark:bg-black">
       <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between px-4 py-3">
-        <Link to="/" className="text-lg font-semibold tracking-wide text-white">
+        <Link to="/" className="text-lg font-semibold tracking-wide text-slate-900 dark:text-white">
           OfficialMerch
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex" aria-label="Primary">
           {navItems.map((item) => (
-            <Link key={item.to} to={item.to} className="text-sm text-slate-200 hover:text-white">
+            <Link key={item.to} to={item.to} className="text-sm text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white">
               {item.label}
             </Link>
           ))}
@@ -128,11 +128,11 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
           <Link
             to="/cart"
             aria-label="View cart"
-            className={`hidden items-center gap-2 rounded-md border border-white/25 text-sm text-white hover:bg-white/10 md:inline-flex ${actionPadding}`}
+            className={`hidden items-center gap-2 rounded-md border border-slate-300 dark:border-white/25 text-sm text-slate-700 hover:bg-slate-100 dark:text-white dark:hover:bg-white/10 md:inline-flex ${actionPadding}`}
           >
             <span>Cart</span>
             {cartCount > 0 && (
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-xs font-semibold text-black">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 dark:bg-white px-1.5 text-xs font-semibold text-white dark:text-black">
                 {cartCount}
               </span>
             )}
@@ -160,7 +160,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
                 type="button"
                 aria-label="Logout"
                 onClick={handleLogout}
-                className={`hidden rounded-md border border-white/25 text-sm text-white hover:bg-white/10 md:inline-flex ${actionPadding}`}
+                className={`hidden rounded-md border border-slate-300 dark:border-white/25 text-sm text-slate-700 hover:bg-slate-100 dark:text-white dark:hover:bg-white/10 md:inline-flex ${actionPadding}`}
               >
                 Logout
               </button>
@@ -168,7 +168,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
           ) : (
             <Link
               to={loginTarget}
-              className={`hidden rounded-md border border-white/25 text-sm text-white hover:bg-white/10 md:inline-flex ${actionPadding}`}
+              className={`hidden rounded-md border border-slate-300 dark:border-white/25 text-sm text-slate-700 hover:bg-slate-100 dark:text-white dark:hover:bg-white/10 md:inline-flex ${actionPadding}`}
             >
               Login
             </Link>
@@ -179,7 +179,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
             aria-label="Toggle navigation menu"
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((prev) => !prev)}
-            className="inline-flex rounded-md border border-white/25 px-2.5 py-1.5 text-sm text-white hover:bg-white/10 md:hidden"
+            className="inline-flex rounded-md border border-slate-300 dark:border-white/25 px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:text-white dark:hover:bg-white/10 md:hidden"
           >
             Menu
           </button>
@@ -187,17 +187,17 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
       </div>
 
       {mobileOpen && (
-        <nav className="border-t border-white/15 px-4 py-3 md:hidden" aria-label="Mobile">
+        <nav className="border-t border-slate-200 dark:border-white/15 px-4 py-3 md:hidden" aria-label="Mobile">
           <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-3">
             {navItems.map((item) => (
-              <Link key={item.to} to={item.to} className="text-sm text-slate-200 hover:text-white">
+              <Link key={item.to} to={item.to} className="text-sm text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white">
                 {item.label}
               </Link>
             ))}
-            <Link to="/cart" className="inline-flex w-fit items-center gap-2 text-sm text-slate-200 hover:text-white">
+            <Link to="/cart" className="inline-flex w-fit items-center gap-2 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white">
               <span>Cart</span>
               {cartCount > 0 && (
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-xs font-semibold text-black">
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 dark:bg-white px-1.5 text-xs font-semibold text-white dark:text-black">
                   {cartCount}
                 </span>
               )}
@@ -224,7 +224,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
                   type="button"
                   aria-label="Logout"
                   onClick={handleLogout}
-                  className="mt-1 inline-flex w-fit rounded-md border border-white/25 px-3 py-1.5 text-sm text-white hover:bg-white/10"
+                  className="mt-1 inline-flex w-fit rounded-md border border-slate-300 dark:border-white/25 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:text-white dark:hover:bg-white/10"
                 >
                   Logout
                 </button>
@@ -232,7 +232,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
             ) : (
               <Link
                 to={loginTarget}
-                className="mt-1 inline-flex w-fit rounded-md border border-white/25 px-3 py-1.5 text-sm text-white hover:bg-white/10"
+                className="mt-1 inline-flex w-fit rounded-md border border-slate-300 dark:border-white/25 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:text-white dark:hover:bg-white/10"
               >
                 Login
               </Link>

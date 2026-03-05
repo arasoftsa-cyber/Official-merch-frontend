@@ -61,16 +61,16 @@ export default function DataTable<T = any>({
 }: DataTableProps<T>) {
   if (!rows.length) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-6 text-sm text-slate-500 dark:text-slate-300">
         {emptyText ?? 'No data available for selected period'}
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
-      <table className="w-full text-sm text-left text-slate-200">
-        <thead className="bg-white/5 text-xs uppercase tracking-[0.4em] text-slate-400">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5">
+      <table className="w-full text-sm text-left text-slate-700 dark:text-slate-200">
+        <thead className="bg-slate-50 dark:bg-white/5 text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">
           <tr>
             {columns.map((column, columnIndex) => (
               <th key={columnKey(column, columnIndex)} className="px-4 py-3">
@@ -83,7 +83,7 @@ export default function DataTable<T = any>({
           {rows.map((row, rowIndex) => (
             <tr
               key={rowIndex}
-              className={`border-t border-white/5 ${rowOnClick ? 'cursor-pointer hover:bg-white/5' : ''}`}
+              className={`border-t border-slate-100 dark:border-white/5 ${rowOnClick ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5' : ''}`}
               onClick={rowOnClick ? () => rowOnClick(row) : undefined}
               data-testid="admin-order-row"
               tabIndex={rowOnClick ? 0 : undefined}

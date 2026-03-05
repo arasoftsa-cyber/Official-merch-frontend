@@ -27,7 +27,6 @@ function resolveRole(payload: any): string {
 }
 
 export default function FanLoginPage() {
-  const location = useLocation();
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
   const portalError = params.get('portalError');
@@ -52,64 +51,30 @@ export default function FanLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const emailRef = useRef<HTMLInputElement | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem(LOGIN_CONTEXT_KEY, 'fan');
-  }, []);
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setFormError(null);
-    setIsSubmitting(true);
-    localStorage.setItem(LOGIN_CONTEXT_KEY, 'fan');
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
     try {
-      const loginResponse = await apiFetch('/auth/login', {
-        method: 'POST',
-        body: { email, password },
-      });
+      const res: any = await apiPost('/auth/login', { email, password });
 
-      const accessToken =
-        loginResponse?.accessToken ||
-        loginResponse?.token ||
-        loginResponse?.data?.accessToken ||
-        loginResponse?.access_token ||
-        null;
-      const refreshToken =
-        loginResponse?.refreshToken ||
-        loginResponse?.data?.refreshToken ||
-        loginResponse?.refresh_token ||
-        null;
-
-      if (!accessToken) {
-        throw new Error('Missing access token');
-      }
-
-      setAccessToken(accessToken);
-      if (refreshToken) {
-        setRefreshToken(refreshToken);
-      }
-
-      let role = resolveRole(loginResponse);
-      if (!role) {
-        const me = await apiFetch('/auth/whoami');
-        role = resolveRole(me);
-      }
-      if (!FAN_ALLOWED_ROLES.has(role)) {
-        clearTokens();
-        void logoutAuth().catch(() => undefined);
-        setFormError(PARTNER_PORTAL_ERROR_MESSAGE);
-        return;
+      const token = res?.accessToken || res?.token;
+      if (token) {
+        setAccessToken(token);
+        navigate(returnTo);
+      } else {
+        setError('Invalid credentials');
       }
 
       localStorage.removeItem(LOGIN_CONTEXT_KEY);
       navigate(safeReturnTo || '/', { replace: true });
     } catch (err: any) {
-      setFormError(err?.message ?? 'Login failed');
+      setError(err?.message || 'Login failed');
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
@@ -148,47 +113,104 @@ export default function FanLoginPage() {
               className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none transition focus:ring-2 focus:ring-white/20 placeholder:text-slate-400"
             />
           </div>
-          <div className="space-y-2 relative">
-            <Label htmlFor="fan-password" className="text-sm text-white/60">
-              Password
-            </Label>
-            <Input
-              id="fan-password"
-              type={showPassword ? 'text' : 'password'}
-              name="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              placeholder="••••••••"
-              data-testid="login-password"
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 pr-16 outline-none transition focus:ring-2 focus:ring-white/20 placeholder:text-slate-400"
-            />
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/5 px-3 py-1 text-[0.55rem] font-semibold uppercase tracking-[0.45em] text-slate-300/80 transition duration-150 hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
-              onClick={() => setShowPassword((prev) => !prev)}
-              aria-pressed={showPassword}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
+
+          <div className="mb-10 text-center">
+            <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Fan login
+            </h1>
+            <p className="mt-4 text-sm text-slate-500 dark:text-white/60">
+              Welcome back. Access your orders and favorites.
+            </p>
           </div>
-          <div className="min-h-[2.5rem]">
-            {portalError === 'fan_account' && (
-              <div role="alert" className="mb-3 rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-sm text-amber-100">
-                This is a fan account. Please log in via Fan portal.
+
+          {error && (
+            <div className="mb-6 w-full rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-600 dark:border-rose-500/20 dark:bg-rose-500/5 dark:text-rose-400">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="w-full space-y-6">
+            <div className="space-y-2">
+              <label
+                htmlFor="email"
+                className="px-1 text-sm font-medium text-slate-500 dark:text-white/40"
+              >
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 text-base text-slate-900 outline-none transition focus:border-slate-900 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:focus:border-white/30"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <label
+                  htmlFor="password"
+                  className="text-sm font-medium text-slate-500 dark:text-white/40"
+                >
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-[10px] font-bold uppercase tracking-widest text-slate-400 transition hover:text-slate-900 dark:text-white/30 dark:hover:text-white"
+                >
+                  Forgot?
+                </Link>
               </div>
-            )}
-            {portalError === 'partner_account' && (
-              <div role="alert" className="mb-3 rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-sm text-amber-100">
-                This account is a partner/admin account. Please log in via Partner portal.
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 pr-20 text-base text-slate-900 outline-none transition focus:border-slate-900 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:focus:border-white/30"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-slate-100 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-white/40 dark:hover:bg-white/10 dark:hover:text-white"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
               </div>
-            )}
-            {formError && (
-              <div role="alert" className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-200">
-                {formError}
-              </div>
-            )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="h-14 w-full rounded-2xl bg-slate-900 text-base font-bold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-[#9c9c9c] dark:text-black dark:hover:bg-[#b0b0b0]"
+            >
+              {loading ? 'Authenticating...' : 'Sign In'}
+            </button>
+          </form>
+
+          <div className="mt-8 flex flex-col items-center gap-2 text-sm text-slate-500 dark:text-white/40">
+            <p>
+              New here?{' '}
+              <Link
+                to={`/fan/register?returnTo=${encodeURIComponent(returnTo)}`}
+                className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
+              >
+                Sign up
+              </Link>
+            </p>
+            <p>
+              Are you an artist?{' '}
+              <Link
+                to={`/partner/login?returnTo=${encodeURIComponent(returnTo)}`}
+                className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
+              >
+                Partner Login
+              </Link>
+            </p>
           </div>
           <button
             type="submit"

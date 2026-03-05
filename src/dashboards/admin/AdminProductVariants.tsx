@@ -28,8 +28,8 @@ export default function AdminProductVariants() {
       const items = Array.isArray(payload?.variants)
         ? payload.variants
         : Array.isArray(payload)
-        ? payload
-        : [];
+          ? payload
+          : [];
       setVariants(items);
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load variants');
@@ -72,7 +72,7 @@ export default function AdminProductVariants() {
     try {
       await apiFetch(`/admin/products/${id}/variants`, {
         method: 'PUT',
-        body: {
+        body: JSON.stringify({
           variants: variants.map((v) => ({
             id: v.id,
             sku: v.sku,
@@ -81,7 +81,7 @@ export default function AdminProductVariants() {
             priceCents: Number(v.priceCents),
             stock: Number(v.stock),
           })),
-        },
+        }) as any,
       });
       await load();
     } catch (err: any) {
@@ -92,99 +92,128 @@ export default function AdminProductVariants() {
   };
 
   return (
-    <main className="space-y-6">
+    <main className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Admin</p>
-          <h1 className="text-2xl font-semibold text-white">Product Variants</h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 dark:text-slate-500">Admin Inventory</p>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-white">Product Variants</h1>
         </div>
-        <Link className="text-sm text-slate-300 underline" to="/partner/admin/products">
-          Back to products
+        <Link
+          to="/partner/admin/products"
+          className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white transition-all border border-slate-200 dark:border-white/10 px-4 py-1.5 rounded-full"
+        >
+          Back to items
         </Link>
       </div>
 
-      {error && <p className="text-sm text-rose-300">{error}</p>}
-      {loading && <p className="text-sm text-slate-300">Loading...</p>}
+      {error && (
+        <div className="rounded-2xl border border-rose-200 dark:border-rose-400/40 bg-rose-50 dark:bg-rose-500/10 p-4">
+          <p className="text-xs font-black uppercase tracking-widest text-rose-600 dark:text-rose-400">{error}</p>
+        </div>
+      )}
+
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <p className="text-xs font-black uppercase tracking-widest text-slate-400 animate-pulse">Synchronizing Variants...</p>
+        </div>
+      )}
 
       {!loading && (
-        <>
-          <div className="space-y-2">
-            <div className="mb-1 hidden gap-2 px-1 text-xs font-medium uppercase tracking-[0.12em] text-slate-300 md:grid md:grid-cols-6">
-              <div>SKU</div>
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <div className="mb-4 hidden grid-cols-6 gap-4 px-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 md:grid">
+              <div>Stock Code (SKU)</div>
               <div>Size</div>
               <div>Color</div>
-              <div>Price</div>
-              <div>Stock</div>
-              <div>Actions</div>
+              <div>Price (Cents)</div>
+              <div>Units</div>
+              <div className="text-right">Actions</div>
             </div>
-            {variants.map((variant, index) => (
-              <div key={`${variant.id || 'new'}-${index}`} className="grid gap-2 rounded-xl border border-white/10 bg-white/5 p-3 md:grid-cols-6">
-                <input
-                  value={variant.sku}
-                  onChange={(e) => updateVariant(index, 'sku', e.target.value)}
-                  placeholder="SKU"
-                  className="rounded-lg border border-white/15 bg-black/20 px-2 py-1 text-sm text-white"
-                />
-                <input
-                  value={variant.size}
-                  onChange={(e) => updateVariant(index, 'size', e.target.value)}
-                  placeholder="Size"
-                  className="rounded-lg border border-white/15 bg-black/20 px-2 py-1 text-sm text-white"
-                />
-                <input
-                  value={variant.color}
-                  onChange={(e) => updateVariant(index, 'color', e.target.value)}
-                  placeholder="Color"
-                  className="rounded-lg border border-white/15 bg-black/20 px-2 py-1 text-sm text-white"
-                />
-                <input
-                  value={variant.priceCents}
-                  onChange={(e) => updateVariant(index, 'priceCents', e.target.value)}
-                  placeholder="Price cents"
-                  className="rounded-lg border border-white/15 bg-black/20 px-2 py-1 text-sm text-white"
-                />
-                <input
-                  value={variant.stock}
-                  onChange={(e) => updateVariant(index, 'stock', e.target.value)}
-                  placeholder="Stock"
-                  className="rounded-lg border border-white/15 bg-black/20 px-2 py-1 text-sm text-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeVariant(index)}
-                  className="rounded-lg border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.25em] text-white"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
+
+            <div className="space-y-3">
+              {variants.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-slate-200 dark:border-white/10 p-12 text-center">
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">No variant configurations found.</p>
+                </div>
+              ) : (
+                variants.map((variant, index) => (
+                  <div
+                    key={`${variant.id || 'new'}-${index}`}
+                    className="group grid grid-cols-1 gap-4 rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-4 md:grid-cols-6 items-center shadow-sm hover:border-indigo-400 dark:hover:border-white/40 transition-all duration-300"
+                  >
+                    <input
+                      value={variant.sku}
+                      onChange={(e) => updateVariant(index, 'sku', e.target.value)}
+                      placeholder="SKU-001"
+                      className="w-full rounded-2xl border border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-2 text-xs font-bold text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
+                    />
+                    <input
+                      value={variant.size}
+                      onChange={(e) => updateVariant(index, 'size', e.target.value)}
+                      placeholder="Size"
+                      className="w-full rounded-2xl border border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-2 text-xs font-bold text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
+                    />
+                    <input
+                      value={variant.color}
+                      onChange={(e) => updateVariant(index, 'color', e.target.value)}
+                      placeholder="Color"
+                      className="w-full rounded-2xl border border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-2 text-xs font-bold text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
+                    />
+                    <input
+                      type="number"
+                      value={variant.priceCents}
+                      onChange={(e) => updateVariant(index, 'priceCents', e.target.value)}
+                      className="w-full rounded-2xl border border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-2 text-xs font-black text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
+                    />
+                    <input
+                      type="number"
+                      value={variant.stock}
+                      onChange={(e) => updateVariant(index, 'stock', e.target.value)}
+                      className="w-full rounded-2xl border border-slate-100 dark:border-white/10 bg-slate-50 dark:bg-black/30 px-4 py-2 text-xs font-black text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => removeVariant(index)}
+                        className="rounded-full bg-rose-50 dark:bg-rose-500/10 p-2 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        title="Delete Configuration"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-4 py-8 border-t border-slate-100 dark:border-white/5 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl">
             <button
               type="button"
               onClick={addVariant}
-              className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white"
+              className="rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-8 py-3 text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-white/10 transition-all active:scale-95"
             >
-              Add variant
+              Add New Config
             </button>
             <button
               type="button"
               onClick={saveAll}
               disabled={saving}
-              className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white disabled:opacity-50"
+              className="rounded-full bg-slate-900 dark:bg-white px-10 py-3 text-xs font-black uppercase tracking-widest text-white dark:text-slate-950 transition-all hover:scale-[1.02] active:scale-95 shadow-xl shadow-slate-900/10 dark:shadow-none disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Save variants'}
+              {saving ? 'Syncing...' : 'Deploy Changes'}
             </button>
             <button
               type="button"
               onClick={() => navigate('/partner/admin/products')}
-              className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white"
+              className="ml-auto text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 transition-colors"
             >
-              Done
+              Finish Review
             </button>
           </div>
-        </>
+        </div>
       )}
     </main>
   );

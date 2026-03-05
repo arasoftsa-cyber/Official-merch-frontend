@@ -61,8 +61,8 @@ export default function AdminCreateProductPage() {
         const artistItems = Array.isArray(artistsPayload?.artists)
           ? artistsPayload.artists
           : Array.isArray(artistsPayload)
-          ? artistsPayload
-          : [];
+            ? artistsPayload
+            : [];
 
         setArtists(artistItems);
         if (artistItems.length > 0) {
@@ -177,200 +177,215 @@ export default function AdminCreateProductPage() {
     <main className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Admin</p>
-          <h1 className="text-2xl font-semibold text-white">Create Product</h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 dark:text-slate-500">Admin Control</p>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-white">Create Product</h1>
         </div>
-        <Link className="text-sm text-slate-300 underline" to="/partner/admin/products">
-          Back to products
+        <Link className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white transition-all border border-slate-200 dark:border-white/10 px-4 py-1.5 rounded-full" to="/partner/admin/products">
+          Back to items
         </Link>
       </div>
 
-      {submitError && <p className="text-sm text-rose-300">{submitError}</p>}
+      {submitError && (
+        <div className="rounded-xl border border-rose-200 dark:border-rose-400/40 bg-rose-50 dark:bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-600 dark:text-rose-400">
+          {submitError}
+        </div>
+      )}
 
       <form
         onSubmit={onSubmit}
-        className="grid gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-2"
+        className="grid gap-6 rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-8 md:grid-cols-2 shadow-sm"
       >
-        <label htmlFor="admin-product-artist" className="text-sm text-white">
-          Artist
+        <label htmlFor="admin-product-artist" className="block space-y-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Artist</span>
           <select
             id="admin-product-artist"
             data-testid="admin-product-artist"
             value={artistId}
             onChange={(event) => setArtistId(event.target.value)}
             disabled={loading || submitting}
-            className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+            className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none appearance-none"
           >
-            <option value="">Select artist</option>
+            <option value="" className="bg-white dark:bg-slate-900">Select artist</option>
             {artistOptions.map((artist) => (
-              <option key={artist.id} value={artist.id}>
+              <option key={artist.id} value={artist.id} className="bg-white dark:bg-slate-900">
                 {artist.label}
               </option>
             ))}
           </select>
-          {fieldErrors.artist_id && <p className="mt-1 text-xs text-rose-300">{fieldErrors.artist_id}</p>}
+          {fieldErrors.artist_id && <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.artist_id}</p>}
         </label>
 
-        <label className="text-sm text-white">
-          Merch Name
+        <label className="block space-y-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Merch Name</span>
           <input
             data-testid="admin-product-merch-name"
             value={merchName}
             onChange={(event) => setMerchName(event.target.value)}
             disabled={submitting}
-            className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+            placeholder="e.g. Vintage Rock Tee"
+            className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
           />
-          {fieldErrors.merch_name && <p className="mt-1 text-xs text-rose-300">{fieldErrors.merch_name}</p>}
+          {fieldErrors.merch_name && <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.merch_name}</p>}
         </label>
 
-        <label className="text-sm text-white md:col-span-2">
-          Merch Story
+        <label className="block space-y-2 md:col-span-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Merch Story</span>
           <textarea
             value={merchStory}
             onChange={(event) => setMerchStory(event.target.value)}
             rows={4}
             disabled={submitting}
-            className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+            placeholder="Describe the product and its backstory..."
+            className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
           />
-          {fieldErrors.merch_story && <p className="mt-1 text-xs text-rose-300">{fieldErrors.merch_story}</p>}
+          {fieldErrors.merch_story && <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.merch_story}</p>}
         </label>
 
-        <label className="text-sm text-white">
-          To Be Paid To Vendor
-          <input
-            data-testid="admin-product-vendor-pay"
-            type="number"
-            min={0}
-            step="0.01"
-            value={vendorPay}
-            onChange={(event) => setVendorPay(event.target.value)}
-            disabled={submitting}
-            className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-          />
-          {(fieldErrors.vendor_pay || fieldErrors.vendor_pay_cents) && (
-            <p className="mt-1 text-xs text-rose-300">{fieldErrors.vendor_pay || fieldErrors.vendor_pay_cents}</p>
-          )}
-        </label>
+        <div className="grid grid-cols-3 gap-4 md:col-span-2">
+          <label className="block space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Vendor Pay</span>
+            <input
+              data-testid="admin-product-vendor-pay"
+              type="number"
+              min={0}
+              step="0.01"
+              value={vendorPay}
+              onChange={(event) => setVendorPay(event.target.value)}
+              disabled={submitting}
+              className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
+            />
+            {(fieldErrors.vendor_pay || fieldErrors.vendor_pay_cents) && (
+              <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.vendor_pay || fieldErrors.vendor_pay_cents}</p>
+            )}
+          </label>
 
-        <label className="text-sm text-white">
-          Our Share
-          <input
-            data-testid="admin-product-our-share"
-            type="number"
-            min={0}
-            step="0.01"
-            value={ourShare}
-            onChange={(event) => setOurShare(event.target.value)}
-            disabled={submitting}
-            className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-          />
-          {(fieldErrors.our_share || fieldErrors.our_share_cents) && (
-            <p className="mt-1 text-xs text-rose-300">{fieldErrors.our_share || fieldErrors.our_share_cents}</p>
-          )}
-        </label>
+          <label className="block space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Our Share</span>
+            <input
+              data-testid="admin-product-our-share"
+              type="number"
+              min={0}
+              step="0.01"
+              value={ourShare}
+              onChange={(event) => setOurShare(event.target.value)}
+              disabled={submitting}
+              className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
+            />
+            {(fieldErrors.our_share || fieldErrors.our_share_cents) && (
+              <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.our_share || fieldErrors.our_share_cents}</p>
+            )}
+          </label>
 
-        <label className="text-sm text-white">
-          Royalty
-          <input
-            data-testid="admin-product-royalty"
-            type="number"
-            min={0}
-            step="0.01"
-            value={royalty}
-            onChange={(event) => setRoyalty(event.target.value)}
-            disabled={submitting}
-            className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-          />
-          {(fieldErrors.royalty || fieldErrors.royalty_cents) && (
-            <p className="mt-1 text-xs text-rose-300">{fieldErrors.royalty || fieldErrors.royalty_cents}</p>
-          )}
-        </label>
+          <label className="block space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Royalty</span>
+            <input
+              data-testid="admin-product-royalty"
+              type="number"
+              min={0}
+              step="0.01"
+              value={royalty}
+              onChange={(event) => setRoyalty(event.target.value)}
+              disabled={submitting}
+              className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
+            />
+            {(fieldErrors.royalty || fieldErrors.royalty_cents) && (
+              <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.royalty || fieldErrors.royalty_cents}</p>
+            )}
+          </label>
+        </div>
 
-        <label className="text-sm text-white">
-          Merch Type
+        <label className="block space-y-2 font-medium">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Merch Type</span>
           <select
             data-testid="admin-product-merch-type"
             value={merchType}
             onChange={(event) => setMerchType(event.target.value)}
             disabled={submitting}
-            className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+            className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none appearance-none"
           >
-            <option value="">Select merch type</option>
+            <option value="" className="bg-white dark:bg-slate-900">Select type</option>
             {MERCH_TYPE_OPTIONS.map((entry) => (
-              <option key={entry} value={entry}>
+              <option key={entry} value={entry} className="bg-white dark:bg-slate-900">
                 {entry}
               </option>
             ))}
           </select>
-          {fieldErrors.merch_type && <p className="mt-1 text-xs text-rose-300">{fieldErrors.merch_type}</p>}
+          {fieldErrors.merch_type && <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.merch_type}</p>}
         </label>
 
-        <label className="text-sm text-white">
-          Status
+        <label className="block space-y-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Initial Status</span>
           <input
             value="Inactive"
             readOnly
             disabled
-            className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-slate-300"
+            className="w-full rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-black/60 px-3 py-2 text-sm font-black uppercase tracking-widest text-slate-400 dark:text-slate-600 cursor-not-allowed"
           />
         </label>
 
-        <fieldset className="rounded-xl border border-white/10 p-3 md:col-span-2">
-          <legend className="px-2 text-sm text-white">Colors</legend>
-          <div className="mt-2 flex flex-wrap gap-4">
+        <fieldset className="rounded-2xl border border-slate-200 dark:border-white/10 p-5 md:col-span-2 bg-slate-50/30 dark:bg-transparent">
+          <legend className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Available Colors</legend>
+          <div className="flex flex-wrap gap-x-8 gap-y-4">
             {COLOR_OPTIONS.map((color) => (
-              <label key={color} className="flex items-center gap-2 text-sm text-slate-100">
+              <label key={color} className="flex items-center gap-2.5 text-sm font-medium text-slate-700 dark:text-slate-100 cursor-pointer group">
                 <input
                   type="checkbox"
                   checked={selectedColors.includes(color)}
                   onChange={() => toggleColor(color)}
                   disabled={submitting}
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-all"
                 />
-                {color}
+                <span className="group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors capitalize">{color.replace('_', ' ')}</span>
               </label>
             ))}
           </div>
-          {fieldErrors.colors && <p className="mt-2 text-xs text-rose-300">{fieldErrors.colors}</p>}
+          {fieldErrors.colors && <p className="mt-4 text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.colors}</p>}
         </fieldset>
 
-        <label className="text-sm text-white md:col-span-2">
-          Listing Photos (exactly 4)
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(event) => {
-              const files = Array.from(event.target.files || []);
-              setListingPhotos(files);
-              setFieldErrors((prev) => ({
-                ...prev,
-                listing_photos: files.length === 4 ? '' : 'Exactly 4 listing photos are required',
-                photos: files.length === 4 ? '' : 'Exactly 4 listing photos are required',
-              }));
-            }}
-            disabled={submitting}
-            className="mt-2 block w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-          />
-          <p className="mt-1 text-xs text-slate-300">{listingPhotos.length} selected</p>
+        <label className="block space-y-2 md:col-span-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Listing Photos (exactly 4)</span>
+          <div className="relative group">
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.target.files || []);
+                setListingPhotos(files);
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  listing_photos: files.length === 4 ? '' : 'Exactly 4 listing photos are required',
+                  photos: files.length === 4 ? '' : 'Exactly 4 listing photos are required',
+                }));
+              }}
+              disabled={submitting}
+              className="w-full rounded-xl border border-dashed border-slate-200 dark:border-white/20 bg-slate-50 dark:bg-black/30 px-3 py-8 text-sm text-slate-500 dark:text-slate-400 focus:border-indigo-500 dark:focus:border-white/40 transition outline-none cursor-pointer text-center file:hidden"
+            />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 group-hover:text-indigo-500 transition-colors">
+                {listingPhotos.length > 0 ? `${listingPhotos.length} / 4 Photos Selected` : 'Click to upload 4 photos'}
+              </span>
+            </div>
+          </div>
           {(fieldErrors.listing_photos || fieldErrors.photos) && (
-            <p className="mt-1 text-xs text-rose-300">{fieldErrors.listing_photos || fieldErrors.photos}</p>
+            <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.listing_photos || fieldErrors.photos}</p>
           )}
         </label>
 
-        <div className="flex gap-2 md:col-span-2">
+        <div className="flex flex-wrap items-center justify-between gap-4 md:col-span-2 pt-6 border-t border-slate-100 dark:border-white/5">
           <button
             type="submit"
             disabled={submitting || loading || listingPhotos.length !== 4}
-            className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="rounded-full bg-slate-900 dark:bg-white px-10 py-3 text-xs font-black uppercase tracking-widest text-white dark:text-slate-950 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-slate-900/10 dark:shadow-none"
           >
-            {submitting ? 'Creating...' : 'Create Product'}
+            {submitting ? 'Creating...' : 'Launch Product'}
           </button>
           <button
             type="button"
             onClick={() => navigate('/partner/admin/products')}
-            className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white"
+            className="rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-transparent px-10 py-3 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-white hover:bg-slate-50 dark:hover:bg-white/5 transition-all"
           >
-            Cancel
+            Discard
           </button>
         </div>
       </form>

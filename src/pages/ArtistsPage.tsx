@@ -41,7 +41,7 @@ export default function ArtistsPage() {
           if (!handle) return null;
           return { handle, name, profilePhotoUrl };
         })
-        .filter((item): item is ArtistRow => Boolean(item));
+        .filter((item: any): item is ArtistRow => Boolean(item)) as ArtistRow[];
       if (mountedRef.current) {
         setArtists(mapped);
       }
@@ -65,63 +65,65 @@ export default function ArtistsPage() {
   }, [loadArtists]);
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-      <div>
-        <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Community</p>
-        <h1 className="text-3xl font-semibold tracking-tight">Artists</h1>
-        <p className="text-sm text-slate-300">
-          Browse the creators pushing new drops in the OfficialMerch catalog.
-        </p>
-      </div>
-      {loading && <LoadingSkeleton count={4} />}
-      {!loading && error && (
-        <EmptyState
-          title="Something went wrong"
-          message={error ? `Unable to load artists (${error}).` : 'Unable to load artists.'}
-          actionLabel="Retry"
-          onAction={loadArtists}
-        />
-      )}
-      {!loading && !error && artists.length === 0 && (
-        <EmptyState
-          title="No artists yet"
-          message="Try again in a moment."
-          actionLabel="Retry"
-          onAction={loadArtists}
-        />
-      )}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {artists.map((artist) => (
-          <article
-            key={artist.handle}
-            className="flex flex-col gap-3 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10 transition hover:bg-white/10 hover:ring-white/30"
-          >
-            <PublicCardCover
-              title={artist.name}
-              subtitle={artist.handle}
-              imageUrl={artist.profilePhotoUrl ?? undefined}
-              imageAlt={`${artist.name || 'Artist'} profile photo`}
-              kind="artist"
-              className="aspect-[4/3] w-full rounded-xl"
-            />
-            <div>
-              <p className="text-lg font-semibold">{artist.name}</p>
-              <p className="text-xs uppercase tracking-[0.4em] text-slate-400">/{artist.handle}</p>
-            </div>
-            <p className="text-sm text-slate-400">
-              Discover merch, drops, and stories curated by {artist.name}.
-            </p>
-            <div className="mt-auto">
-              <Link
-                to={`/artists/${artist.handle}`}
-                className="inline-flex items-center justify-center rounded-full bg-indigo-500 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/70"
-              >
-                View artist
-              </Link>
-            </div>
-          </article>
-        ))}
-      </div>
-    </main>
+    <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-white">
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+        <div>
+          <p className="text-sm uppercase tracking-[0.3em] text-slate-600 dark:text-slate-400">Community</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">Artists</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Browse the creators pushing new drops in the OfficialMerch catalog.
+          </p>
+        </div>
+        {loading && <LoadingSkeleton count={4} />}
+        {!loading && error && (
+          <EmptyState
+            title="Something went wrong"
+            message={error ? `Unable to load artists (${error}).` : 'Unable to load artists.'}
+            actionLabel="Retry"
+            onAction={loadArtists}
+          />
+        )}
+        {!loading && !error && artists.length === 0 && (
+          <EmptyState
+            title="No artists yet"
+            message="Try again in a moment."
+            actionLabel="Retry"
+            onAction={loadArtists}
+          />
+        )}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {artists.map((artist) => (
+            <article
+              key={artist.handle}
+              className="flex flex-col gap-3 rounded-2xl bg-slate-50 dark:bg-white/5 p-4 ring-1 ring-slate-200 dark:ring-white/10 transition hover:bg-slate-100 dark:hover:bg-white/10 hover:ring-slate-300 dark:hover:ring-white/30"
+            >
+              <PublicCardCover
+                title={artist.name}
+                subtitle={artist.handle}
+                imageUrl={artist.profilePhotoUrl ?? undefined}
+                imageAlt={`${artist.name || 'Artist'} profile photo`}
+                kind="artist"
+                className="aspect-[4/3] w-full rounded-xl"
+              />
+              <div>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">{artist.name}</p>
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-600 dark:text-slate-400">/{artist.handle}</p>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Discover merch, drops, and stories curated by {artist.name}.
+              </p>
+              <div className="mt-auto">
+                <Link
+                  to={`/artists/${artist.handle}`}
+                  className="inline-flex items-center justify-center rounded-full bg-indigo-500 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/70"
+                >
+                  View artist
+                </Link>
+              </div>
+            </article>
+          ))}
+        </div>
+      </main>
+    </div>
   );
 }

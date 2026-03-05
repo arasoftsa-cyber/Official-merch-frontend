@@ -67,8 +67,8 @@ export default function AdminDashboard() {
             payload && typeof payload.count === "number"
               ? payload.count
               : payload?.count
-              ? Number(payload.count)
-              : 0
+                ? Number(payload.count)
+                : 0
           );
         }
       } catch (err: any) {
@@ -135,18 +135,18 @@ export default function AdminDashboard() {
   const gmvValue = error
     ? <span title={error}>!</span>
     : loading
-    ? '�'
-    : formatCurrencyFromCents(data?.gmvCents ?? 0);
+      ? '�'
+      : formatCurrencyFromCents(data?.gmvCents ?? 0);
   const buyersValue = error
     ? <span title={error}>!</span>
     : loading
-    ? '�'
-    : data?.buyers?.total ?? 0;
+      ? '�'
+      : data?.buyers?.total ?? 0;
   const pendingValue = pendingError
     ? <span title={pendingError}>!</span>
     : pendingLoading
-    ? '�'
-    : pendingArtistRequests ?? 0;
+      ? '�'
+      : pendingArtistRequests ?? 0;
 
   return (
     <DashboardShell title="Admin Dashboard" subtitle="Read-only metrics for orders, buyers, and GMV.">
@@ -154,7 +154,7 @@ export default function AdminDashboard() {
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         <Link
           to="/admin/orders"
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 cursor-pointer rounded-2xl transition"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer rounded-2xl transition"
         >
           <KpiCard
             label="ORDERS"
@@ -166,7 +166,7 @@ export default function AdminDashboard() {
         <button
           type="button"
           onClick={() => navigate('/admin/artist-requests')}
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 rounded-2xl transition"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 rounded-2xl transition"
         >
           <KpiCard
             label="ARTIST REQUESTS"
@@ -177,7 +177,7 @@ export default function AdminDashboard() {
         <button
           type="button"
           onClick={() => navigate('/partner/admin/leads')}
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 rounded-2xl transition"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 rounded-2xl transition"
         >
           <KpiCard
             label="LEADS"
@@ -187,31 +187,31 @@ export default function AdminDashboard() {
         </button>
         <Link
           to="/partner/admin/artists"
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 cursor-pointer rounded-2xl transition"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer rounded-2xl transition"
         >
           <KpiCard label="ARTISTS" value="—" hint="Onboarded artists" />
         </Link>
         <Link
           to="/partner/admin/products"
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 cursor-pointer rounded-2xl transition"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer rounded-2xl transition"
         >
           <KpiCard label="PRODUCTS" value="—" hint="Manage catalog & variants" />
         </Link>
         <Link
           to="/partner/admin/drops"
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 cursor-pointer rounded-2xl transition"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer rounded-2xl transition"
         >
-          <KpiCard label="DROPS" value="â€”" hint="Manage drop campaigns" />
+          <KpiCard label="DROPS" value="—" hint="Manage drop campaigns" />
         </Link>
         <Link
           to="/partner/admin/homepage-banners"
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 cursor-pointer rounded-2xl transition"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer rounded-2xl transition"
         >
           <KpiCard label="HOMEPAGE" value="-" hint="Manage hero banners" />
         </Link>
         <Link
           to="/admin/provisioning"
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 cursor-pointer rounded-2xl transition"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer rounded-2xl transition"
         >
           <KpiCard label="PROVISIONING" value="—" hint="Create artists/labels & links" />
         </Link>
@@ -229,21 +229,21 @@ export default function AdminDashboard() {
         <button
           type="button"
           onClick={() => navigate('/admin/orders?status=placed')}
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 rounded-2xl transition"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 rounded-2xl transition"
         >
           <KpiCard label="PLACED" value={placedValue} hint="Last 30 days" />
         </button>
         <button
           type="button"
           onClick={() => navigate('/admin/orders?status=cancelled')}
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 rounded-2xl transition"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 rounded-2xl transition"
         >
           <KpiCard label="CANCELLED" value={cancelledValue} hint="Last 30 days" />
         </button>
         <button
           type="button"
           onClick={() => navigate('/admin/orders?status=fulfilled')}
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 hover:border-white/20 hover:bg-white/10 rounded-2xl transition"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 rounded-2xl transition"
         >
           <KpiCard label="FULFILLED" value={fulfilledValue} hint="Last 30 days" />
         </button>

@@ -25,6 +25,7 @@ type OrderRecord = {
   createdAt?: string;
   created?: string;
   created_at?: string;
+  totalCents?: number;
 };
 
 const normalizeId = (order: OrderRecord) =>
@@ -65,11 +66,11 @@ const columns: TableColumn<OrderRecord>[] = [
     key: 'status',
     render: (order) => getStatusLabel(order.status),
   },
-    {
-      header: 'Total',
-      key: 'total',
-      render: (order) => formatCurrencyFromCents(order.totalCents),
-    },
+  {
+    header: 'Total',
+    key: 'total',
+    render: (order) => formatCurrencyFromCents(order.totalCents),
+  },
   {
     header: 'Created',
     key: 'created',
@@ -82,7 +83,7 @@ const columns: TableColumn<OrderRecord>[] = [
       <Link
         to={`/admin/orders/${normalizeId(order)}`}
         data-testid="admin-order-link"
-        className="text-xs font-semibold uppercase tracking-[0.4em] text-indigo-300"
+        className="text-xs font-semibold uppercase tracking-[0.4em] text-indigo-600 dark:text-indigo-300"
       >
         View
       </Link>
@@ -121,14 +122,14 @@ export default function AdminOrders() {
         const normalized: OrderRecord[] = Array.isArray(payload)
           ? payload
           : Array.isArray(payload?.items)
-          ? payload.items
-          : Array.isArray(payload?.orders)
-          ? payload.orders
-          : Array.isArray(payload?.data)
-          ? payload.data
-          : Array.isArray(payload?.results)
-          ? payload.results
-          : [];
+            ? payload.items
+            : Array.isArray(payload?.orders)
+              ? payload.orders
+              : Array.isArray(payload?.data)
+                ? payload.data
+                : Array.isArray(payload?.results)
+                  ? payload.results
+                  : [];
         if (active) {
           setOrders(normalized);
         }
@@ -186,8 +187,8 @@ export default function AdminOrders() {
       <Page>
         <Container className="space-y-3">
           <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Admin</p>
-            <h1 className="text-3xl font-semibold text-white">Orders</h1>
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Admin</p>
+            <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Orders</h1>
           </div>
           <LoadingSkeleton count={2} />
         </Container>
@@ -199,9 +200,9 @@ export default function AdminOrders() {
     <Page>
       <Container className="space-y-6">
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Admin</p>
-          <h1 className="text-3xl font-semibold text-white">Orders</h1>
-          <p className="text-xs text-white/60">Read-only snapshot</p>
+          <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Admin</p>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Orders</h1>
+          <p className="text-xs text-slate-600 dark:text-white/60">Read-only snapshot</p>
         </div>
 
         <div className="flex gap-3">
@@ -210,12 +211,12 @@ export default function AdminOrders() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search by order or buyer"
-            className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-slate-500 focus:border-white/30 focus:outline-none"
+            className="flex-1 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-4 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 focus:border-indigo-300 dark:focus:border-white/30 focus:outline-none"
           />
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+            className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-300 dark:focus:border-white/30 focus:outline-none"
           >
             {getStatusOptions(orders).map((status) => (
               <option key={status} value={status}>
@@ -227,7 +228,7 @@ export default function AdminOrders() {
 
         {error && <ErrorBanner message={error} onRetry={() => setError(null)} />}
         <div className="flex items-center justify-between gap-3">
-          <div className="text-xs uppercase tracking-[0.4em] text-slate-400">
+          <div className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">
             Showing {paginatedOrders.length} of {filteredOrders.length} orders
           </div>
           <div className="flex gap-2 text-xs">
@@ -235,7 +236,7 @@ export default function AdminOrders() {
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-              className="rounded-xl border border-white/10 px-3 py-1 uppercase tracking-[0.3em] text-slate-300 disabled:opacity-40"
+              className="rounded-xl border border-slate-200 dark:border-white/10 px-3 py-1 uppercase tracking-[0.3em] text-slate-600 dark:text-slate-300 disabled:opacity-40"
             >
               Prev
             </button>
@@ -243,7 +244,7 @@ export default function AdminOrders() {
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-              className="rounded-xl border border-white/10 px-3 py-1 uppercase tracking-[0.3em] text-slate-300 disabled:opacity-40"
+              className="rounded-xl border border-slate-200 dark:border-white/10 px-3 py-1 uppercase tracking-[0.3em] text-slate-600 dark:text-slate-300 disabled:opacity-40"
             >
               Next
             </button>

@@ -159,13 +159,13 @@ export default function AdminProductsPage() {
       const productItems = Array.isArray(productsPayload?.items)
         ? productsPayload.items
         : Array.isArray(productsPayload)
-        ? productsPayload
-        : [];
+          ? productsPayload
+          : [];
       const artistItems = Array.isArray(artistsPayload?.artists)
         ? artistsPayload.artists
         : Array.isArray(artistsPayload)
-        ? artistsPayload
-        : [];
+          ? artistsPayload
+          : [];
 
       setProducts(productItems);
       setArtists(artistItems);
@@ -299,7 +299,7 @@ export default function AdminProductsPage() {
     try {
       await apiFetch(`/admin/products/${editingProduct.id}`, {
         method: 'PATCH',
-        body: {
+        body: JSON.stringify({
           title: editTitle.trim(),
           description: editDescription.trim(),
           merch_story: editDescription.trim(),
@@ -309,7 +309,7 @@ export default function AdminProductsPage() {
           merch_type: editMerchType.trim(),
           colors: editColors,
           isActive: editActive,
-        },
+        }),
       });
 
       if (editReplacementPhotos.length === 4) {
@@ -322,8 +322,8 @@ export default function AdminProductsPage() {
         });
         const latestUrls = Array.isArray(photoUpdate?.listingPhotoUrls)
           ? photoUpdate.listingPhotoUrls
-              .map((entry: any) => resolveMediaUrl(typeof entry === 'string' ? entry : null))
-              .filter((entry: string | null): entry is string => Boolean(entry))
+            .map((entry: any) => resolveMediaUrl(typeof entry === 'string' ? entry : null))
+            .filter((entry: string | null): entry is string => Boolean(entry))
           : [];
         setEditListingPhotoUrls(latestUrls.slice(0, 4));
         setEditReplacementPhotos([]);
@@ -339,43 +339,73 @@ export default function AdminProductsPage() {
   };
 
   return (
-    <main className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Admin</p>
-          <h1 className="text-2xl font-semibold text-white">Products</h1>
+    <main className="space-y-8 min-h-screen pb-20">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-100 dark:border-white/5">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-600 dark:text-indigo-400">Inventory Management</p>
+          </div>
+          <h1 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">Products</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-4">
           <Link
             to="/partner/admin/products/new"
-            className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white"
+            className="group relative inline-flex items-center justify-center rounded-2xl bg-slate-900 dark:bg-white px-8 py-4 text-xs font-black uppercase tracking-[0.2em] text-white dark:text-slate-950 shadow-2xl shadow-slate-900/20 dark:shadow-white/10 transition-all hover:scale-[1.02] active:scale-95 overflow-hidden"
           >
-            Create Product
+            <span className="relative z-10 flex items-center gap-2">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Product
+            </span>
           </Link>
-          <Link className="text-sm text-slate-300 underline" to="/partner/admin">
-            Back to dashboard
+          <Link
+            className="group flex items-center gap-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-900 dark:hover:border-white/20 transition-all shadow-sm"
+            to="/partner/admin"
+          >
+            <svg className="h-4 w-4 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Dashboard
           </Link>
         </div>
       </div>
 
-      {error && <p className="text-sm text-rose-300">{error}</p>}
+      {error && (
+        <div className="rounded-2xl bg-rose-50 dark:bg-rose-500/10 p-4 border border-rose-100 dark:border-rose-500/20">
+          <p className="text-sm font-bold text-rose-600 dark:text-rose-400 flex items-center gap-2">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {error}
+          </p>
+        </div>
+      )}
 
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-        <table className="w-full text-sm text-white">
+      {/* Table Section */}
+      <div className="overflow-hidden rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 shadow-2xl shadow-slate-200/50 dark:shadow-none">
+        <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/10 text-left text-xs uppercase tracking-[0.35em] text-slate-400">
-              <th className="px-4 py-3">Photo</th>
-              <th className="px-4 py-3">Title</th>
-              <th className="px-4 py-3">Artist</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Actions</th>
+            <tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 text-left text-[10px] font-black uppercase tracking-[0.25em] text-slate-400 dark:text-slate-500">
+              <th className="px-8 py-5">Product Info</th>
+              <th className="px-8 py-5">Artist</th>
+              <th className="px-8 py-5">Performance</th>
+              <th className="px-8 py-5">Status</th>
+              <th className="px-8 py-5 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {!loading && products.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-4 text-slate-300">
-                  No products returned.
+                <td colSpan={5} className="px-8 py-12 text-center">
+                  <div className="flex flex-col items-center gap-2 text-slate-400">
+                    <svg className="h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4a2 2 0 012-2m16 0h-4m-8 0H4" />
+                    </svg>
+                    <p className="text-sm font-bold uppercase tracking-widest">No products found</p>
+                  </div>
                 </td>
               </tr>
             )}
@@ -385,42 +415,74 @@ export default function AdminProductsPage() {
                 typeof product.status === 'string' && product.status.trim().length > 0
                   ? product.status.toLowerCase()
                   : active
-                  ? 'active'
-                  : 'inactive';
+                    ? 'active'
+                    : 'inactive';
               const artistId = product.artistId || product.artist_id || '';
               const thumbnail = extractListingPhotoUrls(product)[0] || '';
 
               return (
-                <tr key={product.id} className="border-b border-white/5">
-                  <td className="px-4 py-3">
-                    {thumbnail ? (
-                      <img
-                        src={thumbnail}
-                        alt={`${product.title ?? 'Product'} thumbnail`}
-                        className="h-10 w-10 rounded-md border border-white/15 object-cover"
-                      />
-                    ) : (
-                      <span className="text-slate-400">-</span>
-                    )}
+                <tr key={product.id} className="group border-b border-slate-50 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors">
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-4">
+                      {thumbnail ? (
+                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 shadow-sm transition-transform group-hover:scale-105">
+                          <img
+                            src={thumbnail}
+                            alt={product.title ?? 'Product'}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-white/5 text-slate-400">
+                          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                          {product.title ?? 'Untitled Product'}
+                        </p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">ID: {product.id.slice(0, 8)}</p>
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-4 py-3">{product.title ?? '-'}</td>
-                  <td className="px-4 py-3">{artistLabelById[artistId] || artistId || '-'}</td>
-                  <td className="px-4 py-3">{statusLabel}</td>
-                  <td className="space-x-2 px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(product)}
-                      className="rounded-lg border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.25em]"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/partner/admin/products/${product.id}/variants`)}
-                      className="rounded-lg border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.25em]"
-                    >
-                      Variants
-                    </button>
+                  <td className="px-8 py-5">
+                    <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                      {artistLabelById[artistId] || 'Unknown Artist'}
+                    </span>
+                  </td>
+                  <td className="px-8 py-5">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white uppercase">{(product.merchType || 'Other').replace('_', ' ')}</span>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-tighter">Category</span>
+                    </div>
+                  </td>
+                  <td className="px-8 py-5">
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest ring-1 ring-inset ${active
+                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/20'
+                        : 'bg-slate-50 dark:bg-white/5 text-slate-400 dark:text-slate-500 ring-slate-200 dark:ring-white/10'
+                      }`}>
+                      {statusLabel}
+                    </span>
+                  </td>
+                  <td className="px-8 py-5 text-right">
+                    <div className="flex justify-end items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(product)}
+                        className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-950 transition-all shadow-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/partner/admin/products/${product.id}/variants`)}
+                        className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-950 transition-all shadow-sm"
+                      >
+                        Variants
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -429,248 +491,184 @@ export default function AdminProductsPage() {
         </table>
       </div>
 
+      {/* Edit Modal */}
       {isEditOpen && editingProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/95 p-6 shadow-xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg text-white">Edit product</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 shadow-2xl animate-in zoom-in-95 duration-300 custom-scrollbar flex flex-col">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 dark:border-white/10 bg-white/90 dark:bg-slate-950/90 px-8 py-6 backdrop-blur-sm">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">Edit Product</h2>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Settings & Details</p>
+              </div>
               <button
                 type="button"
                 onClick={closeEditModal}
-                className="rounded-lg border border-white/20 px-2 py-1 text-xs text-white"
+                className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition shadow-sm"
               >
-                Close
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
-            {editError && <p className="text-sm text-rose-300">{editError}</p>}
 
-            {editLoading ? (
-              <p className="text-sm text-slate-300">Loading product details...</p>
-            ) : (
-              <>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="text-sm text-white">
-                    Artist
-                    <input
-                      data-testid="admin-edit-product-artist"
-                      value={artistLabelById[editArtistId] || editArtistId || '-'}
-                      readOnly
-                      disabled
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-slate-300"
-                    />
-                    <p className="mt-1 text-xs text-slate-400">
-                      Artist cannot be changed after creation.
-                    </p>
-                  </label>
+            <div className="p-8 space-y-8 flex-1">
+              {editError && (
+                <div className="rounded-2xl bg-rose-50 dark:bg-rose-500/10 p-4 border border-rose-100 dark:border-rose-500/20">
+                  <p className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-widest">{editError}</p>
+                </div>
+              )}
 
-                  <label className="text-sm text-white">
-                    Merch Name
-                    <input
-                      data-testid="admin-edit-product-merch-name"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-                    />
-                    {editFieldErrors.title && (
-                      <p className="mt-1 text-xs text-rose-300">{editFieldErrors.title}</p>
-                    )}
-                  </label>
-
-                  <label className="text-sm text-white md:col-span-2">
-                    Merch Story
-                    <textarea
-                      data-testid="admin-edit-product-story"
-                      value={editDescription}
-                      onChange={(e) => setEditDescription(e.target.value)}
-                      rows={4}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-                    />
-                    {editFieldErrors.merch_story && (
-                      <p className="mt-1 text-xs text-rose-300">{editFieldErrors.merch_story}</p>
-                    )}
-                  </label>
-
-                  <label className="text-sm text-white">
-                    To Be Paid To Vendor
-                    <input
-                      data-testid="admin-edit-product-vendor-pay"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={editVendorPay}
-                      onChange={(e) => setEditVendorPay(e.target.value)}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-                    />
-                    {editFieldErrors.vendor_pay && (
-                      <p className="mt-1 text-xs text-rose-300">{editFieldErrors.vendor_pay}</p>
-                    )}
-                  </label>
-
-                  <label className="text-sm text-white">
-                    Our Share
-                    <input
-                      data-testid="admin-edit-product-our-share"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={editOurShare}
-                      onChange={(e) => setEditOurShare(e.target.value)}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-                    />
-                    {editFieldErrors.our_share && (
-                      <p className="mt-1 text-xs text-rose-300">{editFieldErrors.our_share}</p>
-                    )}
-                  </label>
-
-                  <label className="text-sm text-white">
-                    Royalty
-                    <input
-                      data-testid="admin-edit-product-royalty"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={editRoyalty}
-                      onChange={(e) => setEditRoyalty(e.target.value)}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-                    />
-                    {editFieldErrors.royalty && (
-                      <p className="mt-1 text-xs text-rose-300">{editFieldErrors.royalty}</p>
-                    )}
-                  </label>
-
-                  <label className="text-sm text-white">
-                    Merch Type
-                    <select
-                      data-testid="admin-edit-product-merch-type"
-                      value={editMerchType}
-                      onChange={(e) => setEditMerchType(e.target.value)}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-                    >
-                      <option value="">Select merch type</option>
-                      {MERCH_TYPE_OPTIONS.map((entry) => (
-                        <option key={entry} value={entry}>
-                          {entry}
-                        </option>
-                      ))}
-                    </select>
-                    {editFieldErrors.merch_type && (
-                      <p className="mt-1 text-xs text-rose-300">{editFieldErrors.merch_type}</p>
-                    )}
-                  </label>
-
-                  <label className="text-sm text-white">
-                    Status
-                    <div className="mt-3 flex items-center gap-2 text-sm text-slate-200">
+              {editLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-4">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Fetching Matrix...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <label className="block space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Artist</span>
                       <input
-                        data-testid="admin-edit-product-active"
-                        type="checkbox"
-                        checked={editActive}
-                        onChange={(e) => setEditActive(e.target.checked)}
+                        data-testid="admin-edit-product-artist"
+                        value={artistLabelById[editArtistId] || editArtistId || '-'}
+                        readOnly
+                        disabled
+                        className="block w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/40 px-5 py-3 text-sm font-medium text-slate-400 dark:text-white/40 cursor-not-allowed uppercase tracking-widest shadow-inner"
                       />
-                      Active
-                    </div>
-                  </label>
+                    </label>
 
-                  <fieldset
-                    data-testid="admin-edit-product-colors"
-                    className="rounded-xl border border-white/10 p-3 md:col-span-2"
-                  >
-                    <legend className="px-2 text-sm text-white">Colors</legend>
-                    <div className="mt-2 flex flex-wrap gap-4">
-                      {COLOR_OPTIONS.map((color) => (
-                        <label key={color} className="flex items-center gap-2 text-sm text-slate-100">
-                          <input
-                            type="checkbox"
-                            checked={editColors.includes(color)}
-                            onChange={() => toggleEditColor(color)}
-                          />
-                          {color}
+                    <label className="block space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Merch Name *</span>
+                      <input
+                        data-testid="admin-edit-product-merch-name"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-5 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition shadow-inner"
+                      />
+                      {editFieldErrors.title && <p className="text-[10px] text-rose-500 font-bold uppercase">{editFieldErrors.title}</p>}
+                    </label>
+
+                    <label className="block space-y-2 md:col-span-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Description *</span>
+                      <textarea
+                        data-testid="admin-edit-product-story"
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                        rows={4}
+                        className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-5 py-4 text-sm leading-relaxed text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition shadow-inner"
+                      />
+                      {editFieldErrors.merch_story && <p className="text-[10px] text-rose-500 font-bold uppercase">{editFieldErrors.merch_story}</p>}
+                    </label>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:col-span-2">
+                      <label className="block space-y-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Vendor Pay (₹)</span>
+                        <input
+                          type="number"
+                          value={editVendorPay}
+                          onChange={(e) => setEditVendorPay(e.target.value)}
+                          className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-5 py-3 text-sm font-bold text-slate-900 dark:text-white outline-none"
+                        />
+                      </label>
+                      <label className="block space-y-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Internal (₹)</span>
+                        <input
+                          type="number"
+                          value={editOurShare}
+                          onChange={(e) => setEditOurShare(e.target.value)}
+                          className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-5 py-3 text-sm font-bold text-slate-900 dark:text-white outline-none"
+                        />
+                      </label>
+                      <label className="block space-y-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Royalty (₹)</span>
+                        <input
+                          type="number"
+                          value={editRoyalty}
+                          onChange={(e) => setEditRoyalty(e.target.value)}
+                          className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-5 py-3 text-sm font-bold text-slate-900 dark:text-white outline-none"
+                        />
+                      </label>
+                    </div>
+
+                    <label className="block space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Category</span>
+                      <select
+                        value={editMerchType}
+                        onChange={(e) => setEditMerchType(e.target.value)}
+                        className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/40 px-5 py-3 text-sm font-bold text-slate-900 dark:text-white outline-none appearance-none"
+                      >
+                        {MERCH_TYPE_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-white dark:bg-slate-900">{opt.toUpperCase()}</option>)}
+                      </select>
+                    </label>
+
+                    <div className="flex items-center gap-6">
+                      <label className="relative flex cursor-pointer items-center gap-3">
+                        <div className="relative">
+                          <input type="checkbox" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} className="peer sr-only" />
+                          <div className="h-6 w-11 rounded-full bg-slate-200 dark:bg-white/10 peer-checked:bg-emerald-500 transition-colors"></div>
+                          <div className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-5"></div>
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Active Status</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <fieldset className="rounded-3xl border border-slate-200 dark:border-white/10 p-6 bg-slate-50/50 dark:bg-black/20">
+                    <legend className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Color Options</legend>
+                    <div className="flex flex-wrap gap-6">
+                      {COLOR_OPTIONS.map(color => (
+                        <label key={color} className="flex items-center gap-2 cursor-pointer group">
+                          <input type="checkbox" checked={editColors.includes(color)} onChange={() => toggleEditColor(color)} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
+                          <span className="text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                            {color.replace('_', ' ')}
+                          </span>
                         </label>
                       ))}
                     </div>
-                    {editFieldErrors.colors && (
-                      <p className="mt-2 text-xs text-rose-300">{editFieldErrors.colors}</p>
-                    )}
                   </fieldset>
 
-                  <fieldset className="rounded-xl border border-white/10 p-3 md:col-span-2">
-                    <legend className="px-2 text-sm text-white">Listing Photos</legend>
-                    <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      {Array.from({ length: 4 }).map((_, index) => {
-                        const src = editListingPhotoUrls[index] || '';
+                  <fieldset className="rounded-3xl border border-slate-200 dark:border-white/10 p-6 bg-slate-50/50 dark:bg-black/20">
+                    <legend className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Visual Assets (4 Required)</legend>
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                      {Array.from({ length: 4 }).map((_, idx) => {
+                        const src = editListingPhotoUrls[idx];
                         return (
-                          <div
-                            key={`listing-photo-slot-${index}`}
-                            className="aspect-square overflow-hidden rounded-lg border border-white/15 bg-black/20"
-                          >
-                            {src ? (
-                              <img
-                                src={src}
-                                alt={`Listing photo ${index + 1}`}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-[0.14em] text-slate-400">
-                                Empty
-                              </div>
-                            )}
+                          <div key={idx} className="aspect-square rounded-2xl border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-black/40 overflow-hidden">
+                            {src ? <img src={src} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-[10px] text-slate-300 font-black">SLOT {idx + 1}</div>}
                           </div>
                         );
                       })}
                     </div>
-
-                    <label className="mt-3 block text-sm text-white">
-                      Update listing photos (replace all 4)
-                      <input
-                        data-testid="admin-edit-product-photos"
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={(event) => {
-                          const files = Array.from(event.target.files || []);
-                          setEditReplacementPhotos(files);
-                          setEditFieldErrors((prev) => ({
-                            ...prev,
-                            listing_photos:
-                              files.length === 0 || files.length === 4
-                                ? ''
-                                : 'Exactly 4 listing photos are required when replacing',
-                          }));
-                        }}
-                        className="mt-2 block w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
-                      />
+                    <label className="mt-8 group relative flex flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-slate-300 dark:border-white/10 py-10 hover:border-indigo-500 cursor-pointer transition-all">
+                      <div className="text-center space-y-2">
+                        <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Replace All Photos</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">PNG / JPG / WEBP</p>
+                      </div>
+                      <input type="file" multiple accept="image/*" className="sr-only" onChange={(e) => setEditReplacementPhotos(Array.from(e.target.files || []))} />
                     </label>
-                    <p className="mt-1 text-xs text-slate-300">
-                      {editReplacementPhotos.length > 0
-                        ? `${editReplacementPhotos.length} selected (replacement set)`
-                        : 'No new photos selected. Existing photos will be kept.'}
-                    </p>
-                    {editFieldErrors.listing_photos && (
-                      <p className="mt-1 text-xs text-rose-300">{editFieldErrors.listing_photos}</p>
-                    )}
                   </fieldset>
-                </div>
+                </>
+              )}
+            </div>
 
-                <div className="flex gap-2">
-                  <button
-                    data-testid="admin-edit-product-save"
-                    type="button"
-                    onClick={saveEdit}
-                    disabled={saving}
-                    className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white disabled:opacity-50"
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeEditModal}
-                    className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            )}
+            <div className="sticky bottom-0 bg-white/90 dark:bg-slate-950/90 border-t border-slate-100 dark:border-white/10 p-8 flex gap-4 backdrop-blur-sm">
+              <button
+                data-testid="admin-edit-product-save"
+                type="button"
+                onClick={saveEdit}
+                disabled={saving}
+                className="flex-1 rounded-[1.25rem] bg-slate-900 dark:bg-white py-4 text-[10px] font-black uppercase tracking-[0.3em] text-white dark:text-slate-950 shadow-2xl transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100"
+              >
+                {saving ? 'Synchronizing...' : 'Commit Changes'}
+              </button>
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="rounded-[1.25rem] border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-transparent px-8 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white hover:border-slate-900 dark:hover:border-white/20 transition-all"
+              >
+                Discard
+              </button>
+            </div>
           </div>
         </div>
       )}

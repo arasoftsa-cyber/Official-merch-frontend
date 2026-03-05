@@ -115,14 +115,14 @@ export default function DropPage() {
       const payload = await fetchJson<DropProductsResponse>(`/drops/${dropHandle}/products`);
       const mapped = Array.isArray(payload?.items)
         ? payload.items
-            .map((entry) => ({
-              id: entry?.id ?? entry?.productId ?? entry?.sku,
-              title:
-                (typeof entry?.title === 'string' && entry.title.trim()) ||
-                (typeof entry?.name === 'string' && entry.name.trim()) ||
-                'Untitled product',
-            }))
-            .filter((item): item is ProductCard => Boolean(item.id))
+          .map((entry) => ({
+            id: entry?.id ?? entry?.productId ?? entry?.sku,
+            title:
+              (typeof entry?.title === 'string' && entry.title.trim()) ||
+              (typeof entry?.name === 'string' && entry.name.trim()) ||
+              'Untitled product',
+          }))
+          .filter((item): item is ProductCard => Boolean(item.id))
         : [];
       setProducts(mapped);
     } catch {
@@ -156,9 +156,9 @@ export default function DropPage() {
     () =>
       Array.isArray(drop?.quizJson?.questions)
         ? drop.quizJson.questions.filter(
-            (question): question is QuizQuestion =>
-              Boolean(question?.id && question?.prompt && question?.type)
-          )
+          (question): question is QuizQuestion =>
+            Boolean(question?.id && question?.prompt && question?.type)
+        )
         : [],
     [drop]
   );
@@ -167,7 +167,7 @@ export default function DropPage() {
     trackEvent('Quiz Started', { dropId: drop?.id });
     setQuizState('quiz');
     setQuizError(null);
-      setQuizMessage("We will contact you if you win.");
+    setQuizMessage("We will contact you if you win.");
     setQuizAnswers({});
   };
 
@@ -242,50 +242,30 @@ export default function DropPage() {
     () =>
       resolveMediaUrl(
         drop?.coverUrl ??
-          drop?.heroImageUrl ??
-          null
+        drop?.heroImageUrl ??
+        null
       ),
     [drop]
   );
 
   return (
     <section>
-      <header
-        style={{
-          padding: '1.5rem',
-          borderRadius: 12,
-          background: '#1b1b1b',
-          border: '1px solid rgba(255,255,255,0.1)',
-          marginBottom: '1.5rem',
-        }}
-      >
+      <header className="p-6 rounded-xl bg-slate-50 dark:bg-[#1b1b1b] border border-slate-200 dark:border-white/10 mb-6">
         {heroUrl ? (
           <img
             src={heroUrl}
-            alt={`${formatDropTitle(drop)} hero`}
+            alt={`${formatDropTitle(drop ?? undefined)} hero`}
             loading="lazy"
             decoding="async"
-            style={{
-              width: '100%',
-              height: 220,
-              borderRadius: 14,
-              objectFit: 'cover',
-              display: 'block',
-            }}
+            className="w-full object-cover rounded-xl block"
+            style={{ height: 220 }}
           />
         ) : (
-          <div
-            style={{
-              width: '100%',
-              height: 220,
-              borderRadius: 14,
-              background: '#111',
-            }}
-          />
+          <div className="w-full rounded-xl bg-slate-200 dark:bg-[#111]" style={{ height: 220 }} />
         )}
-        <div style={{ marginTop: '1rem' }}>
-          <p style={{ opacity: 0.7 }}>{drop?.handle && `@${drop.handle}`}</p>
-          <h1>{formatDropTitle(drop)}</h1>
+        <div className="mt-4">
+          <p className="text-sm text-slate-500 dark:text-white/70">{drop?.handle && `@${drop.handle}`}</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">{formatDropTitle(drop ?? undefined)}</h1>
           {status === 'loading' && <LoadingSkeleton count={1} className="mt-4" />}
           {status === 'error' && (
             <ErrorBanner
@@ -294,20 +274,12 @@ export default function DropPage() {
               className="mt-4"
             />
           )}
-          {drop?.description && <p>{drop.description}</p>}
+          {drop?.description && <p className="text-slate-600 dark:text-white/80 mt-2">{drop.description}</p>}
         </div>
       </header>
 
-      <section
-        style={{
-          padding: '1.5rem',
-          borderRadius: 12,
-          background: '#121212',
-          border: '1px solid rgba(255,255,255,0.08)',
-          marginBottom: '1.5rem',
-        }}
-      >
-        <h2>{drop?.quizJson?.title ?? 'Play this quiz'}</h2>
+      <section className="p-6 rounded-xl bg-slate-50 dark:bg-[#121212] border border-slate-100 dark:border-white/[0.08] mb-6">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{drop?.quizJson?.title ?? 'Play this quiz'}</h2>
         {quizState === 'idle' && (
           <>
             <p>Start the quiz to enter the drop lead list.</p>
@@ -324,15 +296,15 @@ export default function DropPage() {
               </p>
             )}
             {quizQuestions.map((question) => (
-              <div key={question.id} className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
-                <p className="text-sm font-medium text-neutral-100">
+              <div key={question.id} className="space-y-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-3">
+                <p className="text-sm font-medium text-slate-800 dark:text-neutral-100">
                   {question.prompt}
                   {question.required ? ' *' : ''}
                 </p>
                 {question.type === 'single_choice' && Array.isArray(question.options) && (
                   <div className="space-y-2">
                     {question.options.map((option) => (
-                      <label key={`${question.id}-${option}`} className="flex items-center gap-2 text-sm text-neutral-200">
+                      <label key={`${question.id}-${option}`} className="flex items-center gap-2 text-sm text-slate-700 dark:text-neutral-200">
                         <input
                           type="radio"
                           name={`quiz-${question.id}`}
@@ -360,7 +332,7 @@ export default function DropPage() {
                         [question.id]: event.target.value,
                       }))
                     }
-                    className="w-full rounded-md border border-white/20 bg-neutral-900 px-3 py-2 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    className="w-full rounded-md border border-slate-300 dark:border-white/20 bg-white dark:bg-neutral-900 text-slate-900 dark:text-white placeholder:text-gray-400 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                     placeholder="Your answer"
                   />
                 )}
@@ -380,7 +352,7 @@ export default function DropPage() {
               submitQuiz();
             }}
           >
-            <label className="flex flex-col gap-1 text-sm text-neutral-200">
+            <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-neutral-200">
               Name
               <input
                 type="text"
@@ -388,27 +360,27 @@ export default function DropPage() {
                 value={leadName}
                 onChange={(event) => setLeadName(event.target.value)}
                 placeholder="Your name"
-                className="w-full rounded-md border border-white/20 bg-neutral-900 px-3 py-2 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="w-full rounded-md border border-slate-300 dark:border-white/20 bg-white dark:bg-neutral-900 text-slate-900 dark:text-white placeholder:text-gray-400 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
             </label>
-            <label className="flex flex-col gap-1 text-sm text-neutral-200">
+            <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-neutral-200">
               Email
               <input
                 type="email"
                 value={leadEmail}
                 onChange={(event) => setLeadEmail(event.target.value)}
                 placeholder="you@example.com"
-                className="w-full rounded-md border border-white/20 bg-neutral-900 px-3 py-2 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="w-full rounded-md border border-slate-300 dark:border-white/20 bg-white dark:bg-neutral-900 text-slate-900 dark:text-white placeholder:text-gray-400 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
             </label>
-            <label className="flex flex-col gap-1 text-sm text-neutral-200">
+            <label className="flex flex-col gap-1 text-sm text-slate-700 dark:text-neutral-200">
               Phone
               <input
                 type="tel"
                 value={leadPhone}
                 onChange={(event) => setLeadPhone(event.target.value)}
                 placeholder="+1 555 123 4567"
-                className="w-full rounded-md border border-white/20 bg-neutral-900 px-3 py-2 text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="w-full rounded-md border border-slate-300 dark:border-white/20 bg-white dark:bg-neutral-900 text-slate-900 dark:text-white placeholder:text-gray-400 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
             </label>
             {quizError && <p role="alert">{quizError}</p>}
@@ -432,39 +404,24 @@ export default function DropPage() {
       </section>
 
       <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h2>Drop Products</h2>
-          {productsStatus === 'loading' && <p>Loading products…</p>}
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Drop Products</h2>
+          {productsStatus === 'loading' && <p className="text-sm text-slate-500 dark:text-white/60">Loading products…</p>}
         </div>
         {productsStatus === 'loading' && <LoadingSkeleton count={3} className="mt-4" />}
         {products.length === 0 && productsStatus !== 'loading' && (
           <EmptyState message="No products attached to this drop yet." />
         )}
         {products.length > 0 && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '1rem',
-            }}
-          >
+          <div className="grid gap-4 mt-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
             {products.map((product) => (
               <Link
                 key={product.id}
                 to={`/products/${product.id}`}
-                style={{
-                  padding: '1rem',
-                  borderRadius: 12,
-                  background: '#1f1f1f',
-                  textDecoration: 'none',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                }}
+                className="block p-4 rounded-xl bg-white dark:bg-[#1f1f1f] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white no-underline hover:bg-slate-50 dark:hover:bg-[#252525] transition"
               >
-                <h3 style={{ margin: 0 }}>{product.title}</h3>
-                <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', opacity: 0.7 }}>
-                  View Product
-                </p>
+                <h3 className="m-0 text-base font-semibold text-slate-900 dark:text-white">{product.title}</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-white/70">View Product</p>
               </Link>
             ))}
           </div>

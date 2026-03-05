@@ -18,10 +18,10 @@ const normalizeBanners = (payload: any): BannerRow[] => {
   const items = Array.isArray(payload?.banners)
     ? payload.banners
     : Array.isArray(payload?.items)
-    ? payload.items
-    : Array.isArray(payload)
-    ? payload
-    : [];
+      ? payload.items
+      : Array.isArray(payload)
+        ? payload
+        : [];
 
   return items
     .map((item: any) => {
@@ -138,7 +138,7 @@ export default function AdminHomepageBannersPage() {
     try {
       await apiFetch(`/admin/homepage/banners/${row.link_id}`, {
         method: 'PATCH',
-        body: { sort_order: parsed },
+        body: JSON.stringify({ sort_order: parsed }) as any,
       });
       notify('Sort order updated.', 'success');
       await load();
@@ -170,21 +170,21 @@ export default function AdminHomepageBannersPage() {
   return (
     <AppShell title="Homepage Banners" subtitle="Manage hero carousel banners for the landing page.">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link className="text-sm text-slate-300 underline" to="/partner/admin">
+        <Link className="text-sm text-indigo-600 dark:text-slate-300 underline hover:text-indigo-800 dark:hover:text-white transition-colors" to="/partner/admin">
           Back to admin dashboard
         </Link>
         <button
           type="button"
           onClick={load}
           disabled={loading}
-          className="rounded-xl border border-white/20 px-4 py-2 text-xs uppercase tracking-[0.25em] text-white disabled:opacity-60"
+          className="rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-sm disabled:opacity-50"
         >
           {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="flex flex-wrap items-center gap-3">
+      <section className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-6 shadow-sm">
+        <div className="flex flex-wrap items-center gap-4">
           <input
             ref={uploadInputRef}
             type="file"
@@ -198,7 +198,7 @@ export default function AdminHomepageBannersPage() {
           <button
             type="button"
             onClick={onClickPickImage}
-            className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.25em] text-white hover:bg-white/20"
+            className="rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-sm"
           >
             Choose Image
           </button>
@@ -206,11 +206,11 @@ export default function AdminHomepageBannersPage() {
             type="button"
             onClick={onUpload}
             disabled={isUploadingDisabled}
-            className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.25em] text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl bg-indigo-600 dark:bg-emerald-500 px-6 py-2 text-xs font-bold uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 dark:shadow-emerald-500/20 hover:bg-indigo-700 dark:hover:bg-emerald-600 transition disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
           >
             {uploading ? 'Uploading...' : 'Upload Banner'}
           </button>
-          <p className="text-sm text-slate-300">
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
             {uploadFile ? uploadFile.name : 'No file selected'}
           </p>
         </div>
@@ -220,20 +220,20 @@ export default function AdminHomepageBannersPage() {
       {error && <ErrorBanner message={error} onRetry={load} />}
 
       {!loading && !error && banners.length === 0 && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-300">
+        <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-8 text-center text-sm text-slate-500 dark:text-slate-400 shadow-sm transition-all duration-300">
           No homepage banners yet. Upload one to get started.
         </div>
       )}
 
       {!loading && !error && banners.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-          <div className="grid grid-cols-[120px_1fr_180px_220px] gap-3 border-b border-white/10 px-4 py-3 text-xs uppercase tracking-[0.25em] text-slate-400">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 shadow-sm">
+          <div className="grid grid-cols-[140px_1fr_180px_220px] gap-4 border-b border-slate-200 dark:border-white/10 px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20">
             <span>Preview</span>
             <span>Public URL</span>
             <span>Sort Order</span>
             <span>Actions</span>
           </div>
-          <div className="divide-y divide-white/10">
+          <div className="divide-y divide-slate-200 dark:divide-white/10">
             {banners.map((row) => {
               const previewUrl = resolveMediaUrl(row.public_url) || row.public_url;
               const sortRaw = sortInputById[row.link_id] ?? String(row.sort_order);
@@ -246,9 +246,9 @@ export default function AdminHomepageBannersPage() {
               return (
                 <div
                   key={row.link_id}
-                  className="grid grid-cols-[120px_1fr_180px_220px] gap-3 px-4 py-3 text-sm text-white"
+                  className="grid grid-cols-[140px_1fr_180px_220px] gap-4 px-6 py-4 text-sm items-center hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors"
                 >
-                  <div className="h-16 w-28 overflow-hidden rounded-lg border border-white/15 bg-black/20">
+                  <div className="h-20 w-32 overflow-hidden rounded-xl border border-slate-200 dark:border-white/15 bg-slate-100 dark:bg-black/20 shadow-inner ring-2 ring-slate-100 dark:ring-white/5 flex shrink-0">
                     <img
                       src={previewUrl}
                       alt={`Homepage banner ${row.link_id}`}
@@ -256,9 +256,9 @@ export default function AdminHomepageBannersPage() {
                     />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-white">{row.public_url}</p>
-                    <p className="mt-1 font-mono text-xs text-slate-400">
-                      link: {row.link_id}
+                    <p className="truncate text-sm font-medium text-indigo-600 dark:text-white">{row.public_url}</p>
+                    <p className="mt-1 font-mono text-[10px] lowercase text-slate-400 dark:text-slate-500">
+                      ID: {row.link_id}
                     </p>
                   </div>
                   <div className="space-y-1">
@@ -271,18 +271,18 @@ export default function AdminHomepageBannersPage() {
                           [row.link_id]: event.target.value,
                         }))
                       }
-                      className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-white/40"
+                      className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-4 py-2 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 transition shadow-inner"
                     />
                     {invalidSort && (
-                      <p className="text-xs text-rose-300">Enter a whole number.</p>
+                      <p className="text-[10px] font-bold text-rose-600 dark:text-rose-300 uppercase tracking-wider">Enter a whole number.</p>
                     )}
                   </div>
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => saveSortOrder(row)}
                       disabled={saving || deleting || !hasChange || invalidSort}
-                      className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs uppercase tracking-[0.22em] text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {saving ? 'Saving...' : 'Save'}
                     </button>
@@ -290,7 +290,7 @@ export default function AdminHomepageBannersPage() {
                       type="button"
                       onClick={() => deleteBanner(row)}
                       disabled={saving || deleting}
-                      className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs uppercase tracking-[0.22em] text-rose-100 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-xl border border-rose-300 dark:border-rose-400/40 bg-rose-50 dark:bg-rose-500/10 px-4 py-2 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-100 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {deleting ? 'Deleting...' : 'Delete'}
                     </button>

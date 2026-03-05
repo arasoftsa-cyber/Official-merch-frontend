@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { API_BASE } from '../../shared/api/http';
 import { getAccessToken } from '../../shared/auth/tokenStore';
 import { useToast } from '../../components/ux/ToastHost';
+import { Page, Container } from '../../ui/Page';
 
 type ProductResponse = {
   product?: {
@@ -50,7 +51,7 @@ const isAbort = (e: unknown) =>
     'code' in e &&
     (e as any).code === 'ABORT_ERR') ||
   String((e as any)?.message ?? e).toLowerCase().includes('aborted') &&
-    String((e as any)?.message ?? e).toLowerCase().includes('signal');
+  String((e as any)?.message ?? e).toLowerCase().includes('signal');
 
 export default function ArtistProductVariantsPage() {
   const { id } = useParams<{ id: string }>();
@@ -229,12 +230,12 @@ export default function ArtistProductVariantsPage() {
         }
         toast.notify('Variant removed.', 'success');
         setVariants((prev) => prev.filter((_, idx) => idx !== index));
-    } catch (err: any) {
+      } catch (err: any) {
         if (isAbort(err)) return;
         setError(err?.message ?? 'Failed to delete variant.');
-    } finally {
-      setSaving(false);
-    }
+      } finally {
+        setSaving(false);
+      }
       return;
     }
     setVariants((prev) => prev.filter((_, idx) => idx !== index));
@@ -321,133 +322,157 @@ export default function ArtistProductVariantsPage() {
 
   if (loading) {
     return (
-      <main className="p-6">
-        <p>Loading variants…</p>
-      </main>
+      <Page>
+        <Container>
+          <p className="text-slate-500 dark:text-slate-400">Loading variants…</p>
+        </Container>
+      </Page>
     );
   }
 
   return (
-    <main className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">
-            Artist
-          </p>
-          <h1 className="text-2xl font-semibold text-white">Manage Variants</h1>
-          {productTitle && (
-            <p className="text-sm text-slate-300">Product: {productTitle}</p>
+    <Page>
+      <Container className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">
+              Artist
+            </p>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Manage Variants</h1>
+            {productTitle && (
+              <p className="text-sm text-slate-600 dark:text-slate-300">Product: {productTitle}</p>
+            )}
+          </div>
+          <Link
+            to="/partner/artist/products"
+            className="rounded-full border border-slate-200 dark:border-white/30 bg-white dark:bg-transparent px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
+          >
+            Back to products
+          </Link>
+        </div>
+
+        {error && (
+          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-200">
+            {error}
+          </div>
+        )}
+        {message && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-100">
+            {message}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <div className="hidden md:flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2 text-[0.65rem] uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">
+            <span className="w-24">Size</span>
+            <span className="w-24">Color</span>
+            <span className="w-32">SKU</span>
+            <span className="w-24">Price</span>
+            <span className="w-20">Stock</span>
+            <span className="flex-1 text-right">Action</span>
+          </div>
+          {variants.map((variant, index) => (
+            <div
+              key={variant.id ?? `variant-${index}`}
+              className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-3"
+            >
+              <div className="flex flex-col gap-1">
+                <span className="md:hidden text-[10px] uppercase tracking-wider text-slate-400">Size</span>
+                <input
+                  className="w-24 rounded border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-slate-400 dark:focus:ring-white/40"
+                  placeholder="Size"
+                  value={variant.size}
+                  onChange={(event) =>
+                    updateVariantField(index, 'size', event.target.value)
+                  }
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="md:hidden text-[10px] uppercase tracking-wider text-slate-400">Color</span>
+                <input
+                  className="w-24 rounded border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-slate-400 dark:focus:ring-white/40"
+                  placeholder="Color"
+                  value={variant.color}
+                  onChange={(event) =>
+                    updateVariantField(index, 'color', event.target.value)
+                  }
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="md:hidden text-[10px] uppercase tracking-wider text-slate-400">SKU</span>
+                <input
+                  className="w-32 rounded border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-slate-400 dark:focus:ring-white/40"
+                  placeholder="SKU"
+                  value={variant.sku}
+                  onChange={(event) =>
+                    updateVariantField(index, 'sku', event.target.value)
+                  }
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="md:hidden text-[10px] uppercase tracking-wider text-slate-400">Price</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="w-24 rounded border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-slate-400 dark:focus:ring-white/40"
+                  placeholder="Price"
+                  value={variant.price}
+                  onChange={(event) =>
+                    updateVariantField(index, 'price', event.target.value)
+                  }
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="md:hidden text-[10px] uppercase tracking-wider text-slate-400">Stock</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  className="w-20 rounded border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 px-2 py-1 text-xs text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-slate-400 dark:focus:ring-white/40"
+                  placeholder="Stock"
+                  value={variant.stock}
+                  onChange={(event) =>
+                    updateVariantField(index, 'stock', event.target.value)
+                  }
+                />
+              </div>
+              <div className="flex-1 text-right">
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-300 dark:border-white/20 bg-white dark:bg-transparent px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-slate-500 dark:text-white/70 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
+                  onClick={() => removeVariant(index)}
+                  disabled={saving}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+          {variants.length === 0 && (
+            <p className="text-center py-10 text-slate-500 dark:text-slate-400 italic">No variants added yet.</p>
           )}
         </div>
-        <Link
-          to="/partner/artist/products"
-          className="rounded-full border border-white/30 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white"
-        >
-          Back to products
-        </Link>
-      </div>
 
-      {error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-          {error}
-        </div>
-      )}
-      {message && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-          {message}
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[0.65rem] uppercase tracking-[0.35em] text-slate-400">
-          <span className="w-24">Size</span>
-          <span className="w-24">Color</span>
-          <span className="w-32">SKU</span>
-          <span className="w-24">Price</span>
-          <span className="w-20">Stock</span>
-          <span className="w-28 text-right">Action</span>
-        </div>
-        {variants.map((variant, index) => (
-          <div
-            key={variant.id ?? `variant-${index}`}
-            className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3"
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            className="rounded-full border border-slate-300 dark:border-white/20 bg-white dark:bg-transparent px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
+            onClick={addVariant}
+            disabled={saving}
           >
-            <input
-              className="w-24 rounded border border-white/10 bg-black/20 px-2 py-1 text-xs text-white"
-              placeholder="Size"
-              value={variant.size}
-              onChange={(event) =>
-                updateVariantField(index, 'size', event.target.value)
-              }
-            />
-            <input
-              className="w-24 rounded border border-white/10 bg-black/20 px-2 py-1 text-xs text-white"
-              placeholder="Color"
-              value={variant.color}
-              onChange={(event) =>
-                updateVariantField(index, 'color', event.target.value)
-              }
-            />
-            <input
-              className="w-32 rounded border border-white/10 bg-black/20 px-2 py-1 text-xs text-white"
-              placeholder="SKU"
-              value={variant.sku}
-              onChange={(event) =>
-                updateVariantField(index, 'sku', event.target.value)
-              }
-            />
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className="w-24 rounded border border-white/10 bg-black/20 px-2 py-1 text-xs text-white"
-              placeholder="Price"
-              value={variant.price}
-              onChange={(event) =>
-                updateVariantField(index, 'price', event.target.value)
-              }
-            />
-            <input
-              type="number"
-              min="0"
-              step="1"
-              className="w-20 rounded border border-white/10 bg-black/20 px-2 py-1 text-xs text-white"
-              placeholder="Stock"
-              value={variant.stock}
-              onChange={(event) =>
-                updateVariantField(index, 'stock', event.target.value)
-              }
-            />
-            <button
-              type="button"
-              className="rounded-full border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.3em] text-white/70"
-              onClick={() => removeVariant(index)}
-              disabled={saving}
-            >
-              Remove
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          className="rounded-full border border-white/20 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white"
-          onClick={addVariant}
-          disabled={saving}
-        >
-          Add Variant
-        </button>
-        <button
-          type="button"
-          className="rounded-full border border-emerald-500/40 bg-emerald-500/20 px-4 py-2 text-xs uppercase tracking-[0.3em] text-emerald-100"
-          onClick={saveVariants}
-          disabled={saving}
-        >
-          {saving ? 'Saving…' : 'Save Changes'}
-        </button>
-      </div>
-    </main>
+            Add Variant
+          </button>
+          <button
+            type="button"
+            className="rounded-full border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/20 px-4 py-2 text-xs uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-500/30 transition-colors"
+            onClick={saveVariants}
+            disabled={saving}
+          >
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </Container>
+    </Page>
   );
 }
