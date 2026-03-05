@@ -1,4 +1,5 @@
 import { clearTokens, getAccessToken, setAccessToken } from '../auth/tokenStore';
+import { validateApiResponse } from '../validation/schemas';
 
 const envBase =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
@@ -20,6 +21,8 @@ const DEFAULT_API_BASE = "http://localhost:3000";
 export const API_BASE =
   envBase && envBase.length > 0 ? normalizeBase(envBase) : DEFAULT_API_BASE;
 const AUTH_REFRESH_ENDPOINT = '/api/auth/refresh';
+type ApiRequestOptions = RequestInit & { schema?: any };
+const LOGIN_OR_REGISTER_PATH_RE = /^\/(fan|partner)\/(login|register)(?:\/|$)/i;
 
 const ensureApiPath = (path: string) => {
   const trimmed = path.trim();
@@ -54,22 +57,17 @@ let refreshInFlight: Promise<string | null> | null = null;
 const refreshAccessToken = async (): Promise<string | null> => {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
-      const response = await fetch(`${API_BASE}${AUTH_REFRESH_ENDPOINT}`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: '{}',
-      });
-
-      const contentType = response.headers.get('content-type') ?? '';
-      const payload = contentType.includes('application/json')
-        ? await response.json().catch(() => null)
-        : null;
-
-      if (!response.ok) {
+      let payload: any = null;
+      try {
+        payload = await apiFetchInternal(
+          AUTH_REFRESH_ENDPOINT,
+          { method: 'POST', body: {} },
+          false
+        );
+      } catch (err: any) {
+        if (Number(err?.status || 0) === 401) {
+          return null;
+        }
         return null;
       }
 
@@ -88,7 +86,7 @@ const refreshAccessToken = async (): Promise<string | null> => {
 
 async function apiFetchInternal(
   path: string,
-  options: RequestInit = {},
+  options: ApiRequestOptions = {},
   allowRefresh = true
 ): Promise<any> {
   const endpoint = ensureApiPath(path);
@@ -111,22 +109,30 @@ async function apiFetchInternal(
   }
 
   init.headers = headers;
-  if (!init.credentials) {
-    init.credentials = 'include';
-  }
+  init.credentials = 'include';
   const response = await fetch(url, init);
   const contentType = response.headers.get('content-type') ?? '';
   let payload: any = null;
 
   if (contentType.includes('application/json')) {
     payload = await response.json().catch(() => null);
+    if (options?.schema) {
+      payload = validateApiResponse(options.schema, payload);
+    }
   } else {
     const text = await response.text().catch(() => null);
     payload = text ? { message: text } : null;
   }
 
   if (!response.ok) {
-    if (response.status === 401 && allowRefresh && endpoint !== AUTH_REFRESH_ENDPOINT) {
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    const shouldSkipRefresh = LOGIN_OR_REGISTER_PATH_RE.test(currentPath);
+    if (
+      response.status === 401 &&
+      allowRefresh &&
+      endpoint !== AUTH_REFRESH_ENDPOINT &&
+      !shouldSkipRefresh
+    ) {
       const refreshedToken = await refreshAccessToken();
       if (refreshedToken) {
         return apiFetchInternal(path, options, false);
@@ -148,7 +154,7 @@ async function apiFetchInternal(
 
 export async function apiFetch(
   path: string,
-  options: RequestInit = {}
+  options: ApiRequestOptions = {}
 ): Promise<any> {
   return apiFetchInternal(path, options, true);
 }
@@ -156,7 +162,7 @@ export async function apiFetch(
 export async function apiFetchForm(
   path: string,
   formData: FormData,
-  options: Omit<RequestInit, 'body'> = {}
+  options: Omit<ApiRequestOptions, 'body'> = {}
 ): Promise<any> {
   return apiFetch(path, {
     ...options,

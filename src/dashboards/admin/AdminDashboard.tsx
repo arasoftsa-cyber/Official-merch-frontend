@@ -3,7 +3,7 @@ import { apiFetch } from '../../shared/api/http';
 import ErrorBanner from '../../components/ux/ErrorBanner';
 import LoadingSkeleton from '../../components/ux/LoadingSkeleton';
 import { useToast } from '../../components/ux/ToastHost';
-import AppShell from '../../components/layout/AppShell';
+import DashboardShell from '../../components/layout/AppShell';
 import KpiCard from '../../components/ui/KpiCard';
 import DataTable, { TableColumn } from '../../components/ui/DataTable';
 import { formatCurrencyFromCents } from '../../shared/utils/currency';
@@ -149,7 +149,7 @@ export default function AdminDashboard() {
       : pendingArtistRequests ?? 0;
 
   return (
-    <AppShell title="Admin Dashboard" subtitle="Read-only metrics for orders, buyers, and GMV.">
+    <DashboardShell title="Admin Dashboard" subtitle="Read-only metrics for orders, buyers, and GMV.">
       {error && <ErrorBanner message={error} onRetry={load} />}
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         <Link
@@ -253,7 +253,7 @@ export default function AdminDashboard() {
       ) : (
         <DataTable columns={columns} rows={last7Days} emptyText="No activity recorded yet." />
       )}
-    </AppShell>
+    </DashboardShell>
   );
 }
 

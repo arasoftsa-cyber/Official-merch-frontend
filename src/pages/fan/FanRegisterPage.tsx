@@ -6,9 +6,19 @@ import { Page, Card } from '../../ui/Page';
 
 export default function FanRegisterPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const returnTo = searchParams.get('returnTo') || '/fan';
-
+  const params = new URLSearchParams(location.search);
+  const rawReturn =
+    params.get('returnTo') || params.get('next') || '/';
+  let redirectTarget = rawReturn;
+  try {
+    redirectTarget = decodeURIComponent(rawReturn);
+  } catch {
+    redirectTarget = rawReturn;
+  }
+  const safeRedirectTarget =
+    redirectTarget.startsWith('/') && !redirectTarget.startsWith('//') ? redirectTarget : '/';
+  const loginLinkTarget = `/fan/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`;
+  const partnerLinkTarget = `/partner/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

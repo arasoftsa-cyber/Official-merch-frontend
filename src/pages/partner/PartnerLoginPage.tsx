@@ -25,18 +25,21 @@ export default function PartnerLoginPage() {
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
   const portalError = params.get('portalError');
-  const rawReturn =
-    params.get('returnTo') || params.get('returnUrl') || params.get('next') || '/';
-
-  let redirectTarget = rawReturn;
-  try {
-    redirectTarget = decodeURIComponent(rawReturn);
-  } catch {
-    redirectTarget = rawReturn;
+  const rawReturnTo = params.get('returnTo');
+  let decodedReturnTo = rawReturnTo || '';
+  if (rawReturnTo) {
+    try {
+      decodedReturnTo = decodeURIComponent(rawReturnTo);
+    } catch {
+      decodedReturnTo = rawReturnTo;
+    }
   }
-
-  const fanLinkTarget = `/fan/login?returnTo=${encodeURIComponent(redirectTarget)}`;
-
+  const safeReturnTo =
+    decodedReturnTo.startsWith('/') && !decodedReturnTo.startsWith('//')
+      ? decodedReturnTo
+      : null;
+  const redirectHint = safeReturnTo || '/partner/admin';
+  const fanLinkTarget = `/fan/login?returnTo=${encodeURIComponent(redirectHint)}`;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -89,7 +92,12 @@ export default function PartnerLoginPage() {
         return;
       }
 
-      navigate(`/login${location.search}`, { replace: true });
+      localStorage.removeItem(LOGIN_CONTEXT_KEY);
+      if (role === 'artist' || role === 'label' || role === 'admin') {
+        navigate('/partner/dashboard', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     } catch (err: any) {
       if (err?.message === 'fan_account' || err?.message === 'portal_fan_account') {
         clearTokens();

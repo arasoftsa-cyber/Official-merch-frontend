@@ -248,12 +248,32 @@ export default function ApplyArtistPage() {
     }
 
     if (!response.ok) {
+      let responseBodyText = '';
+      if (import.meta.env.DEV) {
+        responseBodyText = await response
+          .clone()
+          .text()
+          .catch(() => '');
+      }
       let data: any = null;
       try {
         data = await response.json();
       } catch {
         data = null;
       }
+      if (import.meta.env.DEV) {
+        console.error('[apply/artist] submit failed', {
+          status: response.status,
+          body: responseBodyText || data,
+        });
+      }
+      const backendMessage =
+        typeof data?.error === 'string' && typeof data?.message === 'string'
+          ? data.message.trim()
+          : '';
+      const genericSubmitError = backendMessage
+        ? `Unable to submit request: ${backendMessage}`
+        : 'Unable to submit request';
 
       if (data?.error === 'validation') {
         const details = Array.isArray(data?.details) ? data.details : [];
@@ -261,16 +281,16 @@ export default function ApplyArtistPage() {
         if (Object.keys(fieldErrors).length > 0) {
           setErrors(fieldErrors);
         }
-        setSubmitError(String(details[0]?.message || 'Unable to submit request'));
+        setSubmitError(genericSubmitError);
       } else if (data?.error === 'conflict') {
         const field = String(data?.field || 'field').trim();
         const message = `${field} already used`;
-        setSubmitError(message);
+        setSubmitError(genericSubmitError);
         if (field === 'email' || field === 'phone' || field === 'handle') {
           setErrors((prev) => ({ ...prev, [field]: message }));
         }
       } else {
-        setSubmitError('Unable to submit request');
+        setSubmitError(genericSubmitError);
       }
       setSubmitting(false);
       return;
