@@ -122,38 +122,38 @@ export default function ApplyArtistPage() {
 
   const onFieldChange =
     (field: keyof Omit<FormState, 'socials' | 'profilePhoto'>) =>
-    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-      const value = event.target.value;
-      setForm((prev) => ({ ...prev, [field]: value }));
-      setErrors((prev) => {
-        if (!prev[field]) return prev;
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-      setSuccess(false);
-      setSubmitError(null);
-    };
+      (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const value = event.target.value;
+        setForm((prev) => ({ ...prev, [field]: value }));
+        setErrors((prev) => {
+          if (!prev[field]) return prev;
+          const next = { ...prev };
+          delete next[field];
+          return next;
+        });
+        setSuccess(false);
+        setSubmitError(null);
+      };
 
   const onSocialChange =
     (index: number, field: keyof SocialRow) =>
-    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      const value = event.target.value;
-      setForm((prev) => {
-        const socials = [...prev.socials];
-        socials[index] = { ...socials[index], [field]: value };
-        return { ...prev, socials };
-      });
-      setErrors((prev) => {
-        const key = `socials.${index}`;
-        if (!prev[key]) return prev;
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-      setSuccess(false);
-      setSubmitError(null);
-    };
+      (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const value = event.target.value;
+        setForm((prev) => {
+          const socials = [...prev.socials];
+          socials[index] = { ...socials[index], [field]: value };
+          return { ...prev, socials };
+        });
+        setErrors((prev) => {
+          const key = `socials.${index}`;
+          if (!prev[key]) return prev;
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        setSuccess(false);
+        setSubmitError(null);
+      };
 
   const addSocialRow = () => {
     if (!canAddSocial) return;
@@ -248,12 +248,32 @@ export default function ApplyArtistPage() {
     }
 
     if (!response.ok) {
+      let responseBodyText = '';
+      if (import.meta.env.DEV) {
+        responseBodyText = await response
+          .clone()
+          .text()
+          .catch(() => '');
+      }
       let data: any = null;
       try {
         data = await response.json();
       } catch {
         data = null;
       }
+      if (import.meta.env.DEV) {
+        console.error('[apply/artist] submit failed', {
+          status: response.status,
+          body: responseBodyText || data,
+        });
+      }
+      const backendMessage =
+        typeof data?.error === 'string' && typeof data?.message === 'string'
+          ? data.message.trim()
+          : '';
+      const genericSubmitError = backendMessage
+        ? `Unable to submit request: ${backendMessage}`
+        : 'Unable to submit request';
 
       if (data?.error === 'validation') {
         const details = Array.isArray(data?.details) ? data.details : [];
@@ -261,16 +281,16 @@ export default function ApplyArtistPage() {
         if (Object.keys(fieldErrors).length > 0) {
           setErrors(fieldErrors);
         }
-        setSubmitError(String(details[0]?.message || 'Unable to submit request'));
+        setSubmitError(genericSubmitError);
       } else if (data?.error === 'conflict') {
         const field = String(data?.field || 'field').trim();
         const message = `${field} already used`;
-        setSubmitError(message);
+        setSubmitError(genericSubmitError);
         if (field === 'email' || field === 'phone' || field === 'handle') {
           setErrors((prev) => ({ ...prev, [field]: message }));
         }
       } else {
-        setSubmitError('Unable to submit request');
+        setSubmitError(genericSubmitError);
       }
       setSubmitting(false);
       return;
@@ -287,8 +307,8 @@ export default function ApplyArtistPage() {
     <Page>
       <Container className="space-y-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Apply</p>
-          <h1 className="text-3xl font-semibold text-white">Artist Request</h1>
+          <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Apply</p>
+          <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Artist Request</h1>
         </div>
         {submitError && <ErrorState message={submitError} />}
         {success && (
@@ -298,97 +318,218 @@ export default function ApplyArtistPage() {
         )}
 
         <form className="space-y-4" onSubmit={submit}>
-          <label className="block text-sm font-medium text-white/80">
+          <label className="block text-sm font-medium text-slate-700 dark:text-white/80">
             Artist Name *
             <input
               type="text"
               value={form.artistName}
               onChange={onFieldChange('artistName')}
-              className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+              className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2 text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 focus:outline-none"
               aria-invalid={Boolean(errors.artistName)}
             />
-            {errors.artistName && <p className="text-xs text-rose-300">{errors.artistName}</p>}
+            {errors.artistName && <p className="text-xs text-rose-500 dark:text-rose-300">{errors.artistName}</p>}
           </label>
 
-          <label className="block text-sm font-medium text-white/80">
+          <label className="block text-sm font-medium text-slate-700 dark:text-white/80">
             Handle *
             <input
               type="text"
               value={form.handle}
               onChange={onFieldChange('handle')}
               placeholder="@yourhandle"
-              className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+              className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2 text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 focus:outline-none"
               aria-invalid={Boolean(errors.handle)}
             />
-            {errors.handle && <p className="text-xs text-rose-300">{errors.handle}</p>}
+            {errors.handle && <p className="text-xs text-rose-500 dark:text-rose-300">{errors.handle}</p>}
           </label>
 
-          <label className="block text-sm font-medium text-white/80">
+          <label className="block text-sm font-medium text-slate-700 dark:text-white/80">
             Email *
             <input
               type="email"
               value={form.email}
               onChange={onFieldChange('email')}
-              className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+              className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2 text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 focus:outline-none"
               aria-invalid={Boolean(errors.email)}
             />
-            {errors.email && <p className="text-xs text-rose-300">{errors.email}</p>}
+            {errors.email && <p className="text-xs text-rose-500 dark:text-rose-300">{errors.email}</p>}
           </label>
 
-          <label className="block text-sm font-medium text-white/80">
+          <label className="block text-sm font-medium text-slate-700 dark:text-white/80">
             Phone *
             <input
               type="text"
               value={form.phone}
               onChange={onFieldChange('phone')}
-              className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+              className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2 text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 focus:outline-none"
               aria-invalid={Boolean(errors.phone)}
             />
-            {errors.phone && <p className="text-xs text-rose-300">{errors.phone}</p>}
+            {errors.phone && <p className="text-xs text-rose-500 dark:text-rose-300">{errors.phone}</p>}
           </label>
 
-          <label className="block text-sm font-medium text-white/80">
-            Plan Type *
-            <select
-              value={form.requestedPlanType}
-              onChange={onFieldChange('requestedPlanType')}
-              required
-              className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-              aria-invalid={Boolean(errors.requestedPlanType)}
-            >
-              {PLAN_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value} disabled={option.disabled}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-3">
+            <span className="block text-sm font-medium text-slate-700 dark:text-white/80">Plan Type *</span>
+            <div className="grid gap-6 md:grid-cols-3 selection-cards">
+              {/* Basic Plan */}
+              <button
+                type="button"
+                onClick={() => {
+                  setForm((prev) => ({ ...prev, requestedPlanType: 'basic' }));
+                  setErrors((prev) => {
+                    if (!prev.requestedPlanType) return prev;
+                    const next = { ...prev };
+                    delete next.requestedPlanType;
+                    return next;
+                  });
+                }}
+                className={`flex flex-col items-center justify-between overflow-hidden rounded-[2rem] p-6 text-center transition-all ${form.requestedPlanType === 'basic'
+                  ? 'ring-4 ring-white/50 bg-indigo-200 shadow-xl'
+                  : 'bg-indigo-100 hover:bg-indigo-200/80 shadow-md'
+                  }`}
+                style={{
+                  minHeight: '340px',
+                  position: 'relative',
+                  borderTopRightRadius: form.requestedPlanType === 'basic' ? '2rem' : '4rem',
+                }}
+              >
+                {/* Simulated curled edge aesthetic from image */}
+                {form.requestedPlanType !== 'basic' && (
+                  <div className="absolute top-[-10px] right-[-10px] w-16 h-16 bg-indigo-300 rounded-bl-full opacity-50 z-[-1]"></div>
+                )}
+                <div className="w-full relative z-10">
+                  <p className="text-sm text-black/60 font-medium tracking-wide">On Demand Artist Plan</p>
+                  <p className="mt-1 text-lg font-bold text-gray-800">Basic</p>
+                  <h3 className="mt-2 text-4xl font-bold text-gray-900">Free</h3>
+                  <div className="mt-6 flex flex-col items-start space-y-2.5 text-[13px] text-gray-700 w-fit mx-auto font-medium">
+                    <p className="flex items-center gap-2"><span className="text-white bg-indigo-300 rounded-full p-0.5 text-[10px]">✓</span> 1 Design</p>
+                    <p className="flex items-center gap-2"><span className="text-white bg-indigo-300 rounded-full p-0.5 text-[10px]">✓</span> Artist Portal</p>
+                    <p className="flex items-center gap-2 opacity-50"><span className="text-gray-400 bg-gray-200 rounded-full p-0.5 text-[10px]">✕</span> No Drops</p>
+                    <p className="flex items-center gap-2 opacity-50"><span className="text-gray-400 bg-gray-200 rounded-full p-0.5 text-[10px]">✕</span> No Shelf & Wall Of Fans</p>
+                  </div>
+                </div>
+                <div className="w-full mt-8 relative z-10">
+                  <div className="mx-auto w-[60%] rounded-full bg-white py-2 text-sm font-bold text-gray-800 shadow-sm">
+                    Enroll
+                  </div>
+                </div>
+              </button>
+
+              {/* Advanced Plan */}
+              <button
+                type="button"
+                onClick={() => {
+                  setForm((prev) => ({ ...prev, requestedPlanType: 'advanced' }));
+                  setErrors((prev) => {
+                    if (!prev.requestedPlanType) return prev;
+                    const next = { ...prev };
+                    delete next.requestedPlanType;
+                    return next;
+                  });
+                }}
+                className={`flex flex-col items-center justify-between overflow-hidden rounded-[2rem] p-6 text-center transition-all relative z-10 transform ${form.requestedPlanType === 'advanced'
+                  ? 'ring-4 ring-white shadow-2xl scale-105 bg-indigo-400'
+                  : 'bg-indigo-400/90 shadow-lg hover:scale-[1.02]'
+                  }`}
+                style={{
+                  minHeight: '380px',
+                  borderBottomRightRadius: form.requestedPlanType === 'advanced' ? '2rem' : '4rem',
+                }}
+              >
+                {/* Simulated shadow/layer aesthetic from image */}
+                {form.requestedPlanType !== 'advanced' && (
+                  <div className="absolute bottom-[-15px] right-[-15px] w-[110%] h-[110%] bg-indigo-500 rounded-[2rem] opacity-70 z-[-1]"></div>
+                )}
+                <div className="w-full pt-2">
+                  <p className="text-sm text-white/80 font-medium tracking-wide">On Demand Artist Plan</p>
+                  <p className="mt-1 text-xl font-bold text-white">Advanced</p>
+                  <div className="mt-2 flex flex-col items-center justify-center">
+                    <h3 className="text-4xl font-bold text-white flex items-start justify-center">
+                      <span className="text-xl mt-1 mr-1 font-semibold opacity-80">₹</span>
+                      999
+                    </h3>
+                    <p className="text-xs text-indigo-100 mt-0.5">/ year</p>
+                  </div>
+                  <div className="mt-6 flex flex-col items-start space-y-3 text-sm text-white w-fit mx-auto font-medium">
+                    <p className="flex items-center gap-2"><span className="text-white flex items-center justify-center p-0.5 font-bold">&#10003;</span> Up to 4 Designs</p>
+                    <p className="flex items-center gap-2"><span className="text-white flex items-center justify-center p-0.5 font-bold">&#10003;</span> Artist Portal</p>
+                    <p className="flex items-center gap-2"><span className="text-white flex items-center justify-center p-0.5 font-bold">&#10003;</span> Drops</p>
+                    <p className="flex items-center gap-2 opacity-60"><span className="text-indigo-200 bg-indigo-500 rounded-full p-0.5 text-[8px] font-bold">✕</span> No Shelf & Wall Of Fans</p>
+                  </div>
+                </div>
+                <div className="w-full mt-auto mb-2 relative z-10">
+                  <div className="mx-auto w-[70%] rounded-full bg-white py-2.5 text-sm font-bold text-gray-900 shadow-md">
+                    Enroll
+                  </div>
+                </div>
+              </button>
+
+              {/* Premium Plan */}
+              <button
+                type="button"
+                className={`flex flex-col items-center justify-between overflow-hidden rounded-[2rem] p-6 text-center transition-all relative group opacity-50 cursor-not-allowed bg-zinc-700`}
+                disabled
+                style={{
+                  minHeight: '340px',
+                  borderBottomRightRadius: '4rem',
+                }}
+              >
+                {/* Simulated shadow layer from image */}
+                <div className="absolute bottom-[-10px] right-[-10px] w-[105%] h-[105%] bg-black rounded-[2rem] opacity-60 z-[-1]"></div>
+
+                <div className="w-full">
+                  <p className="text-sm text-white/60 font-medium tracking-wide">On Demand Artist Plan</p>
+                  <p className="mt-1 text-lg font-bold text-white">Premium</p>
+                  <div className="mt-2 flex flex-col items-center justify-center">
+                    <h3 className="text-4xl font-bold text-white flex items-start justify-center">
+                      <span className="text-lg mt-1 mr-1 font-semibold opacity-60">₹</span>
+                      1999
+                    </h3>
+                    <p className="text-xs text-zinc-400 mt-0.5">/ year</p>
+                  </div>
+
+                  <div className="mt-6 flex flex-col items-start space-y-2.5 text-[13px] text-gray-300 w-fit mx-auto font-medium">
+                    <p className="flex items-center gap-2"><span className="text-zinc-400 flex items-center justify-center p-0.5">&#10003;</span> Up to 7 Designs</p>
+                    <p className="flex items-center gap-2"><span className="text-zinc-400 flex items-center justify-center p-0.5">&#10003;</span> Artist Portal</p>
+                    <p className="flex items-center gap-2"><span className="text-zinc-400 flex items-center justify-center p-0.5">&#10003;</span> Drops</p>
+                    <p className="flex items-center gap-2"><span className="text-zinc-400 flex items-center justify-center p-0.5">&#10003;</span> Shelf & Wall Of Fans</p>
+                  </div>
+                </div>
+                <div className="w-full mt-8 relative z-10">
+                  <div className="mx-auto w-[60%] rounded-full bg-white overflow-hidden relative border border-white/20">
+                    <div className="absolute inset-0 bg-white/10 z-0"></div>
+                    <p className="py-2 text-sm font-bold text-gray-800 relative z-10">Enroll</p>
+                  </div>
+                  <p className="mt-2 text-xs text-rose-300 font-medium opacity-80">(Coming soon)</p>
+                </div>
+              </button>
+            </div>
             {errors.requestedPlanType && (
               <p className="text-xs text-rose-300">{errors.requestedPlanType}</p>
             )}
-          </label>
+          </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-white/80">Socials</p>
+              <p className="text-sm font-medium text-slate-700 dark:text-white/80">Socials</p>
               <button
                 type="button"
                 onClick={addSocialRow}
                 disabled={!canAddSocial}
-                className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white hover:bg-white/10 disabled:opacity-50"
+                className="rounded-full border border-slate-300 dark:border-white/20 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 disabled:opacity-50"
               >
                 Add row
               </button>
             </div>
 
             {form.socials.map((row, index) => (
-              <div key={`social-row-${index}`} className="space-y-2 rounded-xl border border-white/10 p-3">
+              <div key={`social-row-${index}`} className="space-y-2 rounded-xl border border-slate-300 dark:border-white/10 p-3">
                 <div className="grid gap-3 md:grid-cols-[1fr_2fr_auto] md:items-start">
-                  <label className="block text-sm font-medium text-white/80">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-white/80">
                     Platform
                     <select
                       value={row.platform}
                       onChange={onSocialChange(index, 'platform')}
-                      className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+                      className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2 text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 focus:outline-none"
                     >
                       <option value="">Select</option>
                       {SOCIAL_PLATFORMS.map((platform) => (
@@ -399,68 +540,68 @@ export default function ApplyArtistPage() {
                     </select>
                   </label>
 
-                  <label className="block text-sm font-medium text-white/80">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-white/80">
                     URL
                     <input
                       type="text"
                       value={row.url}
                       onChange={onSocialChange(index, 'url')}
                       placeholder="https://..."
-                      className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+                      className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2 text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 focus:outline-none"
                     />
                   </label>
 
                   <button
                     type="button"
                     onClick={() => removeSocialRow(index)}
-                    className="mt-7 rounded-full border border-white/20 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10"
+                    className="mt-7 rounded-full border border-slate-300 dark:border-white/20 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10"
                   >
                     Remove
                   </button>
                 </div>
                 {errors[`socials.${index}`] && (
-                  <p className="text-xs text-rose-300">{errors[`socials.${index}`]}</p>
+                  <p className="text-xs text-rose-500 dark:text-rose-300">{errors[`socials.${index}`]}</p>
                 )}
               </div>
             ))}
           </div>
 
-          <label className="block text-sm font-medium text-white/80">
+          <label className="block text-sm font-medium text-slate-700 dark:text-white/80">
             About Me
             <textarea
               value={form.aboutMe}
               onChange={onFieldChange('aboutMe')}
               rows={4}
-              className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+              className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2 text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 focus:outline-none"
             />
-            {errors.aboutMe && <p className="text-xs text-rose-300">{errors.aboutMe}</p>}
+            {errors.aboutMe && <p className="text-xs text-rose-500 dark:text-rose-300">{errors.aboutMe}</p>}
           </label>
 
-          <label className="block text-sm font-medium text-white/80">
+          <label className="block text-sm font-medium text-slate-700 dark:text-white/80">
             Profile Photo
             <input
               type="file"
               accept="image/*"
               onChange={onPhotoChange}
-              className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-1 file:text-xs file:font-semibold file:text-black"
+              className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2 text-slate-900 dark:text-white file:mr-3 file:rounded-full file:border-0 file:bg-indigo-100 dark:file:bg-white file:px-3 file:py-1 file:text-xs file:font-semibold file:text-indigo-700 dark:file:text-black"
             />
           </label>
 
-          <label className="block text-sm font-medium text-white/80">
+          <label className="block text-sm font-medium text-slate-700 dark:text-white/80">
             Message For Fans
             <textarea
               value={form.messageForFans}
               onChange={onFieldChange('messageForFans')}
               rows={4}
-              className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
+              className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2 text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 focus:outline-none"
             />
-            {errors.messageForFans && <p className="text-xs text-rose-300">{errors.messageForFans}</p>}
+            {errors.messageForFans && <p className="text-xs text-rose-500 dark:text-rose-300">{errors.messageForFans}</p>}
           </label>
 
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-50"
+            className="w-full rounded-full bg-indigo-600 dark:bg-white px-4 py-2 text-sm font-semibold text-white dark:text-black transition hover:bg-indigo-700 dark:hover:bg-white/90 disabled:opacity-50"
           >
             {submitting ? 'Submitting...' : 'Request Onboarding'}
           </button>

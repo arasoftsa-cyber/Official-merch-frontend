@@ -27,9 +27,9 @@ const normalizeDetail = (payload: any): AdminArtistDetail => {
   const socialsValue = row?.socials;
   const socials = Array.isArray(socialsValue)
     ? socialsValue.map((s: any) => ({
-        platform: String(s?.platform ?? ''),
-        profileLink: String(s?.profileLink ?? s?.url ?? s?.link ?? ''),
-      }))
+      platform: String(s?.platform ?? ''),
+      profileLink: String(s?.profileLink ?? s?.url ?? s?.link ?? ''),
+    }))
     : [];
 
   return {
@@ -131,14 +131,14 @@ export default function AdminArtistDetailPage() {
   return (
     <AppShell title="Admin Artist Detail" subtitle="Full artist details">
       <div className="flex items-center justify-between">
-        <Link className="text-sm text-slate-300 underline" to="/partner/admin/artists">
+        <Link className="text-sm text-indigo-600 dark:text-slate-300 underline hover:text-indigo-800 dark:hover:text-white transition-colors" to="/partner/admin/artists">
           Back to artists
         </Link>
         {id && (
           <button
             type="button"
             onClick={() => setIsEditOpen(true)}
-            className="rounded-lg border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.25em] text-white"
+            className="rounded-lg border border-slate-300 dark:border-white/20 bg-slate-50 dark:bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-sm"
           >
             Edit
           </button>
@@ -148,57 +148,57 @@ export default function AdminArtistDetailPage() {
       {loading && <LoadingSkeleton count={2} />}
       {error && <ErrorBanner message={error} onRetry={load} />}
       {success && (
-        <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200">
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-200 shadow-sm transition-all animate-in fade-in slide-in-from-top-2">
           {success}
         </div>
       )}
 
       {!loading && endpointUnavailable && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-300">
-          <p>Artist detail endpoint is not available yet.</p>
-          <p className="mt-2 text-slate-400">
-            Expected endpoint: <code>/api/admin/artists/{id}</code>
+        <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-6 text-sm text-slate-700 dark:text-slate-300 shadow-sm">
+          <p className="font-medium">Artist detail endpoint is not available yet.</p>
+          <p className="mt-2 text-slate-500 dark:text-slate-400">
+            Expected endpoint: <code className="bg-slate-200 dark:bg-white/10 px-1 py-0.5 rounded text-xs font-mono">/api/admin/artists/{id}</code>
           </p>
         </div>
       )}
 
       {!loading && !endpointUnavailable && !error && detail && (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-6 shadow-sm">
             <div className="grid gap-x-6 gap-y-3 md:grid-cols-[180px_minmax(0,1fr)]">
-              <p className="text-slate-400">Name</p>
-              <p>{withDash(detail.name)}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">Name</p>
+              <p className="text-slate-900 dark:text-white">{withDash(detail.name)}</p>
 
-              <p className="text-slate-400">Handle</p>
-              <p>{formatHandle(detail.handle)}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">Handle</p>
+              <p className="text-slate-900 dark:text-white">{formatHandle(detail.handle)}</p>
 
-              <p className="text-slate-400">Email</p>
-              <p>{withDash(detail.email)}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">Email</p>
+              <p className="text-slate-900 dark:text-white">{withDash(detail.email)}</p>
 
-              <p className="text-slate-400">Status</p>
-              <p>{withDash(detail.status)}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">Status</p>
+              <p className="text-slate-900 dark:text-white">{withDash(detail.status)}</p>
 
-              <p className="text-slate-400">Phone</p>
-              <p>{withDash(detail.phone)}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">Phone</p>
+              <p className="text-slate-900 dark:text-white">{withDash(detail.phone)}</p>
 
-              <p className="text-slate-400">About</p>
-              <p>{withDash(detail.aboutMe)}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">About</p>
+              <p className="text-slate-900 dark:text-white whitespace-pre-wrap">{withDash(detail.aboutMe)}</p>
 
-              <p className="text-slate-400">Message For Fans</p>
-              <p>{withDash(detail.messageForFans)}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">Message For Fans</p>
+              <p className="text-slate-900 dark:text-white whitespace-pre-wrap">{withDash(detail.messageForFans)}</p>
 
-              <p className="text-slate-400">Socials</p>
-              <div className="space-y-1">
+              <p className="text-slate-500 dark:text-slate-400 font-medium">Socials</p>
+              <div className="space-y-2">
                 {detail.socials.length > 0 ? (
                   detail.socials.map((social, idx) => {
                     const platform = withDash(social.platform).toUpperCase();
                     const value = withDash(social.profileLink);
                     const href = normalizePossibleUrl(social.profileLink);
                     return (
-                      <p key={`${idx}-${social.platform}-${social.profileLink}`}>
-                        <span className="text-slate-300">{platform}:</span>{' '}
+                      <p key={`${idx}-${social.platform}-${social.profileLink}`} className="text-slate-900 dark:text-white">
+                        <span className="text-slate-500 dark:text-slate-400 text-xs font-semibold">{platform}:</span>{' '}
                         {href ? (
-                          <a href={href} target="_blank" rel="noreferrer" className="text-emerald-300 underline">
+                          <a href={href} target="_blank" rel="noreferrer" className="text-indigo-600 dark:text-emerald-300 underline hover:text-indigo-800 dark:hover:text-emerald-200 transition-colors">
                             {value}
                           </a>
                         ) : (
@@ -208,32 +208,35 @@ export default function AdminArtistDetailPage() {
                     );
                   })
                 ) : (
-                  <p>-</p>
+                  <p className="text-slate-900 dark:text-white">-</p>
                 )}
               </div>
 
-              <p className="text-slate-400">Profile Photo</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium">Profile Photo</p>
               <div>
                 {detail.profilePhotoUrl ? (
-                  <div className="space-y-2">
-                    <a href={detail.profilePhotoUrl} target="_blank" rel="noreferrer" className="text-emerald-300 underline">
+                  <div className="space-y-3">
+                    <a href={detail.profilePhotoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center text-sm text-indigo-600 dark:text-emerald-300 underline hover:text-indigo-800 dark:hover:text-emerald-200 transition-colors">
                       Open profile photo
                     </a>
                     <img
                       src={detail.profilePhotoUrl}
                       alt={`${detail.name} profile`}
-                      className="max-h-48 rounded-lg border border-white/10 object-contain"
+                      className="max-h-48 rounded-xl border border-slate-200 dark:border-white/10 object-contain shadow-sm bg-white dark:bg-black/20"
                     />
                   </div>
                 ) : (
-                  <p>-</p>
+                  <p className="text-slate-900 dark:text-white">-</p>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-            <h3 className="text-sm uppercase tracking-[0.2em] text-slate-300">Subscription</h3>
+          <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-6 shadow-sm">
+            <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-300 flex items-center gap-2">
+              <span className="w-1.5 h-4 bg-indigo-500 dark:bg-emerald-500 rounded-full"></span>
+              Subscription
+            </h3>
             {subscriptionLoading && (
               <p className="mt-3 text-sm text-slate-300">Loading subscription...</p>
             )}
@@ -244,27 +247,32 @@ export default function AdminArtistDetailPage() {
               <p className="mt-3 text-sm text-slate-300">No active subscription</p>
             )}
             {!subscriptionLoading && !subscriptionError && subscription && (
-              <div className="mt-4 grid gap-x-6 gap-y-3 md:grid-cols-[180px_minmax(0,1fr)]">
-                <p className="text-slate-400">Approved Plan</p>
-                <p>{toTitleCase(subscription.approvedPlanType)}</p>
+              <div className="mt-6 grid gap-x-6 gap-y-3 md:grid-cols-[180px_minmax(0,1fr)]">
+                <p className="text-slate-500 dark:text-slate-400 font-medium">Approved Plan</p>
+                <p className="text-slate-900 dark:text-white font-semibold">{toTitleCase(subscription.approvedPlanType)}</p>
 
-                <p className="text-slate-400">Requested Plan</p>
-                <p>{toTitleCase(subscription.requestedPlanType)}</p>
+                <p className="text-slate-500 dark:text-slate-400 font-medium">Requested Plan</p>
+                <p className="text-slate-900 dark:text-white">{toTitleCase(subscription.requestedPlanType)}</p>
 
-                <p className="text-slate-400">Status</p>
-                <p>{toTitleCase(subscription.status)}</p>
+                <p className="text-slate-500 dark:text-slate-400 font-medium">Status</p>
+                <p className="text-slate-900 dark:text-white">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${subscription.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-slate-100 text-slate-700 dark:bg-white/5 dark:text-slate-300'
+                    }`}>
+                    {toTitleCase(subscription.status)}
+                  </span>
+                </p>
 
-                <p className="text-slate-400">Start Date</p>
-                <p>{formatDateValue(subscription.startDate)}</p>
+                <p className="text-slate-500 dark:text-slate-400 font-medium">Start Date</p>
+                <p className="text-slate-900 dark:text-white">{formatDateValue(subscription.startDate)}</p>
 
-                <p className="text-slate-400">End Date</p>
-                <p>{formatDateValue(subscription.endDate)}</p>
+                <p className="text-slate-500 dark:text-slate-400 font-medium">End Date</p>
+                <p className="text-slate-900 dark:text-white">{formatDateValue(subscription.endDate)}</p>
 
-                <p className="text-slate-400">Payment Mode</p>
-                <p>{withDash(subscription.paymentMode)}</p>
+                <p className="text-slate-500 dark:text-slate-400 font-medium">Payment Mode</p>
+                <p className="text-slate-900 dark:text-white font-mono text-xs">{withDash(subscription.paymentMode)}</p>
 
-                <p className="text-slate-400">Transaction ID</p>
-                <p>{withDash(subscription.transactionId)}</p>
+                <p className="text-slate-500 dark:text-slate-400 font-medium">Transaction ID</p>
+                <p className="text-slate-900 dark:text-white font-mono text-xs break-all">{withDash(subscription.transactionId)}</p>
               </div>
             )}
           </div>

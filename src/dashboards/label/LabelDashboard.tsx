@@ -227,16 +227,36 @@ export default function LabelDashboard() {
 
           <div className="grid gap-4 md:grid-cols-4">
             <button type="button" className={cardWrapperClass}>
-              <KpiCard label="Artists" value={summary.totalArtists} hint="Under this label" />
+              <KpiCard
+                label="Artists"
+                labelTestId="label-metric-artists"
+                value={summary.totalArtists}
+                hint="Under this label"
+              />
             </button>
             <button type="button" className={cardWrapperClass}>
-              <KpiCard label="Active Artists" value={summary.activeArtists30d} hint="Orders in last 30 days" />
+              <KpiCard
+                label="Active Artists"
+                labelTestId="label-metric-active-artists"
+                value={summary.activeArtists30d}
+                hint="Orders in last 30 days"
+              />
             </button>
             <button type="button" className={cardWrapperClass}>
-              <KpiCard label="Inactive Artists" value={summary.inactiveArtists} hint="No orders in last 30 days" />
+              <KpiCard
+                label="Inactive Artists"
+                labelTestId="label-metric-inactive-artists"
+                value={summary.inactiveArtists}
+                hint="No orders in last 30 days"
+              />
             </button>
             <button type="button" className={cardWrapperClass}>
-              <KpiCard label="Label Gross" value={formatCurrency(summary.totalGross)} hint="All time" />
+              <KpiCard
+                label="Label Gross"
+                labelTestId="label-metric-label-gross"
+                value={formatCurrency(summary.totalGross)}
+                hint="All time"
+              />
             </button>
           </div>
 

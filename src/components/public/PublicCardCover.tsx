@@ -33,7 +33,7 @@ export default function PublicCardCover({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl border border-white/10 ${className ?? 'aspect-[16/9] w-full'}`}
+      className={`relative overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 ${className ?? 'aspect-[16/9] w-full'}`}
       aria-label={subtitle ? `${title} ${subtitle}` : title}
     >
       {normalizedImageUrl && !hasImageError ? (
@@ -50,7 +50,7 @@ export default function PublicCardCover({
           className={`flex h-full w-full items-center justify-center ${gradientClass}`}
           aria-hidden="true"
         >
-          <span className="text-2xl font-semibold uppercase tracking-[0.18em] text-white/90">
+          <span className="text-2xl font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-white/90">
             {fallbackText}
           </span>
         </div>

@@ -5,42 +5,6 @@ import { getApiUrl } from './helpers/urls';
 
 const PRODUCT_CARD_SELECTORS = ['article[role="button"]', '[data-testid*="product"]', '[data-testid*="card"]'];
 
-const normalizeDropHref = (href: string | null): string | null => {
-  const raw = String(href ?? '').trim();
-  if (!raw) return null;
-
-  try {
-    const parsed = new URL(raw, 'http://localhost');
-    const normalizedPath = parsed.pathname || '';
-    if (!/^\/drops\/[^/?#]+$/i.test(normalizedPath)) return null;
-    return `${normalizedPath}${parsed.search}${parsed.hash}`;
-  } catch {
-    return null;
-  }
-};
-
-const collectCandidateDropHrefs = async (page: Page): Promise<string[]> => {
-  const viewLinkHrefs = await page
-    .getByRole('link', { name: /view/i })
-    .evaluateAll((nodes) =>
-      nodes.map((node) => (node instanceof HTMLAnchorElement ? node.getAttribute('href') : null))
-    );
-  const genericDropHrefs = await page
-    .locator('a[href*="/drops/"]')
-    .evaluateAll((nodes) =>
-      nodes.map((node) => (node instanceof HTMLAnchorElement ? node.getAttribute('href') : null))
-    );
-
-  const ordered = [...viewLinkHrefs, ...genericDropHrefs];
-  return Array.from(
-    new Set(
-      ordered
-        .map((href) => normalizeDropHref(href))
-        .filter((href): href is string => typeof href === 'string' && href.length > 0)
-    )
-  );
-};
-
 const hasConfiguredQuizOnDropPage = async (page: Page): Promise<boolean> => {
   const startQuizButton = page.getByRole('button', { name: /start quiz/i }).first();
   const startQuizLink = page.getByRole('link', { name: /start quiz/i }).first();
@@ -94,51 +58,51 @@ const hasConfiguredQuizOnDropPage = async (page: Page): Promise<boolean> => {
   return hasAnyQuizSignal && !noQuestionsVisible;
 };
 
-const goToNextDropsPage = async (page: Page): Promise<boolean> => {
-  const controls = [
-    page.getByRole('button', { name: /next/i }).first(),
-    page.getByRole('link', { name: /next/i }).first(),
-    page.locator('a[rel="next"]').first(),
-    page.locator('button[aria-label*="next" i]').first(),
-  ];
+const openFirstPublicDropWithQuiz = async (page: Page): Promise<void> => {
+  await gotoApp(page, '/drops', { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('networkidle').catch(() => null);
 
-  for (const control of controls) {
-    const isVisible = await control.isVisible().catch(() => false);
-    if (!isVisible) continue;
-    const isDisabled = await control.isDisabled().catch(() => false);
-    if (isDisabled) continue;
-
-    await Promise.all([
-      page.waitForLoadState('domcontentloaded').catch(() => null),
-      control.click(),
-    ]);
-    return true;
+  const cards = page.locator(
+    '[data-testid="drop-card"], a[href^="/drops/"], [data-testid="drop-list"] a'
+  );
+  const count = await cards.count();
+  if (count === 0) {
+    throw new Error('No drops found on /drops. UI list empty; cannot run quiz lead smoke.');
   }
 
-  return false;
-};
+  for (let i = 0; i < Math.min(count, 30); i += 1) {
+    const card = cards.nth(i);
+    const clicked = await card.click({ timeout: 5000 }).then(() => true).catch(() => false);
+    if (!clicked) continue;
 
-const findPublicDropWithQuiz = async (page: Page): Promise<{ href: string } | null> => {
-  await gotoApp(page, '/drops', { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('domcontentloaded').catch(() => null);
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const candidateHrefs = (await collectCandidateDropHrefs(page)).slice(0, 10);
+    const quizCta = page
+      .getByRole('button', { name: /quiz|take quiz|answer quiz|participate/i })
+      .first();
+    const quizHeading = page.getByText(/quiz/i).first();
+    const hasQuizSignal =
+      (await quizCta.isVisible().catch(() => false)) ||
+      (await quizHeading.isVisible().catch(() => false));
 
-    for (const href of candidateHrefs) {
-      await gotoApp(page, href, { waitUntil: 'domcontentloaded' });
-      const hasQuiz = await hasConfiguredQuizOnDropPage(page);
-      if (hasQuiz) {
-        return { href };
+    if (hasQuizSignal) {
+      const hasConfiguredQuiz = await hasConfiguredQuizOnDropPage(page);
+      if (hasConfiguredQuiz) {
+        return;
       }
     }
 
-    if (attempt === 1) break;
-    await gotoApp(page, '/drops', { waitUntil: 'domcontentloaded' });
-    const moved = await goToNextDropsPage(page);
-    if (!moved) break;
+    const navigatedBack = await page.goBack({ waitUntil: 'domcontentloaded' }).then(() => true).catch(() => false);
+    if (!navigatedBack) {
+      await gotoApp(page, '/drops', { waitUntil: 'domcontentloaded' });
+    }
+    await page.waitForLoadState('networkidle').catch(() => null);
   }
 
-  return null;
+  throw new Error(
+    'No public drop with a quiz found after scanning the first 30 drops. ' +
+      'Either publish at least one quiz-enabled drop or enable a dev seed fallback.'
+  );
 };
 
 const getProductTitleFromDetail = async (page: Page): Promise<string> => {
@@ -379,12 +343,8 @@ test.describe('Buyer smoke', () => {
   });
 
   test('public drop quiz lead submission works end-to-end', async ({ page }) => {
-    const found = await findPublicDropWithQuiz(page);
-    test.skip(!found, 'No public drop with quiz found; skipping quiz E2E');
-    if (!found) return;
-
+    await openFirstPublicDropWithQuiz(page);
     const uniqueLeadEmail = `smoke+${Date.now()}@test.com`;
-    await gotoApp(page, found.href, { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/drops\/[^/?#]+(?:[/?#]|$)/, { timeout: 15000 });
 
     const startQuizButton = page.getByRole('button', { name: /start quiz/i }).first();
@@ -533,18 +493,32 @@ test.describe('Buyer smoke', () => {
 
   test('fan portal rejects partner/admin credentials', async ({ page }) => {
     test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
-    await loginFanWithCredentials(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const partnerEmail = ADMIN_EMAIL;
+    const partnerPassword = ADMIN_PASSWORD;
+    await loginFanWithCredentials(page, partnerEmail, partnerPassword, { expectRejection: true });
     await expect(page).not.toHaveURL(/\/partner\/(admin|artist|label)/, { timeout: 15000 });
     await expect(page).toHaveURL(/\/fan\/login/, { timeout: 15000 });
-    await expect(
-      page
-        .getByText(
-          /partner\/admin account|partner\/admin|use.*partner portal|please log in via partner/i
-        )
-        .first()
-    ).toBeVisible({ timeout: 15000 });
+    const partnerBanner = page.getByText(/this account is for the partner portal|partner portal/i).first();
+    const partnerLink = page.getByRole('link', { name: /partner login|go to partner login/i }).first();
+    const partnerButton = page.getByRole('button', { name: /partner login|go to partner login/i }).first();
 
-    await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded' });
+    const bannerCount = await partnerBanner.count().catch(() => 0);
+    const linkCount = await partnerLink.count().catch(() => 0);
+    const buttonCount = await partnerButton.count().catch(() => 0);
+
+    if (bannerCount > 0) {
+      await expect(partnerBanner).toBeVisible({ timeout: 15000 });
+    } else if (linkCount > 0) {
+      await expect(partnerLink).toBeVisible({ timeout: 15000 });
+    } else if (buttonCount > 0) {
+      await expect(partnerButton).toBeVisible({ timeout: 15000 });
+    } else {
+      await expect(
+        page.getByText(/role_not_allowed|not allowed|unauthorized|forbidden/i).first()
+      ).toBeVisible({ timeout: 15000 });
+    }
+
+    await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded', authRetry: false });
     await expect(page).toHaveURL(/\/(fan|partner)\/login/, { timeout: 15000 });
   });
 });

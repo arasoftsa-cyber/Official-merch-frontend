@@ -14,10 +14,11 @@ import { apiFetch } from '../shared/api/http';
 import { getAccessToken, setAccessToken, clearTokens } from '../shared/auth/tokenStore';
 import { API_BASE } from '../shared/api/http';
 import { getMe, getConfig } from '../shared/api/appApi';
-import { logoutAuth } from '../lib/api/auth';
 import FanLoginPage from '../pages/fan/FanLoginPage';
 import FanRegisterPage from '../pages/fan/FanRegisterPage';
 import PartnerLoginPage from '../pages/partner/PartnerLoginPage';
+import PartnerEntryRedirect from '../pages/partner/PartnerEntryRedirect';
+import PartnerLayout from '../layouts/PartnerLayout';
 import CartPage from '../pages/CartPage';
 import LabelDashboard from '../dashboards/label/LabelDashboard';
 import LabelArtistDetailPage from '../dashboards/label/LabelArtistDetailPage';
@@ -59,10 +60,13 @@ import LogoutPage from '../pages/LogoutPage';
 import RedirectPage from '../pages/RedirectPage';
 import { ToastProvider } from '../components/ux/ToastHost';
 import { CartProvider } from '../cart/CartContext';
+import ThemeToggle from '../components/ThemeToggle';
+import { Page, Container } from '../ui/Page';
 
 const LOGIN_PATHS = ['/fan/login', '/partner/login', '/login'];
 const AUTH_BYPASS_PATHS = [...LOGIN_PATHS, '/logout'];
 const LOGIN_CONTEXT_KEY = 'om_login_context';
+const LOGIN_OR_REGISTER_PATH_RE = /^\/(fan|partner)\/(login|register)(?:\/|$)/i;
 
 function isExactPath(pathname: string, candidate: string): boolean {
   return pathname === candidate || pathname === `${candidate}/`;
@@ -86,7 +90,7 @@ function roleHomePath(role: string | null): string {
 
 function getRequestedLoginPath(search: string): string | null {
   const params = new URLSearchParams(search);
-  const raw = params.get('returnTo') || params.get('returnUrl') || params.get('next') || '';
+  const raw = params.get('returnTo') || params.get('next') || '';
   if (!raw) return null;
   let decoded = raw;
   try {
@@ -235,14 +239,14 @@ function ArtistDashboard() {
         const orderItems = Array.isArray(ordersPayload?.items)
           ? ordersPayload.items
           : Array.isArray(ordersPayload)
-          ? ordersPayload
-          : [];
+            ? ordersPayload
+            : [];
         setOrders(orderItems);
         const dropItems = Array.isArray(dropsPayload?.items)
           ? dropsPayload.items
           : Array.isArray(dropsPayload)
-          ? dropsPayload
-          : [];
+            ? dropsPayload
+            : [];
         setDropsCount(dropItems.length);
       } catch (err: any) {
         if (!active) return;
@@ -271,119 +275,122 @@ function ArtistDashboard() {
   };
 
   return (
-    <main>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Artist</p>
-          <h1 className="text-2xl font-semibold text-white">Artist Dashboard</h1>
+    <Page>
+      <Container className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Artist</p>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Artist Dashboard</h1>
+          </div>
         </div>
-      </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-5">
-        <button
-          type="button"
-          onClick={() => navigate('/partner/artist/orders')}
-          className="cursor-pointer rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-white/30 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-        >
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Orders</p>
-          <p className="mt-2 text-2xl text-white">{loading ? '...' : summary?.totalOrders ?? '-'}</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate('/partner/artist/orders?metric=units')}
-          className="cursor-pointer rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-white/30 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-        >
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Units</p>
-          <p className="mt-2 text-2xl text-white">{loading ? '...' : summary?.totalUnits ?? '-'}</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate('/partner/artist/orders?metric=gross')}
-          className="cursor-pointer rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-white/30 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-        >
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Gross</p>
-          <p className="mt-2 text-2xl text-white">{loading ? '...' : formatCurrency(summary?.grossCents)}</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate('/partner/artist/products')}
-          className="cursor-pointer rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-white/30 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-        >
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Products</p>
-          <p className="mt-2 text-2xl text-white">—</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate('/partner/artist/drops')}
-          className="cursor-pointer rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-white/30 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-        >
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Drops</p>
-          <p className="mt-2 text-2xl text-white">{loading ? '...' : dropsCount}</p>
-        </button>
-      </div>
-
-      {summaryError && (
-        <p role="alert" className="mt-4 text-sm text-rose-300">
-          Summary unavailable: {summaryError}
-        </p>
-      )}
-
-      <section className="mt-8">
-        <div className="mb-3">
-          <h2 className="text-lg font-medium text-white">Recent Orders</h2>
+        <div className="mt-6 grid gap-4 md:grid-cols-5">
+          <button
+            type="button"
+            onClick={() => navigate('/partner/artist/orders')}
+            className="cursor-pointer rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 text-left transition hover:border-slate-300 dark:hover:border-white/30 hover:bg-slate-100 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/50"
+          >
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Orders</p>
+            <p className="mt-2 text-2xl text-slate-900 dark:text-white">{loading ? '...' : summary?.totalOrders ?? '-'}</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/partner/artist/orders?metric=units')}
+            className="cursor-pointer rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 text-left transition hover:border-slate-300 dark:hover:border-white/30 hover:bg-slate-100 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/50"
+          >
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Units</p>
+            <p className="mt-2 text-2xl text-slate-900 dark:text-white">{loading ? '...' : summary?.totalUnits ?? '-'}</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/partner/artist/orders?metric=gross')}
+            className="cursor-pointer rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 text-left transition hover:border-slate-300 dark:hover:border-white/30 hover:bg-slate-100 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/50"
+          >
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Gross</p>
+            <p className="mt-2 text-2xl text-slate-900 dark:text-white">{loading ? '...' : formatCurrency(summary?.grossCents)}</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/partner/artist/products')}
+            className="cursor-pointer rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 text-left transition hover:border-slate-300 dark:hover:border-white/30 hover:bg-slate-100 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/50"
+          >
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Products</p>
+            <p className="mt-2 text-2xl text-slate-900 dark:text-white">—</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/partner/artist/drops')}
+            className="cursor-pointer rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 text-left transition hover:border-slate-300 dark:hover:border-white/30 hover:bg-slate-100 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/50"
+          >
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Drops</p>
+            <p className="mt-2 text-2xl text-slate-900 dark:text-white">{loading ? '...' : dropsCount}</p>
+          </button>
         </div>
-        {loading && <p className="text-slate-400">Loading recent orders...</p>}
-        {!loading && ordersError && (
-          <p role="alert" className="text-sm text-rose-300">
-            Orders unavailable: {ordersError}
+
+        {summaryError && (
+          <p role="alert" className="mt-4 text-sm text-rose-600 dark:text-rose-300">
+            Summary unavailable: {summaryError}
           </p>
         )}
-        {!loading && !ordersError && orders.length === 0 && (
-          <p className="text-sm text-slate-400">No recent orders yet.</p>
-        )}
-        {!loading && !ordersError && orders.length > 0 && (
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-            <table className="w-full text-left text-sm text-white">
-              <thead>
-                <tr className="border-b border-white/10 text-xs uppercase tracking-[0.3em] text-slate-400">
-                  <th className="px-4 py-3">Order</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Total</th>
-                  <th className="px-4 py-3">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.slice(0, 10).map((order, index) => {
-                  const orderId = order?.orderId ?? order?.id ?? '';
-                  const target = orderId
-                    ? `/partner/artist/orders/${orderId}`
-                    : '/partner/artist/orders';
-                  return (
-                  <tr
-                    key={orderId || `order-${index}`}
-                    className="cursor-pointer border-b border-white/5 transition hover:bg-white/10 focus-visible:bg-white/10"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => navigate(target)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        navigate(target);
-                      }
-                    }}
-                  >
-                    <td className="px-4 py-3">{order?.orderId ?? order?.id ?? '-'}</td>
-                    <td className="px-4 py-3">{order?.status ?? '-'}</td>
-                    <td className="px-4 py-3">{formatCurrency(order?.totalCents)}</td>
-                    <td className="px-4 py-3">{order?.createdAt ?? '-'}</td>
-                  </tr>
-                )})}
-              </tbody>
-            </table>
+
+        <section className="mt-8">
+          <div className="mb-3">
+            <h2 className="text-lg font-medium text-slate-900 dark:text-white">Recent Orders</h2>
           </div>
-        )}
-      </section>
-    </main>
+          {loading && <p className="text-slate-500 dark:text-slate-400">Loading recent orders...</p>}
+          {!loading && ordersError && (
+            <p role="alert" className="text-sm text-rose-600 dark:text-rose-300">
+              Orders unavailable: {ordersError}
+            </p>
+          )}
+          {!loading && !ordersError && orders.length === 0 && (
+            <p className="text-sm text-slate-500 dark:text-slate-400">No recent orders yet.</p>
+          )}
+          {!loading && !ordersError && orders.length > 0 && (
+            <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5">
+              <table className="w-full text-left text-sm text-slate-900 dark:text-white">
+                <thead className="bg-slate-50 dark:bg-transparent">
+                  <tr className="border-b border-slate-200 dark:border-white/10 text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                    <th className="px-4 py-3">Order</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Total</th>
+                    <th className="px-4 py-3">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.slice(0, 10).map((order, index) => {
+                    const orderId = order?.orderId ?? order?.id ?? '';
+                    const target = orderId
+                      ? `/partner/artist/orders/${orderId}`
+                      : '/partner/artist/orders';
+                    return (
+                      <tr
+                        key={orderId || `order-${index}`}
+                        className="cursor-pointer border-b border-slate-100 dark:border-white/5 transition hover:bg-slate-50 dark:hover:bg-white/10 focus-visible:bg-slate-50 dark:focus-visible:bg-white/10"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => navigate(target)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            navigate(target);
+                          }
+                        }}
+                      >
+                        <td className="px-4 py-3">{order?.orderId ?? order?.id ?? '-'}</td>
+                        <td className="px-4 py-3">{order?.status ?? '-'}</td>
+                        <td className="px-4 py-3">{formatCurrency(order?.totalCents)}</td>
+                        <td className="px-4 py-3">{order?.createdAt ?? '-'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </Container>
+    </Page>
   );
 }
 
@@ -407,8 +414,8 @@ function ArtistOrdersPage() {
         const items = Array.isArray(payload?.items)
           ? payload.items
           : Array.isArray(payload)
-          ? payload
-          : [];
+            ? payload
+            : [];
         setOrders(items);
       } catch (err: any) {
         if (!active) return;
@@ -455,8 +462,8 @@ function ArtistOrdersPage() {
       statusFilter === 'all'
         ? orders
         : orders.filter(
-            (order) => `${order?.status ?? ''}`.trim().toLowerCase() === statusFilter
-          );
+          (order) => `${order?.status ?? ''}`.trim().toLowerCase() === statusFilter
+        );
     if (metric === 'units') {
       return [...statusFiltered].sort((a, b) => {
         const aUnits = Array.isArray(a?.items)
@@ -480,90 +487,92 @@ function ArtistOrdersPage() {
     metric === 'units'
       ? 'Sorted by units'
       : metric === 'gross'
-      ? 'Sorted by gross'
-      : null;
-  const totalHeaderClass = metric === 'gross' ? 'px-4 py-3 text-white' : 'px-4 py-3';
+        ? 'Sorted by gross'
+        : null;
+  const totalHeaderClass = metric === 'gross' ? 'px-4 py-3 text-slate-900 dark:text-white' : 'px-4 py-3';
 
   return (
-    <main>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Artist</p>
-          <h1 className="text-2xl font-semibold text-white">Artist Orders</h1>
-        </div>
-        <Link className="text-sm text-slate-300 underline" to="/partner/artist">
-          Back to dashboard
-        </Link>
-      </div>
-
-      <div className="mt-6 flex flex-wrap items-center gap-3">
-        <label htmlFor="artist-orders-status" className="text-xs uppercase tracking-[0.3em] text-slate-400">
-          Status
-        </label>
-        <select
-          id="artist-orders-status"
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-          className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/40"
-        >
-          {statusOptions.map((status) => (
-            <option key={status} value={status} className="bg-slate-900 text-white">
-              {status === 'all' ? 'All' : status}
-            </option>
-          ))}
-        </select>
-        {metricHint && (
-          <p className="text-xs uppercase tracking-[0.2em] text-white/60">{metricHint}</p>
-        )}
-      </div>
-
-      <section className="mt-6">
-        {loading && <p className="text-slate-400">Loading artist orders...</p>}
-        {!loading && error && (
-          <p role="alert" className="text-sm text-rose-300">
-            Orders unavailable: {error}
-          </p>
-        )}
-        {!loading && !error && filteredOrders.length === 0 && (
-          <p className="text-sm text-slate-400">No orders found for this filter.</p>
-        )}
-        {!loading && !error && filteredOrders.length > 0 && (
-          <div
-            className="overflow-hidden rounded-2xl border border-white/10 bg-white/5"
-            data-testid="artist-orders-table"
-          >
-            <table className="w-full text-left text-sm text-white">
-              <thead>
-                <tr className="border-b border-white/10 text-xs uppercase tracking-[0.3em] text-slate-400">
-                  <th className="px-4 py-3">Order</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className={totalHeaderClass}>Total</th>
-                  <th className="px-4 py-3">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.map((order, index) => {
-                  const orderId = order?.orderId ?? order?.id ?? `order-${index}`;
-                  return (
-                    <tr
-                      key={orderId}
-                      data-testid="artist-orders-row"
-                      className="cursor-pointer border-b border-white/5 transition hover:bg-white/10"
-                      onClick={() => navigate(`/partner/artist/orders/${orderId}`)}
-                    >
-                      <td className="px-4 py-3 font-mono">{order?.orderId ?? order?.id ?? '-'}</td>
-                      <td className="px-4 py-3">{order?.status ?? '-'}</td>
-                      <td className="px-4 py-3">{formatCurrency(order?.totalCents)}</td>
-                      <td className="px-4 py-3">{formatDateTime(order?.createdAt)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+    <Page>
+      <Container className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Artist</p>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Artist Orders</h1>
           </div>
-        )}
-      </section>
-    </main>
+          <Link className="text-sm text-slate-600 dark:text-slate-300 underline" to="/partner/artist">
+            Back to dashboard
+          </Link>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <label htmlFor="artist-orders-status" className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+            Status
+          </label>
+          <select
+            id="artist-orders-status"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            className="rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:border-slate-300 dark:focus:border-white/40"
+          >
+            {statusOptions.map((status) => (
+              <option key={status} value={status} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                {status === 'all' ? 'All' : status}
+              </option>
+            ))}
+          </select>
+          {metricHint && (
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">{metricHint}</p>
+          )}
+        </div>
+
+        <section className="mt-6">
+          {loading && <p className="text-slate-500 dark:text-slate-400">Loading artist orders...</p>}
+          {!loading && error && (
+            <p role="alert" className="text-sm text-rose-600 dark:text-rose-300">
+              Orders unavailable: {error}
+            </p>
+          )}
+          {!loading && !error && filteredOrders.length === 0 && (
+            <p className="text-sm text-slate-500 dark:text-slate-400">No orders found for this filter.</p>
+          )}
+          {!loading && !error && filteredOrders.length > 0 && (
+            <div
+              className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5"
+              data-testid="artist-orders-table"
+            >
+              <table className="w-full text-left text-sm text-slate-900 dark:text-white">
+                <thead className="bg-slate-50 dark:bg-transparent">
+                  <tr className="border-b border-slate-200 dark:border-white/10 text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
+                    <th className="px-4 py-3">Order</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className={totalHeaderClass}>Total</th>
+                    <th className="px-4 py-3">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredOrders.map((order, index) => {
+                    const orderId = order?.orderId ?? order?.id ?? `order-${index}`;
+                    return (
+                      <tr
+                        key={orderId}
+                        data-testid="artist-orders-row"
+                        className="cursor-pointer border-b border-slate-100 dark:border-white/5 transition hover:bg-slate-50 dark:hover:bg-white/10"
+                        onClick={() => navigate(`/partner/artist/orders/${orderId}`)}
+                      >
+                        <td className="px-4 py-3 font-mono">{order?.orderId ?? order?.id ?? '-'}</td>
+                        <td className="px-4 py-3">{order?.status ?? '-'}</td>
+                        <td className="px-4 py-3">{formatCurrency(order?.totalCents)}</td>
+                        <td className="px-4 py-3">{formatDateTime(order?.createdAt)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </Container>
+    </Page>
   );
 }
 
@@ -639,70 +648,72 @@ function ArtistOrderDetailPage() {
   };
 
   return (
-    <main>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Artist</p>
-          <h1 className="text-2xl font-semibold text-white">Artist Order Detail</h1>
+    <Page>
+      <Container className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Artist</p>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Artist Order Detail</h1>
+          </div>
+          <Link className="text-sm text-slate-600 dark:text-slate-300 underline" to="/partner/artist/orders">
+            Back to artist orders
+          </Link>
         </div>
-        <Link className="text-sm text-slate-300 underline" to="/partner/artist/orders">
-          Back to artist orders
-        </Link>
-      </div>
 
-      {loading && <p className="mt-6 text-slate-400">Loading order detail...</p>}
-      {!loading && error && (
-        <p role="alert" className="mt-6 text-sm text-rose-300">
-          {error}
-        </p>
-      )}
+        {loading && <p className="mt-6 text-slate-500 dark:text-slate-400">Loading order detail...</p>}
+        {!loading && error && (
+          <p role="alert" className="mt-6 text-sm text-rose-600 dark:text-rose-300">
+            {error}
+          </p>
+        )}
 
-      {!loading && !error && detail && (
-        <section className="mt-6 space-y-4">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Order ID</p>
-            <p className="mt-2 font-mono text-sm text-white">{detail.id ?? '-'}</p>
-            <div className="mt-3 grid gap-3 text-sm text-white/80 md:grid-cols-3">
-              <p>Status: {detail.status ?? '-'}</p>
-              <p>Created: {formatDateTime(detail.createdAt)}</p>
-              <p>Total: {formatCurrency(detail.totalCents)}</p>
+        {!loading && !error && detail && (
+          <section className="mt-6 space-y-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Order ID</p>
+              <p className="mt-2 font-mono text-sm text-slate-900 dark:text-white">{detail.id ?? '-'}</p>
+              <div className="mt-3 grid gap-3 text-sm text-slate-600 dark:text-white/80 md:grid-cols-3">
+                <p>Status: {detail.status ?? '-'}</p>
+                <p>Created: {formatDateTime(detail.createdAt)}</p>
+                <p>Total: {formatCurrency(detail.totalCents)}</p>
+              </div>
             </div>
-          </div>
 
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-            <div className="grid grid-cols-[1.6fr_1.2fr_0.8fr_1fr_1fr] gap-3 border-b border-white/10 px-4 py-3 text-xs uppercase tracking-[0.3em] text-slate-400">
-              <span>Product</span>
-              <span>Variant</span>
-              <span>Qty</span>
-              <span>Price</span>
-              <span>Line total</span>
+            <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5">
+              <div className="grid grid-cols-[1.6fr_1.2fr_0.8fr_1fr_1fr] gap-3 border-b border-slate-200 dark:border-white/10 px-4 py-3 text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-transparent">
+                <span>Product</span>
+                <span>Variant</span>
+                <span>Qty</span>
+                <span>Price</span>
+                <span>Line total</span>
+              </div>
+              <div className="divide-y divide-slate-100 dark:divide-white/10">
+                {(detail.items ?? []).map((item, index) => {
+                  const variantParts = [item.variantSku, item.variantSize, item.variantColor]
+                    .filter(Boolean)
+                    .join(' / ');
+                  return (
+                    <div
+                      key={`${item.productId ?? 'item'}-${index}`}
+                      className="grid grid-cols-[1.6fr_1.2fr_0.8fr_1fr_1fr] gap-3 px-4 py-3 text-sm text-slate-900 dark:text-white"
+                    >
+                      <span>{item.productTitle ?? item.productId ?? '-'}</span>
+                      <span>{variantParts || item.productVariantId || '-'}</span>
+                      <span>{item.quantity ?? 0}</span>
+                      <span>{formatCurrency(item.priceCents)}</span>
+                      <span>{formatCurrency(item.lineTotalCents)}</span>
+                    </div>
+                  );
+                })}
+                {(detail.items ?? []).length === 0 && (
+                  <p className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400">No line items available.</p>
+                )}
+              </div>
             </div>
-            <div className="divide-y divide-white/10">
-              {(detail.items ?? []).map((item, index) => {
-                const variantParts = [item.variantSku, item.variantSize, item.variantColor]
-                  .filter(Boolean)
-                  .join(' / ');
-                return (
-                  <div
-                    key={`${item.productId ?? 'item'}-${index}`}
-                    className="grid grid-cols-[1.6fr_1.2fr_0.8fr_1fr_1fr] gap-3 px-4 py-3 text-sm text-white"
-                  >
-                    <span>{item.productTitle ?? item.productId ?? '-'}</span>
-                    <span>{variantParts || item.productVariantId || '-'}</span>
-                    <span>{item.quantity ?? 0}</span>
-                    <span>{formatCurrency(item.priceCents)}</span>
-                    <span>{formatCurrency(item.lineTotalCents)}</span>
-                  </div>
-                );
-              })}
-              {(detail.items ?? []).length === 0 && (
-                <p className="px-4 py-4 text-sm text-slate-400">No line items available.</p>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
-    </main>
+          </section>
+        )}
+      </Container>
+    </Page>
   );
 }
 
@@ -774,6 +785,48 @@ function useAuthStatus() {
   const [role, setRole] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [hasToken, setHasToken] = useState(() => Boolean(getAccessToken()));
+  const refreshAttemptedRef = useRef(false);
+
+  const ensureSessionForProtectedRoute = useCallback(async (pathname: string) => {
+    const currentPath = getPathnameOnly(pathname || '/');
+    const isLoginOrRegisterPath = LOGIN_OR_REGISTER_PATH_RE.test(currentPath);
+    const isProtectedPortalPath =
+      currentPath === '/fan' ||
+      currentPath.startsWith('/fan/') ||
+      currentPath === '/partner' ||
+      currentPath.startsWith('/partner/');
+
+    if (isLoginOrRegisterPath || !isProtectedPortalPath) return null;
+    if (refreshAttemptedRef.current) return null;
+    refreshAttemptedRef.current = true;
+
+    try {
+      const refreshResponse = await apiFetch('/api/auth/refresh', {
+        method: 'POST',
+        body: {},
+      });
+      const refreshedToken =
+        refreshResponse?.accessToken ||
+        refreshResponse?.token ||
+        refreshResponse?.data?.accessToken ||
+        refreshResponse?.access_token ||
+        null;
+      if (!refreshedToken) {
+        return null;
+      }
+      setAccessToken(refreshedToken);
+      return refreshedToken;
+    } catch (err: any) {
+      const status = Number(err?.status || 0);
+      if (status === 401) {
+        return null;
+      }
+      if (status >= 500 || !status) {
+        console.error('[auth] refresh failed', err);
+      }
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -795,21 +848,16 @@ function useAuthStatus() {
       };
 
       try {
-        if (!currentToken) {
-          const refreshResponse = await apiFetch('/auth/refresh', {
-            method: 'POST',
-            body: {},
-          });
-          const refreshedToken =
-            refreshResponse?.accessToken ||
-            refreshResponse?.token ||
-            refreshResponse?.data?.accessToken ||
-            refreshResponse?.access_token ||
-            null;
-          if (!refreshedToken) {
-            throw new Error('No refreshed token');
+        let tokenForRequest = currentToken;
+        if (!tokenForRequest) {
+          tokenForRequest = await ensureSessionForProtectedRoute(location.pathname);
+        }
+        if (!tokenForRequest) {
+          if (isMounted) {
+            setRole(null);
+            setHasToken(false);
           }
-          setAccessToken(refreshedToken);
+          return;
         }
         await fetchRole();
       } catch (err: any) {
@@ -832,7 +880,7 @@ function useAuthStatus() {
     return () => {
       isMounted = false;
     };
-  }, [location.pathname]);
+  }, [location.pathname, ensureSessionForProtectedRoute]);
 
   return { role, authChecked, hasToken };
 }
@@ -881,38 +929,6 @@ function AppRoutes() {
     return <Loading />;
   }
 
-  const withPartnerLogout = (element: React.ReactNode) => {
-    if (!location.pathname.startsWith('/partner/')) {
-      return element;
-    }
-
-    return (
-      <div className="space-y-4">
-        <div className="mx-auto flex w-full max-w-6xl justify-end px-6 pt-4">
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                await logoutAuth();
-              } catch {
-                // Best-effort server logout.
-              } finally {
-                clearTokens();
-                sessionStorage.clear();
-                localStorage.removeItem(LOGIN_CONTEXT_KEY);
-                window.location.assign('/partner/login');
-              }
-            }}
-            className="rounded-full border border-white/20 px-3 py-1 text-xs uppercase tracking-[0.3em] text-slate-300 hover:bg-white/10 hover:text-white"
-          >
-            Logout
-          </button>
-        </div>
-        {element}
-      </div>
-    );
-  };
-
   const requireAuthElement = (element: React.ReactNode) => {
     if (isAuthBypassPath(location.pathname)) {
       return element;
@@ -923,24 +939,30 @@ function AppRoutes() {
     }
 
     if (!hasToken) {
-      const returnUrl = encodeURIComponent(location.pathname + location.search);
-      return <Navigate to={`/login?returnUrl=${returnUrl}`} replace />;
+      const returnTo = encodeURIComponent(location.pathname + location.search + location.hash);
+      if (location.pathname.startsWith('/partner')) {
+        return <Navigate to={`/partner/login?returnTo=${returnTo}`} replace />;
+      }
+      if (location.pathname.startsWith('/fan')) {
+        return <Navigate to={`/fan/login?returnTo=${returnTo}`} replace />;
+      }
+      return element;
     }
 
     if (!authChecked) {
       return <Loading />;
     }
 
-      if (effectiveRole && !roleAllowsPath(effectiveRole, location.pathname)) {
-        console.log('[guard] redirecting', {
-          role: effectiveRole,
-          path: location.pathname,
-          reason: 'forbidden',
-        });
-        return <Navigate to="/forbidden" replace />;
-      }
+    if (effectiveRole && !roleAllowsPath(effectiveRole, location.pathname)) {
+      console.log('[guard] redirecting', {
+        role: effectiveRole,
+        path: location.pathname,
+        reason: 'forbidden',
+      });
+      return <Navigate to="/forbidden" replace />;
+    }
 
-    return withPartnerLogout(element);
+    return element;
   };
 
   const loginEntryElement = (element: React.ReactNode) => {
@@ -1055,9 +1077,130 @@ function AppRoutes() {
       />
       <Route path="/fan/register" element={<FanRegisterPage />} />
       <Route
-        path="/partner/login"
-        element={loginEntryElement(<PartnerLoginPage />)}
-      />
+        path="/partner"
+        element={<PartnerLayout />}
+      >
+        <Route index element={<PartnerEntryRedirect />} />
+        <Route
+          path="login"
+          element={loginEntryElement(<PartnerLoginPage />)}
+        />
+        <Route path="dashboard" element={<PartnerEntryRedirect />} />
+        <Route
+          path="artist"
+          element={requireAuthElement(<Outlet />)}
+        >
+          <Route index element={<ArtistDashboard />} />
+          <Route
+            path="dashboard"
+            element={<Navigate to="/partner/artist" replace />}
+          />
+          <Route
+            path="orders"
+            element={<ArtistOrdersPage />}
+          />
+          <Route
+            path="orders/:orderId"
+            element={<ArtistOrderDetailPage />}
+          />
+          <Route
+            path="drop/:id"
+            element={<Navigate to="/partner/artist/drops" replace />}
+          />
+          <Route
+            path="products"
+            element={<ArtistProductsPage />}
+          />
+          <Route
+            path="products/:id/variants"
+            element={<ArtistProductVariantsPage />}
+          />
+          <Route
+            path="drops"
+            element={<ArtistDropsPage />}
+          />
+        </Route>
+        <Route
+          path="label"
+          element={requireAuthElement(<LabelDashboard />)}
+        />
+        <Route
+          path="label/orders"
+          element={requireAuthElement(<LabelDashboard />)}
+        />
+        <Route
+          path="label/orders/:id"
+          element={requireAuthElement(<LabelDashboard />)}
+        />
+        <Route
+          path="label/artists"
+          element={requireAuthElement(<LabelDashboard />)}
+        />
+        <Route
+          path="label/artists/:artistId"
+          element={requireAuthElement(<LabelArtistDetailPage />)}
+        />
+        <Route
+          path="label/artist/:artistId"
+          element={requireAuthElement(<ParamsRedirect to={(params) => `/partner/label/artists/${params.artistId ?? ''}`} />)}
+        />
+        <Route
+          path="admin"
+          element={requireAuthElement(<AdminDashboard />)}
+        />
+        <Route
+          path="admin/orders"
+          element={requireAuthElement(<AdminOrders />)}
+        />
+        <Route
+          path="admin/artist-requests"
+          element={requireAuthElement(<AdminArtistRequests />)}
+        />
+        <Route
+          path="admin/leads"
+          element={requireAuthElement(<AdminLeadsPage />)}
+        />
+        <Route
+          path="admin/artists"
+          element={requireAuthElement(<AdminArtistsPage />)}
+        />
+        <Route
+          path="admin/artists/:id"
+          element={requireAuthElement(<AdminArtistDetailPage />)}
+        />
+        <Route
+          path="admin/artists/:id/edit"
+          element={requireAuthElement(<AdminArtistEditPage />)}
+        />
+        <Route
+          path="admin/products"
+          element={requireAuthElement(<AdminProductsPage />)}
+        />
+        <Route
+          path="admin/products/new"
+          element={requireAuthElement(<AdminCreateProductPage />)}
+        />
+        <Route
+          path="admin/drops"
+          element={requireAuthElement(<AdminDropsPage />)}
+        />
+        <Route
+          path="admin/homepage-banners"
+          element={requireAuthElement(<AdminHomepageBannersPage />)}
+        />
+        <Route
+          path="admin/products/:productId/variants"
+          element={requireAuthElement(<AdminProductVariants />)}
+        />
+        <Route
+          path="admin/orders/:id"
+          element={requireAuthElement(<AdminOrderDetail />)}
+        />
+        <Route
+          path="admin/order/:id"
+          element={requireAuthElement(<AdminOrderDetail />)}
+        />
+      </Route>
       <Route path="/logout" element={<LogoutPage />} />
       <Route path="/status" element={<StatusPage />} />
       <Route path="/me" element={<MePage />} />
@@ -1070,121 +1213,11 @@ function AppRoutes() {
         <Route path="addresses" element={<BuyerAddressesPage />} />
         <Route path="payment-methods" element={<BuyerPaymentMethodsPage />} />
       </Route>
-      <Route
-        path="/partner/artist"
-        element={requireAuthElement(<Outlet />)}
-      >
-        <Route index element={<ArtistDashboard />} />
-        <Route
-          path="dashboard"
-          element={<Navigate to="/partner/artist" replace />}
-        />
-        <Route
-          path="orders"
-          element={<ArtistOrdersPage />}
-        />
-        <Route
-          path="orders/:orderId"
-          element={<ArtistOrderDetailPage />}
-        />
-        <Route
-          path="drop/:id"
-          element={<Navigate to="/partner/artist/drops" replace />}
-        />
-        <Route
-          path="products"
-          element={<ArtistProductsPage />}
-        />
-        <Route
-          path="products/:id/variants"
-          element={<ArtistProductVariantsPage />}
-        />
-        <Route
-          path="drops"
-          element={<ArtistDropsPage />}
-        />
-      </Route>
-      <Route
-        path="/partner/label"
-        element={requireAuthElement(<LabelDashboard />)}
-      />
-      <Route
-        path="/partner/label/orders"
-        element={requireAuthElement(<LabelDashboard />)}
-      />
-      <Route
-        path="/partner/label/orders/:id"
-        element={requireAuthElement(<LabelDashboard />)}
-      />
-      <Route
-        path="/partner/label/artists"
-        element={requireAuthElement(<LabelDashboard />)}
-      />
-      <Route
-        path="/partner/label/artists/:artistId"
-        element={requireAuthElement(<LabelArtistDetailPage />)}
-      />
-      <Route
-        path="/partner/label/artist/:artistId"
-        element={requireAuthElement(<ParamsRedirect to={(params) => `/partner/label/artists/${params.artistId ?? ''}`} />)}
-      />
-      <Route
-        path="/partner/admin"
-        element={requireAuthElement(<AdminDashboard />)}
-      />
-      <Route
-        path="/partner/admin/orders"
-        element={requireAuthElement(<AdminOrders />)}
-      />
-      <Route
-        path="/partner/admin/artist-requests"
-        element={requireAuthElement(<AdminArtistRequests />)}
-      />
-      <Route
-        path="/partner/admin/leads"
-        element={requireAuthElement(<AdminLeadsPage />)}
-      />
-      <Route
-        path="/partner/admin/artists"
-        element={requireAuthElement(<AdminArtistsPage />)}
-      />
-      <Route
-        path="/partner/admin/artists/:id"
-        element={requireAuthElement(<AdminArtistDetailPage />)}
-      />
-      <Route
-        path="/partner/admin/artists/:id/edit"
-        element={requireAuthElement(<AdminArtistEditPage />)}
-      />
-      <Route
-        path="/partner/admin/products"
-        element={requireAuthElement(<AdminProductsPage />)}
-      />
-      <Route
-        path="/partner/admin/products/new"
-        element={requireAuthElement(<AdminCreateProductPage />)}
-      />
-      <Route
-        path="/partner/admin/drops"
-        element={requireAuthElement(<AdminDropsPage />)}
-      />
-      <Route
-        path="/partner/admin/homepage-banners"
-        element={requireAuthElement(<AdminHomepageBannersPage />)}
-      />
-      <Route
-        path="/partner/admin/products/:id/variants"
-        element={requireAuthElement(<AdminProductVariants />)}
-      />
-      <Route
-        path="/partner/admin/orders/:id"
-        element={requireAuthElement(<AdminOrderDetail />)}
-      />
-      <Route
-        path="/partner/admin/order/:id"
-        element={requireAuthElement(<AdminOrderDetail />)}
-      />
       <Route path="/buyer" element={<LegacyRedirect to="/fan" />} />
+      <Route
+        path="/account"
+        element={<Navigate to="/fan" replace />}
+      />
       <Route path="/buyer/orders" element={<LegacyRedirect to="/fan/orders" />} />
       <Route
         path="/buyer/orders/:id"
@@ -1285,10 +1318,10 @@ function AppRoutes() {
         element={<LegacyRedirect to="/partner/admin/homepage-banners" />}
       />
       <Route
-        path="/admin/products/:id/variants"
+        path="/admin/products/:productId/variants"
         element={
           <ParamsRedirect
-            to={(params) => `/partner/admin/products/${params.id ?? ''}/variants`}
+            to={(params) => `/partner/admin/products/${params.productId ?? ''}/variants`}
           />
         }
       />
@@ -1322,6 +1355,7 @@ export default function App() {
     <CartProvider>
       <ToastProvider>
         <AppRoutes />
+        <ThemeToggle />
       </ToastProvider>
     </CartProvider>
   );

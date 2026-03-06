@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import AppShell from '../../components/layout/AppShell';
+import { Link } from 'react-router-dom';
 import DataTable, { TableColumn } from '../../components/ui/DataTable';
 import LoadingSkeleton from '../../components/ux/LoadingSkeleton';
 import ErrorBanner from '../../components/ux/ErrorBanner';
 import { apiFetch } from '../../shared/api/http';
+import { Page, Container } from '../../ui/Page';
 
 type DropRecord = {
   id?: string;
@@ -120,12 +121,12 @@ export default function ArtistDropsPage() {
                   type="button"
                   onClick={() => runAction(row, 'publish')}
                   disabled={actionLoadingId === rowId || productCount === 0}
-                  className="rounded-lg border border-white/20 px-2 py-1 text-xs text-white/90 hover:bg-white/10 disabled:opacity-60"
+                  className="rounded-lg border border-slate-200 dark:border-white/20 bg-white dark:bg-transparent px-2 py-1 text-[10px] uppercase tracking-wider text-slate-700 dark:text-white/90 hover:bg-slate-50 dark:hover:bg-white/10 disabled:opacity-60 transition-colors"
                 >
                   {actionLoadingId === rowId ? 'Publishing...' : 'Publish'}
                 </button>
                 {productCount === 0 && (
-                  <span className="text-[11px] text-amber-300">Add a product to publish</span>
+                  <span className="text-[10px] uppercase tracking-tight text-amber-600 dark:text-amber-400">Add product</span>
                 )}
               </div>
             );
@@ -136,7 +137,7 @@ export default function ArtistDropsPage() {
                 type="button"
                 onClick={() => runAction(row, 'unpublish')}
                 disabled={actionLoadingId === rowId}
-                className="rounded-lg border border-white/20 px-2 py-1 text-xs text-white/90 hover:bg-white/10 disabled:opacity-60"
+                className="rounded-lg border border-slate-200 dark:border-white/20 bg-white dark:bg-transparent px-2 py-1 text-[10px] uppercase tracking-wider text-slate-700 dark:text-white/90 hover:bg-slate-50 dark:hover:bg-white/10 disabled:opacity-60 transition-colors"
               >
                 {actionLoadingId === rowId ? 'Unpublishing...' : 'Unpublish'}
               </button>
@@ -152,47 +153,55 @@ export default function ArtistDropsPage() {
   const hasRows = rows.length > 0;
 
   return (
-    <AppShell title="Drops" subtitle="Read-only list">
-      {loading && <LoadingSkeleton count={3} />}
-      {error && (
-        <ErrorBanner
-          message={error}
-          onRetry={() => {
-            loadDrops();
-          }}
-        />
-      )}
-      {notice && (
-        <p
-          role="status"
-          className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-3 text-sm text-emerald-100"
-        >
-          {notice}
-        </p>
-      )}
-      {!loading && !hasRows && !error && (
-        <p className="rounded-xl border border-white/10 bg-slate-950/60 p-4 text-xs text-white/70">
-          No drops yet.
-        </p>
-      )}
-      {!loading && hasRows && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 shadow-lg">
-          <div className="flex border-b border-white/10 px-4 py-3 text-[10px] uppercase tracking-[0.35em] text-slate-400">
-            {['ID', 'Title', 'Status', 'Start', 'End', 'Updated', 'Actions'].map((label) => (
-              <span key={label} className="flex-1">
-                {label}
-              </span>
-            ))}
+    <Page>
+      <Container className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Artist</p>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Artist Drops</h1>
           </div>
-          <div className="overflow-auto">
-            <DataTable columns={columns} rows={rows} />
-          </div>
+          <Link
+            to="/partner/artist"
+            className="rounded-full border border-slate-200 dark:border-white/30 bg-white dark:bg-transparent px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
+          >
+            Back to dashboard
+          </Link>
         </div>
-      )}
-      <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
-        <p className="text-xs uppercase tracking-[0.35em] text-slate-500">Data source</p>
-        <p>GET /api/artist/drops</p>
-      </div>
-    </AppShell>
+
+        {loading && <LoadingSkeleton count={3} />}
+        {error && (
+          <ErrorBanner
+            message={error}
+            onRetry={() => {
+              loadDrops();
+            }}
+          />
+        )}
+        {notice && (
+          <p
+            role="status"
+            className="rounded-xl border border-emerald-400/40 bg-emerald-50 dark:bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-100"
+          >
+            {notice}
+          </p>
+        )}
+        {!loading && !hasRows && !error && (
+          <p className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/60 p-4 text-xs text-slate-500 dark:text-white/70 italic">
+            No drops yet.
+          </p>
+        )}
+        {!loading && hasRows && (
+          <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 shadow-lg">
+            <div className="overflow-auto">
+              <DataTable columns={columns} rows={rows} />
+            </div>
+          </div>
+        )}
+        <div className="mt-8 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+          <p className="text-[10px] uppercase tracking-[0.35em] text-slate-500 dark:text-slate-500">Data source</p>
+          <p className="font-mono text-xs">GET /api/artist/drops</p>
+        </div>
+      </Container>
+    </Page>
   );
 }

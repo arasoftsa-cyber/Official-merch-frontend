@@ -40,24 +40,12 @@ export default function ProductCardPublic({ product, href, onClick }: ProductCar
       to={productHref}
       onClick={onClick}
       data-testid="product-card"
-      className="group block h-full overflow-hidden rounded-xl border border-white/10 bg-[#1f1f1f] transition-all duration-200 hover:-translate-y-0.5 hover:border-white/30 hover:bg-[#252525] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111]"
-      style={{
-        borderRadius: 12,
-        border: '1px solid rgba(255,255,255,0.1)',
-        textDecoration: 'none',
-        color: '#fff',
-        display: 'block',
-        minHeight: 320,
-      }}
+      className="group block h-full overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1f1f1f] text-slate-900 dark:text-white transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-white/30 hover:bg-slate-50 dark:hover:bg-[#252525] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60 dark:focus-visible:ring-white/70 focus-visible:ring-offset-2"
+      style={{ borderRadius: 12, textDecoration: 'none', display: 'block', minHeight: 320 }}
     >
       <div
-        style={{
-          aspectRatio: '4 / 3',
-          width: '100%',
-          overflow: 'hidden',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-          background: '#171717',
-        }}
+        className="border-b border-slate-100 dark:border-white/[0.08] bg-slate-100 dark:bg-[#171717]"
+        style={{ aspectRatio: '4 / 3', width: '100%', overflow: 'hidden' }}
       >
         {cardImageUrl && !imageLoadFailed ? (
           <img
@@ -69,27 +57,12 @@ export default function ProductCardPublic({ product, href, onClick }: ProductCar
               event.currentTarget.onerror = null;
               setImageLoadFailed(true);
             }}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: 'block',
-            }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
         ) : (
           <div
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'rgba(255,255,255,0.65)',
-              fontSize: '0.78rem',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              background: 'linear-gradient(180deg, #222 0%, #181818 100%)',
-            }}
+            className="flex h-full w-full items-center justify-center bg-gradient-to-b from-slate-200 to-slate-100 dark:from-[#222] dark:to-[#181818] text-slate-400 dark:text-white/65"
+            style={{ fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase' }}
           >
             No image
           </div>
@@ -97,6 +70,7 @@ export default function ProductCardPublic({ product, href, onClick }: ProductCar
       </div>
       <div style={{ padding: '0.85rem 1rem 0.95rem', minHeight: 104 }}>
         <h3
+          className="text-slate-900 dark:text-white"
           style={{
             margin: 0,
             fontSize: '0.98rem',
@@ -111,10 +85,10 @@ export default function ProductCardPublic({ product, href, onClick }: ProductCar
           {product.title}
         </h3>
         <p
+          className="text-slate-500 dark:text-white/70"
           style={{
             margin: '0.45rem 0 0',
             fontSize: '0.82rem',
-            opacity: 0.72,
             minHeight: '2.4em',
             overflow: 'hidden',
             display: '-webkit-box',

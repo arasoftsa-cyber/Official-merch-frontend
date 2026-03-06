@@ -1,20 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
-import Input from '../../components/ui/Input';
-import Label from '../../components/ui/Label';
-import { logoutAuth } from '../../lib/api/auth';
-import {
-  setAccessToken,
-  setRefreshToken,
-  clearTokens,
-} from '../../shared/auth/tokenStore';
-import { apiFetch } from '../../shared/api/http';
+import { apiPost } from '../../lib/api';
+import PublicLayout from '../../shared/layout/PublicLayout';
+import { clearTokens, setAccessToken, setRefreshToken } from '../../shared/auth/tokenStore';
 
-const LOGIN_CONTEXT_KEY = 'om_login_context';
 const FAN_ALLOWED_ROLES = new Set(['buyer', 'fan', 'customer']);
-const PARTNER_PORTAL_ERROR_MESSAGE =
-  'This is a partner/admin account. Please log in via the partner portal.';
+const ROLE_NOT_ALLOWED_MESSAGE = 'This account is for the Partner Portal. Go to Partner Login';
 
 function resolveRole(payload: any): string {
   const role =
@@ -25,188 +17,190 @@ function resolveRole(payload: any): string {
   return String(role || '').toLowerCase();
 }
 
-export default function FanLoginPage() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const params = new URLSearchParams(location.search);
-  const portalError = params.get('portalError');
-  const rawReturn =
-    params.get('returnTo') || params.get('returnUrl') || params.get('next') || '/fan';
-  let redirectTarget = rawReturn;
+function toSafeReturnTo(raw: string | null): string {
+  const value = String(raw || '').trim();
+  if (!value) return '/fan';
   try {
-    redirectTarget = decodeURIComponent(rawReturn);
+    const decoded = decodeURIComponent(value);
+    if (decoded.startsWith('/') && !decoded.startsWith('//')) return decoded;
   } catch {
-    redirectTarget = rawReturn;
+    // ignore malformed returnTo
   }
-  const safeRedirectTarget =
-    redirectTarget.startsWith('/') && !redirectTarget.startsWith('//') ? redirectTarget : '/';
-  const partnerLinkTarget = `/partner/login?returnTo=${encodeURIComponent(
-    safeRedirectTarget
-  )}`;
-  const registerLinkTarget = `/fan/register?returnTo=${encodeURIComponent(safeRedirectTarget)}`;
+  return '/fan';
+}
+
+export default function FanLoginPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = new URLSearchParams(location.search).get('returnTo') ?? '/fan';
+  const safeReturnTo = toSafeReturnTo(returnTo);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [partnerRedirect, setPartnerRedirect] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const emailRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    localStorage.setItem(LOGIN_CONTEXT_KEY, 'fan');
-  }, []);
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setFormError(null);
+    if (isSubmitting) return;
     setIsSubmitting(true);
-    localStorage.setItem(LOGIN_CONTEXT_KEY, 'fan');
+    setError(null);
+    setPartnerRedirect(null);
+
     try {
-      const loginResponse = await apiFetch('/auth/login', {
-        method: 'POST',
-        body: { email, password },
-      });
-
-      const accessToken =
-        loginResponse?.accessToken ||
-        loginResponse?.token ||
-        loginResponse?.data?.accessToken ||
-        loginResponse?.access_token ||
-        null;
-      const refreshToken =
-        loginResponse?.refreshToken ||
-        loginResponse?.data?.refreshToken ||
-        loginResponse?.refresh_token ||
-        null;
-
-      if (!accessToken) {
-        throw new Error('Missing access token');
+      const res: any = await apiPost('/auth/fan/login', { email, password });
+      const role = resolveRole(res);
+      if (role && !FAN_ALLOWED_ROLES.has(role)) {
+        clearTokens();
+        setError(ROLE_NOT_ALLOWED_MESSAGE);
+        setPartnerRedirect('/partner/login');
+        return;
       }
 
-      setAccessToken(accessToken);
+      const accessToken = res?.accessToken || res?.token || '';
+      const refreshToken = res?.refreshToken || '';
+      if (accessToken) {
+        setAccessToken(accessToken);
+      }
       if (refreshToken) {
         setRefreshToken(refreshToken);
       }
 
-      let role = resolveRole(loginResponse);
-      if (!role) {
-        const me = await apiFetch('/auth/whoami');
-        role = resolveRole(me);
-      }
-      if (!FAN_ALLOWED_ROLES.has(role)) {
-        clearTokens();
-        void logoutAuth().catch(() => undefined);
-        setFormError(PARTNER_PORTAL_ERROR_MESSAGE);
-        return;
-      }
-
-      localStorage.removeItem(LOGIN_CONTEXT_KEY);
-      navigate(safeRedirectTarget || '/', { replace: true });
+      navigate(safeReturnTo, { replace: true });
     } catch (err: any) {
-      setFormError(err?.message ?? 'Login failed');
+      const status = Number(err?.status || 0);
+      const body = err?.payload || null;
+      if (status === 403 && body?.error === 'ROLE_NOT_ALLOWED') {
+        clearTokens();
+        setError(ROLE_NOT_ALLOWED_MESSAGE);
+        setPartnerRedirect(String(body?.redirectTo || '/partner/login'));
+      } else {
+        setError(err?.message || 'Login failed');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="relative min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center px-4 overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 opacity-30">
-        <div className="absolute -left-16 top-1/4 h-64 w-64 blur-[120px] bg-gradient-to-br from-amber-500/20 via-transparent to-transparent" />
-        <div className="absolute right-0 bottom-0 h-64 w-64 blur-[160px] bg-gradient-to-br from-purple-600/20 via-transparent to-transparent" />
-      </div>
-      <Card className="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.06] p-10 shadow-2xl backdrop-blur">
-        <div className="space-y-2 text-center">
-          <span className="inline-flex items-center justify-center gap-1 rounded-full border border-white/15 bg-white/10 px-3 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.35em] text-slate-200">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-slate-900 text-[0.55rem] font-bold">OM</span>
-            OfficialMerch
-          </span>
-          <h1 className="text-3xl font-semibold tracking-tight text-white">Fan login</h1>
-          <p className="mt-2 text-sm text-white/70">Welcome back. Access your orders and favorites.</p>
+    <PublicLayout>
+      <div className="relative min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center px-4 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 opacity-30">
+          <div className="absolute -left-16 top-1/4 h-64 w-64 blur-[120px] bg-gradient-to-br from-amber-500/20 via-transparent to-transparent" />
+          <div className="absolute right-0 bottom-0 h-64 w-64 blur-[160px] bg-gradient-to-br from-purple-600/20 via-transparent to-transparent" />
         </div>
-        <form onSubmit={handleSubmit} className="space-y-5 mt-8">
-          <div className="space-y-2">
-            <Label htmlFor="fan-email" className="text-sm text-white/60">
-              Email
-            </Label>
-            <Input
-              id="fan-email"
-              type="email"
-              name="email"
-              value={email}
-              ref={emailRef}
-              onChange={(event) => setEmail(event.target.value)}
-              autoFocus
-              required
-              placeholder="you@example.com"
-              data-testid="login-email"
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 outline-none transition focus:ring-2 focus:ring-white/20 placeholder:text-slate-400"
-            />
+        <Card className="relative z-10 w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.06] p-10 shadow-2xl backdrop-blur">
+          <div className="mb-10 text-center">
+            <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">Fan login</h1>
+            <p className="mt-4 text-sm text-slate-500 dark:text-white/60">
+              Welcome back. Access your orders and favorites.
+            </p>
           </div>
-          <div className="space-y-2 relative">
-            <Label htmlFor="fan-password" className="text-sm text-white/60">
-              Password
-            </Label>
-            <Input
-              id="fan-password"
-              type={showPassword ? 'text' : 'password'}
-              name="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              placeholder="••••••••"
-              data-testid="login-password"
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 pr-16 outline-none transition focus:ring-2 focus:ring-white/20 placeholder:text-slate-400"
-            />
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/5 px-3 py-1 text-[0.55rem] font-semibold uppercase tracking-[0.45em] text-slate-300/80 transition duration-150 hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
-              onClick={() => setShowPassword((prev) => !prev)}
-              aria-pressed={showPassword}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+
+          {error && (
+            <div
+              data-testid={partnerRedirect ? 'fan-login-role-not-allowed' : undefined}
+              className="mb-6 w-full rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-600 dark:border-rose-500/20 dark:bg-rose-500/5 dark:text-rose-400"
             >
-              {showPassword ? 'Hide' : 'Show'}
+              <p>{error}</p>
+              {partnerRedirect && (
+                <Link
+                  data-testid="fan-login-partner-link"
+                  to={`${partnerRedirect}?returnTo=${encodeURIComponent(safeReturnTo)}`}
+                  className="mt-2 inline-block font-semibold underline underline-offset-4"
+                >
+                  Go to Partner Login
+                </Link>
+              )}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="w-full space-y-6">
+            <div className="space-y-2">
+              <label htmlFor="email" className="px-1 text-sm font-medium text-slate-500 dark:text-white/40">
+                Email
+              </label>
+              <input
+                id="email"
+                data-testid="fan-login-email"
+                type="email"
+                name="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 text-base text-slate-900 outline-none transition focus:border-slate-900 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:focus:border-white/30"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <label htmlFor="password" className="text-sm font-medium text-slate-500 dark:text-white/40">
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-[10px] font-bold uppercase tracking-widest text-slate-400 transition hover:text-slate-900 dark:text-white/30 dark:hover:text-white"
+                >
+                  Forgot?
+                </Link>
+              </div>
+              <div className="relative">
+                <input
+                  id="password"
+                  data-testid="fan-login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 pr-20 text-base text-slate-900 outline-none transition focus:border-slate-900 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:focus:border-white/30"
+                  placeholder="********"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-slate-100 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-white/40 dark:hover:bg-white/10 dark:hover:text-white"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+
+            <button
+              data-testid="fan-login-submit"
+              type="submit"
+              disabled={isSubmitting}
+              className="h-14 w-full rounded-2xl bg-slate-900 text-base font-bold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-[#9c9c9c] dark:text-black dark:hover:bg-[#b0b0b0]"
+            >
+              {isSubmitting ? 'Authenticating...' : 'Sign In'}
             </button>
+          </form>
+
+          <div className="mt-8 flex flex-col items-center gap-2 text-sm text-slate-500 dark:text-white/40">
+            <p>
+              New here?{' '}
+              <Link
+                to={`/fan/register?returnTo=${encodeURIComponent(safeReturnTo)}`}
+                className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
+              >
+                Sign up
+              </Link>
+            </p>
+            <p>
+              Are you an artist?{' '}
+              <Link
+                to={`/partner/login?returnTo=${encodeURIComponent(safeReturnTo)}`}
+                className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
+              >
+                Partner Login
+              </Link>
+            </p>
           </div>
-          <div className="min-h-[2.5rem]">
-            {portalError === 'fan_account' && (
-              <div role="alert" className="mb-3 rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-sm text-amber-100">
-                This is a fan account. Please log in via Fan portal.
-              </div>
-            )}
-            {portalError === 'partner_account' && (
-              <div role="alert" className="mb-3 rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-sm text-amber-100">
-                This account is a partner/admin account. Please log in via Partner portal.
-              </div>
-            )}
-            {formError && (
-              <div role="alert" className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-200">
-                {formError}
-              </div>
-            )}
-          </div>
-          <button
-            type="submit"
-            disabled={isSubmitting || !email || !password}
-            aria-busy={isSubmitting}
-            data-testid="login-submit"
-            className="mt-2 w-full rounded-2xl bg-white/95 text-black py-3 font-medium transition hover:bg-white active:opacity-90 disabled:opacity-60"
-          >
-            {isSubmitting ? 'Logging in…' : 'Login'}
-          </button>
-        </form>
-        <div className="text-xs text-center text-slate-400 mt-4 space-y-2">
-          <p>
-            Need an account? <Link className="underline" to={registerLinkTarget}>Create one</Link>.
-          </p>
-          <p>
-            Partner?{' '}
-            <Link className="underline" to={partnerLinkTarget}>
-              Login here
-            </Link>
-            .
-          </p>
-        </div>
-      </Card>
-    </div>
+        </Card>
+      </div>
+    </PublicLayout>
   );
 }

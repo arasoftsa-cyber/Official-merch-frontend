@@ -30,10 +30,10 @@ const formatDate = (value?: string | null) => {
 };
 
 const statusChipClass = (status: LeadStatus) => {
-  if (status === 'converted') return 'bg-emerald-500/20 text-emerald-200 ring-emerald-400/30';
-  if (status === 'contacted') return 'bg-sky-500/20 text-sky-200 ring-sky-400/30';
-  if (status === 'ignored') return 'bg-rose-500/20 text-rose-200 ring-rose-400/30';
-  return 'bg-white/10 text-slate-100 ring-white/20';
+  if (status === 'converted') return 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-200 ring-emerald-400/30';
+  if (status === 'contacted') return 'bg-sky-50 dark:bg-sky-500/20 text-sky-600 dark:text-sky-200 ring-sky-400/30';
+  if (status === 'ignored') return 'bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-200 ring-rose-400/30';
+  return 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-100 ring-slate-200 dark:ring-white/20';
 };
 
 export default function AdminLeadsPage() {
@@ -78,8 +78,8 @@ export default function AdminLeadsPage() {
     return Array.isArray(payload?.items)
       ? payload.items
       : Array.isArray(payload)
-      ? payload
-      : [];
+        ? payload
+        : [];
   }, []);
 
   useEffect(() => {
@@ -251,27 +251,29 @@ export default function AdminLeadsPage() {
     <Page>
       <Container className="space-y-4">
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Admin</p>
-          <h1 className="text-3xl font-semibold text-white">Drop Quiz Leads</h1>
-          <p className="text-xs text-white/60">Canonical inbox: <code>/api/admin/leads</code>. Sorted by score desc, newest first.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Admin</p>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Drop Quiz Leads</h1>
+          <p className="text-xs text-slate-500 dark:text-white/60">
+            Canonical inbox: <code className="bg-slate-100 dark:bg-white/5 px-1 rounded text-indigo-600 dark:text-emerald-400">/api/admin/leads</code>. Sorted by score desc, newest first.
+          </p>
         </div>
 
-        {loading && <p className="text-sm text-white/70">Loading leads…</p>}
-        {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
+        {loading && <p className="text-sm text-slate-500 dark:text-white/70 animate-pulse">Loading leads…</p>}
+        {error && <p role="alert" className="text-sm font-medium text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 px-4 py-2 rounded-lg border border-rose-200 dark:border-rose-500/20">{error}</p>}
 
         {!loading && !error && (
           <>
-            <div className="overflow-auto rounded-2xl border border-white/10 bg-white/5">
-              <table className="min-w-full text-left text-sm text-slate-200">
-                <thead className="text-xs uppercase tracking-[0.2em] text-slate-400">
+            <div className="overflow-auto rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 shadow-sm transition-all duration-300">
+              <table className="min-w-full text-left text-sm text-slate-700 dark:text-slate-200">
+                <thead className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20">
                   <tr>
-                    <th className="px-3 py-2">Source</th>
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Contact</th>
-                    <th className="px-3 py-2">Drop</th>
-                    <th className="px-3 py-2">Score</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Created</th>
+                    <th className="px-4 py-3">Source</th>
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3">Contact</th>
+                    <th className="px-4 py-3">Drop</th>
+                    <th className="px-4 py-3">Score</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Created</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -279,30 +281,31 @@ export default function AdminLeadsPage() {
                     <tr
                       key={row.id}
                       onClick={() => setSelectedId(row.id)}
-                      className="cursor-pointer border-t border-white/10 hover:bg-white/10"
+                      className="cursor-pointer border-t border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
                     >
-                      <td className="px-3 py-2">{row.source ?? '—'}</td>
-                      <td className="px-3 py-2">{row.name ?? '—'}</td>
-                      <td className="px-3 py-2">{row.email ?? row.phone ?? '—'}</td>
-                      <td className="px-3 py-2">{row.drop_handle ?? '—'}</td>
-                      <td className="px-3 py-2">
-                        {row.score}/{row.maxScore}
+                      <td className="px-4 py-3 font-medium">{row.source ?? '—'}</td>
+                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">{row.name ?? '—'}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{row.email ?? row.phone ?? '—'}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{row.drop_handle ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className="font-bold text-slate-900 dark:text-white">{row.score}</span>
+                        <span className="text-slate-400">/{row.maxScore}</span>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-3">
                         <span
-                          className={`inline-flex rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.2em] ring-1 ${statusChipClass(
+                          className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ring-1 ring-inset ${statusChipClass(
                             row.status
                           )}`}
                         >
                           {row.status}
                         </span>
                       </td>
-                      <td className="px-3 py-2">{formatDate(row.created_at)}</td>
+                      <td className="px-4 py-3 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatDate(row.created_at)}</td>
                     </tr>
                   ))}
                   {sortedRows.length === 0 && (
                     <tr>
-                      <td className="px-3 py-6 text-center text-slate-400" colSpan={7}>
+                      <td className="px-4 py-8 text-center text-slate-500 dark:text-slate-400 italic" colSpan={7}>
                         No leads found.
                       </td>
                     </tr>
@@ -312,85 +315,114 @@ export default function AdminLeadsPage() {
             </div>
 
             {selectedRow && (
-              <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setSelectedId(null)}>
+              <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setSelectedId(null)}>
                 <section
-                  className="absolute right-0 top-0 h-full w-full max-w-lg space-y-3 overflow-auto border-l border-white/10 bg-slate-950 p-4"
+                  className="absolute right-0 top-0 h-full w-full max-w-lg space-y-6 overflow-auto border-l border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 p-6 shadow-2xl animate-in slide-in-from-right duration-300"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-300">
+                  <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-4">
+                    <h2 className="text-xs font-bold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-300 flex items-center gap-2">
+                      <span className="w-1 h-3 bg-indigo-500 dark:bg-emerald-500 rounded-full"></span>
                       Lead Detail
                     </h2>
                     <button
                       type="button"
                       onClick={() => setSelectedId(null)}
-                      className="rounded-full border border-white/20 px-3 py-1 text-xs text-white/80"
+                      className="rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-sm"
                     >
                       Close
                     </button>
                   </div>
-                  <div className="space-y-1 text-sm text-slate-200">
-                    <p><strong>Name:</strong> {selectedRow.name ?? '—'}</p>
-                    <p><strong>Email:</strong> {selectedRow.email ?? '—'}</p>
-                    <p><strong>Phone:</strong> {selectedRow.phone ?? '—'}</p>
-                    <p><strong>Drop:</strong> {selectedRow.drop_handle ?? '—'}</p>
-                    <p><strong>Score:</strong> {selectedRow.score}/{selectedRow.maxScore}</p>
-                    <p><strong>Updated:</strong> {formatDate(selectedRow.updated_at)}</p>
+                  <div className="space-y-3 text-sm text-slate-600 dark:text-slate-200">
+                    <p className="flex justify-between border-b border-slate-100 dark:border-white/5 pb-2">
+                      <span className="font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider">Name</span>
+                      <span className="font-medium text-slate-900 dark:text-white">{selectedRow.name ?? '—'}</span>
+                    </p>
+                    <p className="flex justify-between border-b border-slate-100 dark:border-white/5 pb-2">
+                      <span className="font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider">Email</span>
+                      <span className="font-medium text-slate-900 dark:text-white">{selectedRow.email ?? '—'}</span>
+                    </p>
+                    <p className="flex justify-between border-b border-slate-100 dark:border-white/5 pb-2">
+                      <span className="font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider">Phone</span>
+                      <span className="font-medium text-slate-900 dark:text-white">{selectedRow.phone ?? '—'}</span>
+                    </p>
+                    <p className="flex justify-between border-b border-slate-100 dark:border-white/5 pb-2">
+                      <span className="font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider">Drop</span>
+                      <span className="font-mono text-xs font-medium text-indigo-600 dark:text-emerald-400">{selectedRow.drop_handle ?? '—'}</span>
+                    </p>
+                    <p className="flex justify-between border-b border-slate-100 dark:border-white/5 pb-2">
+                      <span className="font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider">Score</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{selectedRow.score}/{selectedRow.maxScore}</span>
+                    </p>
+                    <p className="flex justify-between border-b border-slate-100 dark:border-white/5 pb-2">
+                      <span className="font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider">Updated</span>
+                      <span className="text-[12px]">{formatDate(selectedRow.updated_at)}</span>
+                    </p>
                   </div>
-                  <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
-                    <label className="block text-xs uppercase tracking-[0.2em] text-slate-300">
+                  <div className="space-y-4 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-5 shadow-inner">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
                       Status
                     </label>
                     <select
                       value={editorStatus}
                       onChange={(event) => setEditorStatus(event.target.value as LeadStatus)}
-                      className="w-full rounded-md border border-white/20 bg-slate-900 px-3 py-2 text-sm text-white"
+                      className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition appearance-none cursor-pointer"
                     >
                       {STATUS_OPTIONS.map((status) => (
-                        <option key={status} value={status}>
+                        <option key={status} value={status} className="dark:bg-slate-900">
                           {status}
                         </option>
                       ))}
                     </select>
-                    <label className="block text-xs uppercase tracking-[0.2em] text-slate-300">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
                       Internal note
                     </label>
                     <textarea
                       value={editorNote}
                       onChange={(event) => setEditorNote(event.target.value)}
                       rows={4}
-                      className="w-full rounded-md border border-white/20 bg-slate-900 px-3 py-2 text-sm text-white"
+                      className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition shadow-inner"
                       placeholder="Add internal note..."
                     />
-                    {saveError && <p className="text-xs text-rose-300">{saveError}</p>}
+                    {saveError && <p className="text-xs font-medium text-rose-600 dark:text-rose-300">{saveError}</p>}
                     <button
                       type="button"
                       onClick={saveLead}
                       disabled={saveLoading}
-                      className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white disabled:opacity-50"
+                      className="w-full rounded-xl bg-indigo-600 dark:bg-slate-700 px-6 py-2.5 text-xs font-bold uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 dark:shadow-black/20 hover:bg-indigo-700 dark:hover:bg-slate-600 transition disabled:opacity-50"
                     >
-                      {saveLoading ? 'Saving...' : 'Save'}
+                      {saveLoading ? 'Saving...' : 'Save Lead Changes'}
                     </button>
                   </div>
-                  <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Bridge</p>
-                    <p className="text-xs text-slate-400">
+                  <div className="space-y-3 rounded-2xl border border-emerald-100 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/5 p-5">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                      Lead Bridge
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                       Optional admin action: convert this lead into an artist access request.
                     </p>
-                    {convertError && <p className="text-xs text-rose-300">{convertError}</p>}
-                    {convertSuccess && <p className="text-xs text-emerald-300">{convertSuccess}</p>}
+                    {convertError && <p className="text-xs font-medium text-rose-600 dark:text-rose-300">{convertError}</p>}
+                    {convertSuccess && (
+                      <p className="rounded-lg bg-emerald-100 dark:bg-emerald-500/20 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30">
+                        {convertSuccess}
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={convertLeadToArtistRequest}
                       disabled={convertLoading}
-                      className="rounded-full border border-emerald-400/40 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-emerald-200 disabled:opacity-50"
+                      className="w-full rounded-xl border border-emerald-300 dark:border-emerald-400/40 bg-white dark:bg-transparent px-6 py-2.5 text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition shadow-sm disabled:opacity-50"
                     >
                       {convertLoading ? 'Converting...' : 'Convert lead -> artist request'}
                     </button>
                   </div>
-                  <pre className="max-h-64 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-slate-200">
-                    {JSON.stringify(selectedRow.answers_json ?? {}, null, 2)}
-                  </pre>
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">RAW ANSWERS</p>
+                    <pre className="max-h-64 overflow-auto rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-black/30 p-4 font-mono text-[10px] text-slate-600 dark:text-slate-300 shadow-inner">
+                      {JSON.stringify(selectedRow.answers_json ?? {}, null, 2)}
+                    </pre>
+                  </div>
                 </section>
               </div>
             )}

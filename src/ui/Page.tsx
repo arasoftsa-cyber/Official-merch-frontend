@@ -2,6 +2,7 @@ import React from 'react';
 
 type PageProps = {
   children: React.ReactNode;
+  className?: string;
 };
 
 type ContainerProps = {
@@ -14,8 +15,8 @@ type CardProps = {
   className?: string;
 };
 
-export function Page({ children }: PageProps) {
-  return <div className="min-h-screen bg-slate-950 text-slate-100">{children}</div>;
+export function Page({ children, className }: PageProps) {
+  return <div className={`min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 ${className ?? ''}`}>{children}</div>;
 }
 
 export function Container({ children, className }: ContainerProps) {
@@ -26,6 +27,6 @@ export function Container({ children, className }: ContainerProps) {
 
 export function Card({ children, className }: CardProps) {
   return (
-    <div className={`rounded-2xl bg-white/5 ring-1 ring-white/10 ${className ?? ''}`}>{children}</div>
+    <div className={`rounded-2xl bg-slate-50 dark:bg-white/5 ring-1 ring-slate-200 dark:ring-white/10 ${className ?? ''}`}>{children}</div>
   );
 }

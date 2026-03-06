@@ -39,17 +39,16 @@ export default function HeroBackgroundCarousel({
   if (normalizedImages.length === 0) return null;
 
   return (
-    <div className={`pointer-events-none absolute inset-0 z-0 bg-black ${className}`} aria-hidden>
+    <div className={`pointer-events-none absolute inset-0 z-0 bg-white dark:bg-black ${className}`} aria-hidden>
       {normalizedImages.map((image, index) => (
         <div
           key={`${image}-${index}`}
-          className={`absolute inset-0 scale-[1.03] bg-cover bg-center transition-opacity duration-1000 ease-in-out ${
-            index === activeIndex ? 'opacity-100' : 'opacity-0'
-          }`}
+          className={`absolute inset-0 scale-[1.03] bg-cover bg-center transition-opacity duration-1000 ease-in-out ${index === activeIndex ? 'opacity-100' : 'opacity-0'
+            }`}
           style={{ backgroundImage: `url(${image})` }}
         />
       ))}
-      <div className="absolute inset-0 bg-black/55 md:bg-black/45" />
+      <div className="absolute inset-0 bg-black/30 dark:bg-black/55 md:bg-black/20 md:dark:bg-black/45" />
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/45 to-black/70" />
       <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.4)]" />
     </div>

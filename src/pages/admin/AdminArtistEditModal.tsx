@@ -391,7 +391,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
 
       await apiFetch(`/admin/artists/${artistId}`, {
         method: 'PATCH',
-        body: payload,
+        body: JSON.stringify(payload) as any,
       });
 
       if (subscription?.id) {
@@ -427,7 +427,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
           try {
             const updated = await apiFetch(`/admin/artist-subscriptions/${subscription.id}`, {
               method: 'PATCH',
-              body: subscriptionPatchPayload,
+              body: JSON.stringify(subscriptionPatchPayload) as any,
             });
             setSubscription(normalizeAdminArtistSubscription(updated));
           } catch (err: any) {
@@ -454,41 +454,41 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="relative z-10 pointer-events-auto w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="relative z-10 pointer-events-auto w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950/95 shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="flex max-h-[90vh] flex-col">
-          <div className="shrink-0 border-b border-white/10 px-6 py-4">
+          <div className="shrink-0 border-b border-slate-200 dark:border-white/10 px-6 py-4 bg-slate-50 dark:bg-white/5">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg text-white">Edit artist</h2>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Edit artist</h2>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-white/20 px-2 py-1 text-xs text-white"
+                className="rounded-lg border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-sm"
               >
                 Close
               </button>
             </div>
           </div>
 
-          <div className="grow overflow-y-auto px-6 py-4 pr-5">
-            {error && <p className="text-sm text-rose-300">{error}</p>}
-            {loading && <p className="text-sm text-slate-300">Loading artist details...</p>}
+          <div className="grow overflow-y-auto px-6 py-6 pr-5">
+            {error && <p className="mb-4 rounded-lg bg-rose-50 dark:bg-rose-500/10 px-4 py-2 text-sm font-medium text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-500/20">{error}</p>}
+            {loading && <p className="text-sm text-slate-500 dark:text-slate-300 animate-pulse">Loading artist details...</p>}
 
             {!loading && detail && (
               <div className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="text-sm text-white">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Name
                     <input
                       value={form.name}
                       onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
                       disabled={!caps.canEditName || saving}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition disabled:opacity-50"
                     />
-                    {fieldErrors.name && <p className="mt-1 text-xs text-rose-300">{fieldErrors.name}</p>}
+                    {fieldErrors.name && <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">{fieldErrors.name}</p>}
                   </label>
 
-                  <label className="text-sm text-white">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Handle
                     <input
                       value={form.handle ? `@${form.handle.replace(/^@+/, '')}` : '-'}
@@ -496,48 +496,48 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                         setForm((prev) => ({ ...prev, handle: event.target.value.replace(/^@+/, '') }))
                       }
                       disabled={!caps.canEditHandle || saving}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white disabled:bg-black/30 disabled:text-slate-300"
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition disabled:bg-slate-100 dark:disabled:bg-black/30 disabled:text-slate-400 dark:disabled:text-slate-500"
                     />
                     {!caps.canEditHandle && (
-                      <p className="mt-1 text-xs text-slate-400">Handle cannot be changed after creation.</p>
+                      <p className="mt-1 text-[10px] lowercase text-slate-400 dark:text-slate-500">Handle cannot be changed after creation.</p>
                     )}
-                    {fieldErrors.handle && <p className="mt-1 text-xs text-rose-300">{fieldErrors.handle}</p>}
+                    {fieldErrors.handle && <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">{fieldErrors.handle}</p>}
                   </label>
 
-                  <label className="text-sm text-white">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Email
                     <input
                       value={emailEditable ? form.email : form.email || '-'}
                       onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
                       disabled={!emailEditable || saving}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white disabled:bg-black/30 disabled:text-slate-300"
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition disabled:bg-slate-100 dark:disabled:bg-black/30 disabled:text-slate-400 dark:disabled:text-slate-500"
                     />
                     {!emailEditable && (
-                      <p className="mt-1 text-xs text-slate-400">Email is not editable for this artist.</p>
+                      <p className="mt-1 text-[10px] lowercase text-slate-400 dark:text-slate-500">Email is not editable for this artist.</p>
                     )}
-                    {fieldErrors.email && <p className="mt-1 text-xs text-rose-300">{fieldErrors.email}</p>}
+                    {fieldErrors.email && <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">{fieldErrors.email}</p>}
                   </label>
 
-                  <label className="text-sm text-white">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Status
                     <select
                       value={form.status ?? ''}
                       onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))}
                       onMouseDown={focusOnPointerDown}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition appearance-none cursor-pointer"
                     >
                       {statusOptions.map((entry) => (
-                        <option key={entry} value={entry}>
+                        <option key={entry} value={entry} className="dark:bg-slate-900 text-slate-900 dark:text-white">
                           {entry}
                         </option>
                       ))}
                     </select>
-                    {fieldErrors.status && <p className="mt-1 text-xs text-rose-300">{fieldErrors.status}</p>}
+                    {fieldErrors.status && <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">{fieldErrors.status}</p>}
                   </label>
 
-                  <label className="text-sm text-white">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Featured
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex items-center gap-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/15 px-4 py-2.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10 transition">
                       <input
                         type="checkbox"
                         data-testid="admin-artist-featured-modal-toggle"
@@ -546,36 +546,36 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                           setForm((prev) => ({ ...prev, is_featured: event.target.checked }))
                         }
                         disabled={saving}
-                        className="h-4 w-4 rounded border border-white/20 bg-black/20 accent-emerald-400 disabled:opacity-50"
+                        className="h-5 w-5 rounded border border-slate-300 dark:border-white/20 bg-white dark:bg-black/30 accent-emerald-500 disabled:opacity-50 transition"
                       />
-                      <span className="text-xs text-slate-300">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         {form.is_featured ? 'Featured artist' : 'Not featured'}
                       </span>
                     </div>
                   </label>
 
-                  <label className="text-sm text-white md:col-span-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 md:col-span-2">
                     Phone
                     <input
                       value={form.phone}
                       onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
                       disabled={!caps.canEditPhone || saving}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white disabled:bg-black/30 disabled:text-slate-300"
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition disabled:bg-slate-100 dark:disabled:bg-black/30 disabled:text-slate-400 dark:disabled:text-slate-500"
                     />
                   </label>
 
-                  <label className="text-sm text-white md:col-span-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 md:col-span-2">
                     About
                     <textarea
                       value={form.about ?? ''}
                       onChange={(event) => setForm((prev) => ({ ...prev, about: event.target.value }))}
                       onMouseDown={focusOnPointerDown}
                       rows={4}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition min-h-[100px]"
                     />
                   </label>
 
-                  <label className="text-sm text-white md:col-span-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 md:col-span-2">
                     Message For Fans
                     <textarea
                       value={form.message_for_fans ?? ''}
@@ -584,33 +584,36 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                       }
                       onMouseDown={focusOnPointerDown}
                       rows={3}
-                      className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+                      className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition min-h-[80px]"
                     />
                   </label>
 
-                  <fieldset className="rounded-xl border border-white/10 p-3 md:col-span-2">
-                    <legend className="px-2 text-sm text-white">Socials</legend>
-                    <div className="space-y-2">
+                  <fieldset className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 p-5 md:col-span-2">
+                    <legend className="px-2 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                      <span className="w-1 h-3 bg-indigo-500 dark:bg-emerald-500 rounded-full"></span>
+                      Socials
+                    </legend>
+                    <div className="space-y-3">
                       {form.socials.map((social, index) => (
-                        <div key={`social-${index}`} className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
+                        <div key={`social-${index}`} className="grid gap-3 md:grid-cols-[1fr_2fr_auto]">
                           <input
                             value={social.platform}
                             onChange={(event) => updateSocial(index, 'platform', event.target.value)}
                             onMouseDown={focusOnPointerDown}
                             placeholder="Platform"
-                            className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+                            className="rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-4 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition"
                           />
                           <input
                             value={social.value}
                             onChange={(event) => updateSocial(index, 'value', event.target.value)}
                             onMouseDown={focusOnPointerDown}
                             placeholder="URL / Handle"
-                            className="rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+                            className="rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-4 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition"
                           />
                           <button
                             type="button"
                             onClick={() => removeSocial(index)}
-                            className="rounded-xl border border-white/20 px-3 py-2 text-xs uppercase tracking-[0.2em] text-white"
+                            className="rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition shadow-sm"
                           >
                             Remove
                           </button>
@@ -620,16 +623,19 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                     <button
                       type="button"
                       onClick={addSocial}
-                      className="mt-3 rounded-xl border border-white/20 px-3 py-2 text-xs uppercase tracking-[0.2em] text-white"
+                      className="mt-4 rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-sm inline-flex items-center gap-2"
                     >
-                      Add Social
+                      <span className="text-base">+</span> Add Social
                     </button>
                   </fieldset>
 
-                  <fieldset className="rounded-xl border border-white/10 p-3 md:col-span-2">
-                    <legend className="px-2 text-sm text-white">Profile Photo</legend>
-                    <div className="mt-2 flex flex-wrap items-start gap-4">
-                      <div className="h-24 w-24 overflow-hidden rounded-lg border border-white/15 bg-black/20">
+                  <fieldset className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 p-5 md:col-span-2">
+                    <legend className="px-2 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                      <span className="w-1 h-3 bg-indigo-500 dark:bg-emerald-500 rounded-full"></span>
+                      Profile Photo
+                    </legend>
+                    <div className="mt-4 flex flex-wrap items-start gap-6">
+                      <div className="h-24 w-24 overflow-hidden rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 shadow-inner flex shrink-0 ring-4 ring-slate-100 dark:ring-white/5">
                         {previewUrl || resolvedProfilePreviewUrl ? (
                           <img
                             src={previewUrl || resolvedProfilePreviewUrl || ''}
@@ -637,67 +643,76 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-[0.12em] text-slate-400">
+                          <div className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase tracking-widest text-slate-400">
                             No photo
                           </div>
                         )}
                       </div>
 
-                      <div className="min-w-[240px] flex-1 space-y-2">
-                        <input
-                          value={form.profilePhotoUrl}
-                          onChange={(event) =>
-                            setForm((prev) => ({ ...prev, profilePhotoUrl: event.target.value }))
-                          }
-                          disabled={!caps.canEditProfilePhoto || saving}
-                          placeholder="Profile photo URL"
-                          className="w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white disabled:bg-black/30 disabled:text-slate-300"
-                        />
-                        {caps.canUploadProfilePhoto && (
+                      <div className="min-w-[240px] flex-1 space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Image URL</label>
                           <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(event) => {
-                              const file = event.target.files?.[0] || null;
-                              setProfilePhotoFile(file);
-                            }}
+                            value={form.profilePhotoUrl}
+                            onChange={(event) =>
+                              setForm((prev) => ({ ...prev, profilePhotoUrl: event.target.value }))
+                            }
                             disabled={!caps.canEditProfilePhoto || saving}
-                            className="block w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white disabled:bg-black/30 disabled:text-slate-300"
+                            placeholder="https://example.com/photo.jpg"
+                            className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-4 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition disabled:bg-slate-100 dark:disabled:bg-black/30 disabled:text-slate-400"
                           />
+                        </div>
+                        {caps.canUploadProfilePhoto && (
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Upload File</label>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0] || null;
+                                setProfilePhotoFile(file);
+                              }}
+                              disabled={!caps.canEditProfilePhoto || saving}
+                              className="block w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-4 py-2 text-sm text-slate-900 dark:text-white file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 dark:file:bg-emerald-500/10 file:text-indigo-600 dark:file:text-emerald-300 hover:file:bg-indigo-100 dark:hover:file:bg-emerald-500/20 cursor-pointer disabled:opacity-50"
+                            />
+                          </div>
                         )}
                         {!caps.canEditProfilePhoto && (
-                          <p className="text-xs text-slate-400">Profile photo is not editable on this deployment.</p>
+                          <p className="text-[10px] lowercase text-slate-400 dark:text-slate-500 italic">Profile photo is not editable on this deployment.</p>
                         )}
                       </div>
                     </div>
                   </fieldset>
                 </div>
 
-                <fieldset className="rounded-xl border border-white/10 p-3">
-                  <legend className="px-2 text-sm text-white">Subscription</legend>
-                  {subscriptionLoading && <p className="text-sm text-slate-300">Loading subscription...</p>}
+                <fieldset className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 p-5">
+                  <legend className="px-2 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                    <span className="w-1 h-3 bg-indigo-500 dark:bg-emerald-500 rounded-full"></span>
+                    Subscription
+                  </legend>
+                  {subscriptionLoading && <p className="text-sm text-slate-500 dark:text-slate-300 animate-pulse">Loading subscription...</p>}
                   {!subscriptionLoading && subscriptionLoadError && (
-                    <p className="text-sm text-rose-300">{subscriptionLoadError}</p>
+                    <p className="text-sm text-rose-600 dark:text-rose-300 font-medium">{subscriptionLoadError}</p>
                   )}
                   {!subscriptionLoading && !subscriptionLoadError && !subscription && (
-                    <p className="text-sm text-slate-300">No active subscription</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 italic">No active subscription</p>
                   )}
                   {!subscriptionLoading && !subscriptionLoadError && subscription && (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="text-sm text-slate-300">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Requested Plan</p>
-                        <p className="mt-1 text-white">{toTitleCase(subscription.requestedPlanType)}</p>
+                    <div className="mt-4 grid gap-5 md:grid-cols-2">
+                      <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Requested Plan</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{toTitleCase(subscription.requestedPlanType)}</p>
                       </div>
-                      <div className="text-sm text-slate-300">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Approved Plan</p>
-                        <p className="mt-1 text-white">{toTitleCase(subscription.approvedPlanType)}</p>
+                      <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Approved Plan</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{toTitleCase(subscription.approvedPlanType)}</p>
                       </div>
-                      <div className="text-sm text-slate-300">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Start Date</p>
-                        <p className="mt-1 text-white">{toDateOnly(subscription.startDate) || '-'}</p>
+                      <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Start Date</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{toDateOnly(subscription.startDate) || '-'}</p>
                       </div>
 
-                      <label className="text-sm text-white">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         Subscription Status
                         <select
                           value={subscriptionForm.status}
@@ -706,20 +721,20 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                           }
                           onMouseDown={focusOnPointerDown}
                           disabled={saving}
-                          className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+                          className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition appearance-none cursor-pointer"
                         >
                           {SUBSCRIPTION_STATUS_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
+                            <option key={option} value={option} className="dark:bg-slate-900">
                               {option}
                             </option>
                           ))}
                         </select>
                         {subscriptionFieldErrors.status && (
-                          <p className="mt-1 text-xs text-rose-300">{subscriptionFieldErrors.status}</p>
+                          <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">{subscriptionFieldErrors.status}</p>
                         )}
                       </label>
 
-                      <label className="text-sm text-white">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         End Date
                         <input
                           type="date"
@@ -728,14 +743,14 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                             setSubscriptionForm((prev) => ({ ...prev, endDate: event.target.value }))
                           }
                           disabled={saving}
-                          className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white"
+                          className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition"
                         />
                         {subscriptionFieldErrors.endDate && (
-                          <p className="mt-1 text-xs text-rose-300">{subscriptionFieldErrors.endDate}</p>
+                          <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">{subscriptionFieldErrors.endDate}</p>
                         )}
                       </label>
 
-                      <label className="text-sm text-white">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         Payment Mode
                         <select
                           value={isAdvancedSubscription ? subscriptionForm.paymentMode : 'NA'}
@@ -744,13 +759,13 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                           }
                           onMouseDown={focusOnPointerDown}
                           disabled={!isAdvancedSubscription || saving}
-                          className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white disabled:bg-black/30 disabled:text-slate-300"
+                          className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition appearance-none cursor-pointer disabled:bg-slate-100 dark:disabled:bg-black/30 disabled:text-slate-400 dark:disabled:text-slate-500"
                         >
                           {isAdvancedSubscription ? (
                             <>
                               <option value="">Select payment mode</option>
                               {ADVANCED_PAYMENT_MODE_OPTIONS.map((option) => (
-                                <option key={option} value={option}>
+                                <option key={option} value={option} className="dark:bg-slate-900">
                                   {option}
                                 </option>
                               ))}
@@ -760,11 +775,11 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                           )}
                         </select>
                         {subscriptionFieldErrors.paymentMode && (
-                          <p className="mt-1 text-xs text-rose-300">{subscriptionFieldErrors.paymentMode}</p>
+                          <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">{subscriptionFieldErrors.paymentMode}</p>
                         )}
                       </label>
 
-                      <label className="text-sm text-white">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         Transaction ID
                         <input
                           value={isAdvancedSubscription ? subscriptionForm.transactionId : 'NA'}
@@ -772,36 +787,36 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                             setSubscriptionForm((prev) => ({ ...prev, transactionId: event.target.value }))
                           }
                           disabled={!isAdvancedSubscription || saving}
-                          className="mt-2 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white disabled:bg-black/30 disabled:text-slate-300"
+                          className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition disabled:bg-slate-100 dark:disabled:bg-black/30 disabled:text-slate-400 dark:disabled:text-slate-500"
                         />
                         {subscriptionFieldErrors.transactionId && (
-                          <p className="mt-1 text-xs text-rose-300">{subscriptionFieldErrors.transactionId}</p>
+                          <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-300">{subscriptionFieldErrors.transactionId}</p>
                         )}
                       </label>
                     </div>
                   )}
-                  {subscriptionSaveError && <p className="mt-3 text-sm text-rose-300">{subscriptionSaveError}</p>}
+                  {subscriptionSaveError && <p className="mt-4 rounded-lg bg-rose-50 dark:bg-rose-500/10 px-4 py-2 text-xs font-medium text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-500/20">{subscriptionSaveError}</p>}
                 </fieldset>
               </div>
             )}
           </div>
 
-          <div className="shrink-0 border-t border-white/10 px-6 py-4">
-            <div className="flex gap-2">
+          <div className="shrink-0 border-t border-slate-200 dark:border-white/10 px-6 py-4 bg-slate-50 dark:bg-white/5">
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-6 py-2.5 text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-sm"
+              >
+                Cancel
+              </button>
               <button
                 type="button"
                 onClick={save}
                 disabled={saving || loading || !detail}
-                className="rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white disabled:opacity-50"
+                className="rounded-xl bg-indigo-600 dark:bg-emerald-500 px-8 py-2.5 text-sm font-bold uppercase tracking-widest text-white shadow-lg shadow-indigo-500/20 dark:shadow-emerald-500/20 hover:bg-indigo-700 dark:hover:bg-emerald-600 transition disabled:opacity-50 disabled:shadow-none"
               >
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-xl border border-white/20 px-4 py-2 text-sm text-white"
-              >
-                Cancel
+                {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
