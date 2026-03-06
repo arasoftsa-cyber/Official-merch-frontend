@@ -51,9 +51,12 @@ export default function BuyerOrderDetailPage() {
     setLoading(true);
     setError(null);
     try {
+      const orderId = String(id).trim();
+      const path = `/api/orders/${orderId}`;
+      const eventsPath = `/api/orders/${orderId}/events`;
       const [detailPayload, eventsPayload] = await Promise.all([
-        apiGet(`/ api / orders / ${id} `),
-        apiGet(`/ api / orders / ${id}/events`).catch(() => []),
+        apiGet(path),
+        apiGet(eventsPath).catch(() => []),
       ]);
       setDetail(detailPayload);
       const normalizedEvents = Array.isArray(eventsPayload)

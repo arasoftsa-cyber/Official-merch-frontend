@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { apiPost } from '../../lib/api';
 import { setAccessToken } from '../../shared/auth/tokenStore';
 import { Page, Card } from '../../ui/Page';
 
 export default function FanRegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const params = new URLSearchParams(location.search);
-  const rawReturn =
-    params.get('returnTo') || params.get('next') || '/';
+  const rawReturn = params.get('returnTo') || params.get('next') || '/fan';
   let redirectTarget = rawReturn;
   try {
     redirectTarget = decodeURIComponent(rawReturn);
@@ -16,7 +16,7 @@ export default function FanRegisterPage() {
     redirectTarget = rawReturn;
   }
   const safeRedirectTarget =
-    redirectTarget.startsWith('/') && !redirectTarget.startsWith('//') ? redirectTarget : '/';
+    redirectTarget.startsWith('/') && !redirectTarget.startsWith('//') ? redirectTarget : '/fan';
   const loginLinkTarget = `/fan/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`;
   const partnerLinkTarget = `/partner/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`;
   const [name, setName] = useState('');
@@ -47,10 +47,10 @@ export default function FanRegisterPage() {
       const token = res?.accessToken || res?.token;
       if (token) {
         setAccessToken(token);
-        navigate(returnTo);
+        navigate(safeRedirectTarget);
       } else {
         // Backup: navigate to login if registration succeeded but didn't auto-login
-        navigate(`/fan/login?returnTo=${encodeURIComponent(returnTo)}`);
+        navigate(`/fan/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`);
       }
     } catch (err: any) {
       setError(err?.message || 'Registration failed');
@@ -174,7 +174,7 @@ export default function FanRegisterPage() {
             <p>
               Already have an account?{' '}
               <Link
-                to={`/fan/login?returnTo=${encodeURIComponent(returnTo)}`}
+                to={`/fan/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`}
                 className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
               >
                 Login
@@ -183,7 +183,7 @@ export default function FanRegisterPage() {
             <p>
               Are you an artist?{' '}
               <Link
-                to={`/partner/login?returnTo=${encodeURIComponent(returnTo)}`}
+                to={`/partner/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`}
                 className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
               >
                 Partner Portal
