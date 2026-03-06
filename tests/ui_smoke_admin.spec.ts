@@ -557,6 +557,24 @@ test.describe('Admin smoke', () => {
 
     await page.getByLabel(/transaction id/i).fill(`TX-${Date.now()}`);
 
+    const approveWithoutPasswordResponsePromise = page
+      .waitForResponse(
+        (r) =>
+          r.request().method() === 'POST' &&
+          /\/api\/admin\/artist-access-requests\/[^/]+\/approve/i.test(r.url()),
+        { timeout: 1200 }
+      )
+      .then(() => true)
+      .catch(() => false);
+    await page.getByRole('button', { name: /approve application/i }).click();
+    const approveWithoutPasswordResponse = await approveWithoutPasswordResponsePromise;
+    expect(approveWithoutPasswordResponse).toBe(false);
+    await expect(page.getByText(/artist login password is required|password is required/i)).toBeVisible({
+      timeout: 15000,
+    });
+
+    await page.getByTestId('admin-artist-approval-password').fill(`AdminSet-${Date.now()}!`);
+
     const approveRespPromise = page.waitForResponse(
       (r) => r.request().method() === 'POST' && /\/api\/admin\/artist-access-requests\/[^/]+\/approve/i.test(r.url()),
       { timeout: 30000 }

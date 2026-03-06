@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import ErrorBanner from '../../components/ux/ErrorBanner';
 import LoadingSkeleton from '../../components/ux/LoadingSkeleton';
 import { useToast } from '../../components/ux/ToastHost';
@@ -43,6 +43,7 @@ type ApproveFieldErrors = {
   finalPlanType?: string;
   paymentMode?: string;
   transactionId?: string;
+  approvalPassword?: string;
 };
 
 const formatStatus = (status?: string) => (status ? status.toUpperCase() : 'PENDING');
@@ -119,6 +120,7 @@ export default function AdminArtistRequests() {
   const [finalPlanType, setFinalPlanType] = useState<string>('basic');
   const [paymentMode, setPaymentMode] = useState<'cash' | 'online' | ''>('');
   const [transactionId, setTransactionId] = useState('');
+  const [approvalPassword, setApprovalPassword] = useState('');
   const [approveFieldErrors, setApproveFieldErrors] = useState<ApproveFieldErrors>({});
   const [premiumPlanEnabled, setPremiumPlanEnabled] = useState(false);
 
@@ -262,6 +264,7 @@ export default function AdminArtistRequests() {
     setFinalPlanType(defaultPlan);
     setPaymentMode('');
     setTransactionId('');
+    setApprovalPassword('');
     setApproveFieldErrors({});
     setRejectComment('');
     setModalError(null);
@@ -272,6 +275,7 @@ export default function AdminArtistRequests() {
     setFinalPlanType('basic');
     setPaymentMode('');
     setTransactionId('');
+    setApprovalPassword('');
     setApproveFieldErrors({});
     setRejectComment('');
     setModalError(null);
@@ -303,6 +307,12 @@ export default function AdminArtistRequests() {
             nextFieldErrors.transactionId = 'Transaction ID is required.';
           }
         }
+        const trimmedApprovalPassword = approvalPassword.trim();
+        if (!trimmedApprovalPassword) {
+          nextFieldErrors.approvalPassword = 'Artist login password is required.';
+        } else if (trimmedApprovalPassword.length < 8) {
+          nextFieldErrors.approvalPassword = 'Password must be at least 8 characters.';
+        }
         if (Object.keys(nextFieldErrors).length > 0) {
           setApproveFieldErrors(nextFieldErrors);
           setModalError('Please fix the approval fields.');
@@ -323,11 +333,9 @@ export default function AdminArtistRequests() {
               final_plan_type: normalizedFinalPlanType,
               payment_mode: normalizedFinalPlanType === 'basic' ? 'NA' : paymentMode,
               transaction_id: normalizedFinalPlanType === 'basic' ? 'NA' : transactionId.trim(),
+              password: approvalPassword.trim(),
             }
             : undefined;
-        if (action === 'approve') {
-          console.log('[approve] payload', approvalBody);
-        }
 
         await apiFetch(`${endpoint}/${request.id}/${action}`, {
           method: 'POST',
@@ -361,6 +369,9 @@ export default function AdminArtistRequests() {
           if (lower.includes('transaction_id')) {
             nextFieldErrors.transactionId = message;
           }
+          if (lower.includes('password')) {
+            nextFieldErrors.approvalPassword = message;
+          }
           setApproveFieldErrors(nextFieldErrors);
           setModalError(message);
         } else {
@@ -375,6 +386,7 @@ export default function AdminArtistRequests() {
       finalPlanType,
       loadRequests,
       notify,
+      approvalPassword,
       paymentMode,
       premiumPlanEnabled,
       rejectComment,
@@ -592,19 +604,19 @@ export default function AdminArtistRequests() {
                       <div className="space-y-4">
                         <div className="flex flex-col">
                           <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Artist Name</span>
-                          <span className="text-sm font-bold text-slate-900 dark:text-white">{reviewRequest.artistName || '—'}</span>
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">{reviewRequest.artistName || 'â€”'}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Handle</span>
-                          <span className="text-sm font-mono text-indigo-600 dark:text-emerald-400">@{reviewRequest.handle || '—'}</span>
+                          <span className="text-sm font-mono text-indigo-600 dark:text-emerald-400">@{reviewRequest.handle || 'â€”'}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Email</span>
-                          <span className="text-sm font-medium text-slate-900 dark:text-white">{reviewRequest.email || '—'}</span>
+                          <span className="text-sm font-medium text-slate-900 dark:text-white">{reviewRequest.email || 'â€”'}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Phone</span>
-                          <span className="text-sm font-medium text-slate-900 dark:text-white">{reviewRequest.phone || '—'}</span>
+                          <span className="text-sm font-medium text-slate-900 dark:text-white">{reviewRequest.phone || 'â€”'}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Requested Plan Type</span>
@@ -672,7 +684,7 @@ export default function AdminArtistRequests() {
                       <div>
                         <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Message For Fans</h4>
                         <div className="rounded-xl bg-slate-50 dark:bg-black/20 p-4 border border-slate-100 dark:border-white/5">
-                          <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 italic">"{reviewRequest.messageForFans || '—'}"</p>
+                          <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 italic">"{reviewRequest.messageForFans || 'â€”'}"</p>
                         </div>
                       </div>
                     </section>
@@ -807,6 +819,37 @@ export default function AdminArtistRequests() {
                           </label>
                         </div>
                       )}
+
+                      <label className="block">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2 block">
+                          Artist Login Password *
+                        </span>
+                        <input
+                          type="password"
+                          data-testid="admin-artist-approval-password"
+                          value={approvalPassword}
+                          onChange={(event) => {
+                            setApprovalPassword(event.target.value);
+                            setModalError(null);
+                            setApproveFieldErrors((prev) => {
+                              const updated = { ...prev };
+                              delete updated.approvalPassword;
+                              return updated;
+                            });
+                          }}
+                          disabled={savingId === reviewRequest.id}
+                          className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/40 px-5 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 dark:focus:ring-emerald-500/20 outline-none transition shadow-inner"
+                          placeholder="Enter artist login password"
+                        />
+                        <p className="mt-2 text-[10px] text-slate-400 italic">
+                          This password will be used by the artist to log in after approval.
+                        </p>
+                        {approveFieldErrors.approvalPassword && (
+                          <p className="mt-2 text-[10px] font-bold text-rose-600 dark:text-rose-300 uppercase tracking-widest">
+                            {approveFieldErrors.approvalPassword}
+                          </p>
+                        )}
+                      </label>
                     </div>
                   </div>
 
