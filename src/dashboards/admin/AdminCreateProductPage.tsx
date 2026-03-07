@@ -8,45 +8,152 @@ type Artist = {
   name?: string;
 };
 
+type InventorySku = {
+  id: string;
+  supplierSku: string;
+  supplier_sku?: string;
+  merchType: string;
+  merch_type?: string;
+  qualityTier: string | null;
+  quality_tier?: string | null;
+  size: string;
+  color: string;
+  stock: number;
+  isActive: boolean;
+  is_active?: boolean;
+  mrpCents: number | null;
+  mrp_cents?: number | null;
+};
+
 type FieldErrors = Record<string, string>;
 
-const COLOR_OPTIONS = ['black', 'white', 'yellow', 'maroon', 'navy_blue'] as const;
-const MERCH_TYPE_OPTIONS = ['tshirt', 'hoodie', 'cap', 'poster', 'other'] as const;
+const MAX_LISTING_PHOTOS = 4;
+const LISTING_PHOTO_ACCEPT = 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp';
 
-const parseNumberValue = (value: string): number | null => {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  return n;
+const asText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+
+const asNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 };
+
+const asBoolean = (value: unknown): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (value === 'true' || value === '1' || value === 1) return true;
+  if (value === 'false' || value === '0' || value === 0) return false;
+  return false;
+};
+
+const normalizeSku = (row: any): InventorySku => ({
+  id: String(row?.id || ''),
+  supplierSku: asText(row?.supplierSku || row?.supplier_sku),
+  supplier_sku: asText(row?.supplier_sku || row?.supplierSku),
+  merchType: asText(row?.merchType || row?.merch_type),
+  merch_type: asText(row?.merch_type || row?.merchType),
+  qualityTier: asText(row?.qualityTier || row?.quality_tier) || null,
+  quality_tier: asText(row?.quality_tier || row?.qualityTier) || null,
+  size: asText(row?.size),
+  color: asText(row?.color),
+  stock: Number(row?.stock ?? 0),
+  isActive: asBoolean(row?.isActive ?? row?.is_active),
+  is_active: asBoolean(row?.is_active ?? row?.isActive),
+  mrpCents:
+    row?.mrpCents === 0 || row?.mrp_cents === 0 || row?.mrpCents != null || row?.mrp_cents != null
+      ? Number(row?.mrpCents ?? row?.mrp_cents ?? 0)
+      : null,
+  mrp_cents:
+    row?.mrp_cents === 0 || row?.mrpCents === 0 || row?.mrp_cents != null || row?.mrpCents != null
+      ? Number(row?.mrp_cents ?? row?.mrpCents ?? 0)
+      : null,
+});
 
 const mapValidationDetails = (details: any[]): FieldErrors => {
   const out: FieldErrors = {};
   details.forEach((detail) => {
-    const field = String(detail?.field || '').trim();
-    const message = String(detail?.message || '').trim();
+    const field = asText(detail?.field);
+    const message = asText(detail?.message);
     if (!field || !message) return;
     if (!out[field]) out[field] = message;
   });
   return out;
 };
 
+const formatSkuLabel = (sku: InventorySku): string => {
+  const quality = asText(sku.qualityTier || sku.quality_tier);
+  const qualityPart = quality ? ` · ${quality}` : '';
+  return `${sku.supplierSku} · ${sku.merchType}${qualityPart} · ${sku.color} · ${sku.size} · Stock: ${sku.stock}${sku.isActive ? '' : ' · Inactive'}`;
+};
+
+const buildVariantSku = (sku: InventorySku): string => {
+  const source = asText(sku.supplierSku || sku.supplier_sku);
+  if (source) return `SKU-${source}`.slice(0, 120);
+  return `SKU-${sku.id.slice(0, 8) || 'NEW'}`;
+};
+
+const resolveSkuPriceCents = (sku: InventorySku): number => {
+  const value = Number(sku.mrpCents ?? sku.mrp_cents ?? 0);
+  if (!Number.isInteger(value) || value <= 0) return 0;
+  return value;
+};
+
+const resolveCreatePriceCents = (skus: InventorySku[]): number => {
+  const firstPositive = skus
+    .map((sku) => resolveSkuPriceCents(sku))
+    .find((value) => Number.isInteger(value) && value > 0);
+  return typeof firstPositive === 'number' ? firstPositive : 1;
+};
+
+const mapCreateErrorMessage = (error: any, stage: 'create' | 'link' | 'photos', productId: string | null): string => {
+  const raw = asText(error?.message).toLowerCase();
+
+  if (raw.includes('invalid_inventory_sku_id') || raw.includes('inventory_sku_not_found')) {
+    return 'This product could not be linked to the selected SKU.';
+  }
+  if (raw.includes('duplicate_inventory_sku_mapping')) {
+    return 'This SKU is already linked to the product.';
+  }
+  if (raw.includes('validation')) {
+    return 'Please review the highlighted fields and try again.';
+  }
+  if (raw.includes('failed to fetch')) {
+    return "We couldn't reach the server. Please check your connection and try again.";
+  }
+
+  if (productId && stage === 'link') {
+    return 'Product created, but linking selected SKUs failed. Open product variants and link them manually.';
+  }
+  if (productId && stage === 'photos') {
+    return 'Product and SKU links were saved, but listing photo upload failed.';
+  }
+
+  return "We couldn't create the product right now. Please try again.";
+};
+
+const isDuplicateMappingError = (error: any): boolean => {
+  const raw = asText(error?.message).toLowerCase();
+  const status = Number(error?.status || 0);
+  return status === 409 || raw.includes('duplicate_inventory_sku_mapping');
+};
+
 export default function AdminCreateProductPage() {
   const navigate = useNavigate();
   const [artists, setArtists] = useState<Artist[]>([]);
+  const [inventorySkus, setInventorySkus] = useState<InventorySku[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const [artistId, setArtistId] = useState('');
   const [merchName, setMerchName] = useState('');
   const [merchStory, setMerchStory] = useState('');
-  const [vendorPay, setVendorPay] = useState('');
-  const [ourShare, setOurShare] = useState('');
-  const [royalty, setRoyalty] = useState('');
-  const [merchType, setMerchType] = useState('');
-  const [selectedColors, setSelectedColors] = useState<string[]>(['black']);
   const [listingPhotos, setListingPhotos] = useState<File[]>([]);
 
+  const [skuSearch, setSkuSearch] = useState('');
+  const [skuToAddId, setSkuToAddId] = useState('');
+  const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
+
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [skuLoadError, setSkuLoadError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
@@ -54,23 +161,39 @@ export default function AdminCreateProductPage() {
     (async () => {
       setLoading(true);
       setSubmitError(null);
+      setSkuLoadError(null);
       try {
-        const artistsPayload = await apiFetch('/artists');
+        const [artistsResult, skusResult] = await Promise.allSettled([
+          apiFetch('/artists'),
+          apiFetch('/admin/inventory-skus'),
+        ]);
+
         if (!active) return;
 
-        const artistItems = Array.isArray(artistsPayload?.artists)
-          ? artistsPayload.artists
-          : Array.isArray(artistsPayload)
-            ? artistsPayload
-            : [];
-
-        setArtists(artistItems);
-        if (artistItems.length > 0) {
-          setArtistId(String(artistItems[0].id || ''));
+        if (artistsResult.status === 'fulfilled') {
+          const artistItems = Array.isArray(artistsResult.value?.artists)
+            ? artistsResult.value.artists
+            : Array.isArray(artistsResult.value)
+              ? artistsResult.value
+              : [];
+          setArtists(artistItems);
+          if (artistItems.length > 0) {
+            setArtistId(String(artistItems[0].id || ''));
+          }
+        } else {
+          setSubmitError('Failed to load artists.');
         }
-      } catch (err: any) {
-        if (!active) return;
-        setSubmitError(err?.message ?? 'Failed to load artists');
+
+        if (skusResult.status === 'fulfilled') {
+          const skuItems = Array.isArray(skusResult.value?.items)
+            ? skusResult.value.items
+            : Array.isArray(skusResult.value)
+              ? skusResult.value
+              : [];
+          setInventorySkus(skuItems.map(normalizeSku).filter((sku) => Boolean(sku.id)));
+        } else {
+          setSkuLoadError("We couldn't load supplier SKUs.");
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -90,36 +213,67 @@ export default function AdminCreateProductPage() {
     [artists]
   );
 
-  const toggleColor = (color: string) => {
-    setSelectedColors((prev) => {
-      if (prev.includes(color)) {
-        if (prev.length === 1) return prev;
-        return prev.filter((entry) => entry !== color);
-      }
-      return [...prev, color];
+  const skuById = useMemo(() => {
+    const map = new Map<string, InventorySku>();
+    inventorySkus.forEach((sku) => map.set(sku.id, sku));
+    return map;
+  }, [inventorySkus]);
+
+  const selectedSkus = useMemo(
+    () =>
+      selectedSkuIds
+        .map((id) => skuById.get(id))
+        .filter((sku): sku is InventorySku => Boolean(sku)),
+    [selectedSkuIds, skuById]
+  );
+
+  const availableSkus = useMemo(() => {
+    const q = asText(skuSearch).toLowerCase();
+    return inventorySkus.filter((sku) => {
+      if (selectedSkuIds.includes(sku.id)) return false;
+      if (!q) return true;
+      const haystack = [
+        sku.supplierSku,
+        sku.merchType,
+        sku.qualityTier || '',
+        sku.color,
+        sku.size,
+        `${sku.stock}`,
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
     });
+  }, [inventorySkus, selectedSkuIds, skuSearch]);
+
+  useEffect(() => {
+    if (skuToAddId && availableSkus.some((sku) => sku.id === skuToAddId)) return;
+    setSkuToAddId(availableSkus[0]?.id || '');
+  }, [availableSkus, skuToAddId]);
+
+  const addSelectedSku = () => {
+    if (!skuToAddId) return;
+    setSelectedSkuIds((prev) => (prev.includes(skuToAddId) ? prev : [...prev, skuToAddId]));
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.selected_skus;
+      return next;
+    });
+  };
+
+  const removeSelectedSku = (id: string) => {
+    setSelectedSkuIds((prev) => prev.filter((entry) => entry !== id));
   };
 
   const validate = (): FieldErrors => {
     const errors: FieldErrors = {};
-
-    if (!artistId) errors.artist_id = 'Artist is required';
-    if (merchName.trim().length < 2) errors.merch_name = 'Merch Name must be at least 2 characters';
-    if (merchStory.trim().length < 10) errors.merch_story = 'Merch Story must be at least 10 characters';
-
-    const vendor = parseNumberValue(vendorPay);
-    if (vendor === null || vendor < 0) errors.vendor_pay = 'Vendor pay must be 0 or greater';
-
-    const our = parseNumberValue(ourShare);
-    if (our === null || our < 0) errors.our_share = 'Our share must be 0 or greater';
-
-    const royaltyValue = parseNumberValue(royalty);
-    if (royaltyValue === null || royaltyValue < 0) errors.royalty = 'Royalty must be 0 or greater';
-
-    if (!merchType.trim()) errors.merch_type = 'Merch Type is required';
-    if (selectedColors.length < 1) errors.colors = 'Select at least one color';
-    if (listingPhotos.length !== 4) errors.listing_photos = 'Exactly 4 listing photos are required';
-
+    if (!artistId) errors.artist_id = 'Artist is required.';
+    if (merchName.trim().length < 2) errors.merch_name = 'Merch Name must be at least 2 characters.';
+    if (merchStory.trim().length < 10) errors.merch_story = 'Merch Story must be at least 10 characters.';
+    if (selectedSkuIds.length < 1) errors.selected_skus = 'Select at least one SKU.';
+    if (listingPhotos.length !== MAX_LISTING_PHOTOS) {
+      errors.listing_photos = 'Exactly 4 listing photos are required.';
+    }
     return errors;
   };
 
@@ -133,31 +287,107 @@ export default function AdminCreateProductPage() {
       setSubmitError('Please fix the highlighted fields.');
       return;
     }
+    const dedupedSelectedSkus = Array.from(
+      new Map(selectedSkus.map((sku) => [sku.id, sku])).values()
+    );
 
-    const fd = new FormData();
-    fd.append('artist_id', artistId);
-    fd.append('artistId', artistId);
-    fd.append('title', merchName.trim());
-    fd.append('merchName', merchName.trim());
-    fd.append('description', merchStory.trim());
-    fd.append('merchStory', merchStory.trim());
-    fd.append('is_active', 'false');
-    fd.append('status', 'inactive');
-    fd.append('merch_name', merchName.trim());
-    fd.append('merch_story', merchStory.trim());
-    fd.append('vendor_pay', vendorPay.trim());
-    fd.append('our_share', ourShare.trim());
-    fd.append('royalty', royalty.trim());
-    fd.append('merch_type', merchType.trim());
-    fd.append('colors', JSON.stringify(selectedColors));
-    listingPhotos.forEach((file) => {
-      fd.append('photos', file);
-    });
+    if (dedupedSelectedSkus.length < 1) {
+      setFieldErrors((prev) => ({ ...prev, selected_skus: 'Select at least one SKU.' }));
+      setSubmitError('Please fix the highlighted fields.');
+      return;
+    }
+
+    let stage: 'create' | 'link' | 'photos' = 'create';
+    let createdProductId: string | null = null;
 
     setSubmitting(true);
     try {
-      await apiFetchForm('/admin/products', fd, {
+      const createPayload = await apiFetch('/admin/products', {
         method: 'POST',
+        body: {
+          artistId,
+          title: merchName.trim(),
+          description: merchStory.trim(),
+          isActive: false,
+          status: 'inactive',
+          priceCents: resolveCreatePriceCents(dedupedSelectedSkus),
+          // Product record creation stays backward-compatible; sellability is variant/SKU-based.
+          stock: 0,
+        },
+      });
+
+      createdProductId = asText(
+        createPayload?.productId || createPayload?.product_id || createPayload?.product?.id || createPayload?.id
+      );
+      if (!createdProductId) {
+        throw new Error('missing_product_id');
+      }
+
+      let defaultVariantId = asText(createPayload?.defaultVariant?.id);
+      if (!defaultVariantId) {
+        const variantsPayload = await apiFetch(`/admin/products/${createdProductId}/variants`);
+        const rows = Array.isArray(variantsPayload?.items)
+          ? variantsPayload.items
+          : Array.isArray(variantsPayload?.variants)
+            ? variantsPayload.variants
+            : [];
+        defaultVariantId = asText(rows[0]?.id);
+      }
+
+      stage = 'link';
+      const variantsBody = {
+        variants: dedupedSelectedSkus.map((sku, index) => {
+          const sellingPriceCents = resolveSkuPriceCents(sku);
+          const isListed = sellingPriceCents > 0 && sku.isActive && sku.stock > 0;
+          return {
+            id: index === 0 && defaultVariantId ? defaultVariantId : undefined,
+            inventory_sku_id: sku.id,
+            sku: buildVariantSku(sku),
+            size: asText(sku.size) || 'default',
+            color: asText(sku.color) || 'default',
+            selling_price_cents: sellingPriceCents,
+            is_listed: isListed,
+          };
+        }),
+      };
+
+      try {
+        await apiFetch(`/admin/products/${createdProductId}/variants`, {
+          method: 'PUT',
+          body: variantsBody,
+        });
+      } catch (err: any) {
+        if (!isDuplicateMappingError(err)) {
+          throw err;
+        }
+
+        // Duplicate mapping can happen if a link already exists; reconcile against current state.
+        const variantsPayload = await apiFetch(`/admin/products/${createdProductId}/variants`, {
+          cache: 'no-store',
+        });
+        const rows = Array.isArray(variantsPayload?.items)
+          ? variantsPayload.items
+          : Array.isArray(variantsPayload?.variants)
+            ? variantsPayload.variants
+            : [];
+        const mappedSkuIds = new Set(
+          rows
+            .map((row: any) => asText(row?.inventory_sku_id || row?.inventorySkuId))
+            .filter(Boolean)
+        );
+        const allRequestedMappingsPresent = dedupedSelectedSkus.every((sku) => mappedSkuIds.has(sku.id));
+        if (!allRequestedMappingsPresent) {
+          throw err;
+        }
+      }
+
+      stage = 'photos';
+      const listingPhotoForm = new FormData();
+      listingPhotos.forEach((file) => {
+        listingPhotoForm.append('photos', file);
+      });
+      await apiFetchForm(`/admin/products/${createdProductId}/photos`, listingPhotoForm, {
+        method: 'PUT',
       });
 
       navigate('/partner/admin/products');
@@ -167,7 +397,7 @@ export default function AdminCreateProductPage() {
         const mapped = mapValidationDetails(details);
         setFieldErrors((prev) => ({ ...prev, ...mapped }));
       }
-      setSubmitError(err?.message ?? 'Failed to create product');
+      setSubmitError(mapCreateErrorMessage(err, stage, createdProductId));
     } finally {
       setSubmitting(false);
     }
@@ -186,7 +416,7 @@ export default function AdminCreateProductPage() {
       </div>
 
       {submitError && (
-        <div className="rounded-xl border border-rose-200 dark:border-rose-400/40 bg-rose-50 dark:bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-600 dark:text-rose-400">
+        <div role="alert" className="rounded-xl border border-rose-200 dark:border-rose-400/40 bg-rose-50 dark:bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-600 dark:text-rose-400">
           {submitError}
         </div>
       )}
@@ -231,6 +461,7 @@ export default function AdminCreateProductPage() {
         <label className="block space-y-2 md:col-span-2">
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Merch Story</span>
           <textarea
+            data-testid="admin-product-merch-story"
             value={merchStory}
             onChange={(event) => setMerchStory(event.target.value)}
             rows={4}
@@ -239,78 +470,6 @@ export default function AdminCreateProductPage() {
             className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
           />
           {fieldErrors.merch_story && <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.merch_story}</p>}
-        </label>
-
-        <div className="grid grid-cols-3 gap-4 md:col-span-2">
-          <label className="block space-y-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Vendor Pay</span>
-            <input
-              data-testid="admin-product-vendor-pay"
-              type="number"
-              min={0}
-              step="0.01"
-              value={vendorPay}
-              onChange={(event) => setVendorPay(event.target.value)}
-              disabled={submitting}
-              className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
-            />
-            {(fieldErrors.vendor_pay || fieldErrors.vendor_pay_cents) && (
-              <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.vendor_pay || fieldErrors.vendor_pay_cents}</p>
-            )}
-          </label>
-
-          <label className="block space-y-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Our Share</span>
-            <input
-              data-testid="admin-product-our-share"
-              type="number"
-              min={0}
-              step="0.01"
-              value={ourShare}
-              onChange={(event) => setOurShare(event.target.value)}
-              disabled={submitting}
-              className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
-            />
-            {(fieldErrors.our_share || fieldErrors.our_share_cents) && (
-              <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.our_share || fieldErrors.our_share_cents}</p>
-            )}
-          </label>
-
-          <label className="block space-y-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Royalty</span>
-            <input
-              data-testid="admin-product-royalty"
-              type="number"
-              min={0}
-              step="0.01"
-              value={royalty}
-              onChange={(event) => setRoyalty(event.target.value)}
-              disabled={submitting}
-              className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
-            />
-            {(fieldErrors.royalty || fieldErrors.royalty_cents) && (
-              <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.royalty || fieldErrors.royalty_cents}</p>
-            )}
-          </label>
-        </div>
-
-        <label className="block space-y-2 font-medium">
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Merch Type</span>
-          <select
-            data-testid="admin-product-merch-type"
-            value={merchType}
-            onChange={(event) => setMerchType(event.target.value)}
-            disabled={submitting}
-            className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none appearance-none"
-          >
-            <option value="" className="bg-white dark:bg-slate-900">Select type</option>
-            {MERCH_TYPE_OPTIONS.map((entry) => (
-              <option key={entry} value={entry} className="bg-white dark:bg-slate-900">
-                {entry}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.merch_type && <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.merch_type}</p>}
         </label>
 
         <label className="block space-y-2">
@@ -323,39 +482,117 @@ export default function AdminCreateProductPage() {
           />
         </label>
 
+        <div className="rounded-2xl border border-slate-200 dark:border-white/10 p-5 bg-slate-50/30 dark:bg-transparent">
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">SKU Selection</p>
+          <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+            Select one or more supplier SKUs to link during product creation.
+          </p>
+        </div>
+
         <fieldset className="rounded-2xl border border-slate-200 dark:border-white/10 p-5 md:col-span-2 bg-slate-50/30 dark:bg-transparent">
-          <legend className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Available Colors</legend>
-          <div className="flex flex-wrap gap-x-8 gap-y-4">
-            {COLOR_OPTIONS.map((color) => (
-              <label key={color} className="flex items-center gap-2.5 text-sm font-medium text-slate-700 dark:text-slate-100 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={selectedColors.includes(color)}
-                  onChange={() => toggleColor(color)}
-                  disabled={submitting}
-                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-all"
-                />
-                <span className="group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors capitalize">{color.replace('_', ' ')}</span>
-              </label>
-            ))}
+          <legend className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Supplier SKUs</legend>
+
+          <div className="grid gap-3 md:grid-cols-[1fr,1fr,auto]">
+            <label className="block space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Search SKUs</span>
+              <input
+                data-testid="admin-product-sku-search"
+                value={skuSearch}
+                onChange={(event) => setSkuSearch(event.target.value)}
+                disabled={loading || submitting || Boolean(skuLoadError)}
+                placeholder="Filter by supplier SKU / merch / color / size"
+                className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none"
+              />
+            </label>
+
+            <label className="block space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Select SKU</span>
+              <select
+                data-testid="admin-product-sku-select"
+                value={skuToAddId}
+                onChange={(event) => setSkuToAddId(event.target.value)}
+                disabled={loading || submitting || availableSkus.length === 0 || Boolean(skuLoadError)}
+                className="w-full rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/30 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 transition outline-none appearance-none"
+              >
+                <option value="" className="bg-white dark:bg-slate-900">
+                  {loading ? 'Loading SKUs...' : availableSkus.length > 0 ? 'Select supplier SKU' : 'No SKUs available'}
+                </option>
+                {availableSkus.map((sku) => (
+                  <option key={sku.id} value={sku.id} className="bg-white dark:bg-slate-900">
+                    {formatSkuLabel(sku)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button
+              type="button"
+              data-testid="admin-product-sku-add"
+              onClick={addSelectedSku}
+              disabled={submitting || !skuToAddId || Boolean(skuLoadError)}
+              className="self-end rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 disabled:opacity-50"
+            >
+              Add SKU
+            </button>
           </div>
-          {fieldErrors.colors && <p className="mt-4 text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{fieldErrors.colors}</p>}
+
+          {skuLoadError && (
+            <p className="mt-4 text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-tight">{skuLoadError}</p>
+          )}
+
+          {!loading && !skuLoadError && inventorySkus.length === 0 && (
+            <p data-testid="admin-product-sku-empty-state" className="mt-4 text-[11px] text-slate-500 dark:text-slate-400">
+              No supplier SKUs available yet. Create SKUs first in the SKU manager.
+            </p>
+          )}
+
+          {!loading && !skuLoadError && inventorySkus.length > 0 && selectedSkus.length === 0 && (
+            <p className={`mt-4 text-[10px] font-bold uppercase tracking-tight ${fieldErrors.selected_skus ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'}`}>
+              {fieldErrors.selected_skus || 'Select at least one SKU.'}
+            </p>
+          )}
+
+          {selectedSkus.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {selectedSkus.map((sku) => (
+                <div
+                  key={sku.id}
+                  data-testid="admin-product-selected-sku"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2"
+                >
+                  <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                    {formatSkuLabel(sku)}
+                  </p>
+                  <button
+                    type="button"
+                    data-testid={`admin-product-selected-sku-remove-${sku.id}`}
+                    onClick={() => removeSelectedSku(sku.id)}
+                    disabled={submitting}
+                    className="rounded-full border border-slate-200 dark:border-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </fieldset>
 
         <label className="block space-y-2 md:col-span-2">
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Listing Photos (exactly 4)</span>
           <div className="relative group">
             <input
+              data-testid="admin-product-listing-photos"
               type="file"
-              accept="image/*"
+              accept={LISTING_PHOTO_ACCEPT}
               multiple
               onChange={(event) => {
                 const files = Array.from(event.target.files || []);
                 setListingPhotos(files);
                 setFieldErrors((prev) => ({
                   ...prev,
-                  listing_photos: files.length === 4 ? '' : 'Exactly 4 listing photos are required',
-                  photos: files.length === 4 ? '' : 'Exactly 4 listing photos are required',
+                  listing_photos: files.length === MAX_LISTING_PHOTOS ? '' : 'Exactly 4 listing photos are required',
+                  photos: files.length === MAX_LISTING_PHOTOS ? '' : 'Exactly 4 listing photos are required',
                 }));
               }}
               disabled={submitting}
@@ -374,11 +611,12 @@ export default function AdminCreateProductPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-4 md:col-span-2 pt-6 border-t border-slate-100 dark:border-white/5">
           <button
+            data-testid="admin-product-submit"
             type="submit"
-            disabled={submitting || loading || listingPhotos.length !== 4}
+            disabled={submitting || loading || listingPhotos.length !== MAX_LISTING_PHOTOS || Boolean(skuLoadError)}
             className="rounded-full bg-slate-900 dark:bg-white px-10 py-3 text-xs font-black uppercase tracking-widest text-white dark:text-slate-950 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-slate-900/10 dark:shadow-none"
           >
-            {submitting ? 'Creating...' : 'Launch Product'}
+            {submitting ? 'Creating...' : 'Create Product'}
           </button>
           <button
             type="button"

@@ -15,24 +15,10 @@ type Product = {
   title?: string;
   name?: string;
   description?: string;
+  merchType?: string;
+  merch_type?: string;
   merch_story?: string;
   merchStory?: string;
-  merch_type?: string;
-  merchType?: string;
-  vendor_pay?: number | string;
-  vendorPay?: number | string;
-  vendor_pay_cents?: number;
-  vendorPayCents?: number;
-  vendor_payout_cents?: number;
-  vendorPayoutCents?: number;
-  our_share?: number | string;
-  ourShare?: number | string;
-  our_share_cents?: number;
-  ourShareCents?: number;
-  royalty?: number | string;
-  royalty_cents?: number;
-  royaltyCents?: number;
-  colors?: string[] | string;
   artistId?: string;
   artist_id?: string;
   isActive?: boolean;
@@ -50,16 +36,9 @@ type FieldErrors = Record<string, string>;
 type ProductEditSnapshot = {
   title: string;
   description: string;
-  vendorPay: string;
-  ourShare: string;
-  royalty: string;
-  merchType: string;
-  colors: string[];
   isActive: boolean;
 };
 
-const COLOR_OPTIONS = ['black', 'white', 'yellow', 'maroon', 'navy_blue'] as const;
-const MERCH_TYPE_OPTIONS = ['tshirt', 'hoodie', 'cap', 'poster', 'other'] as const;
 const MAX_LISTING_PHOTOS = 4;
 const LISTING_PHOTO_ACCEPT = 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp';
 const ALLOWED_LISTING_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -74,74 +53,13 @@ const firstText = (source: Record<string, any>, keys: string[]): string => {
   return '';
 };
 
-const parseNumberValue = (value: string): number | null => {
-  const trimmed = String(value || '').trim();
-  if (!trimmed) return null;
-  const n = Number(trimmed);
-  return Number.isFinite(n) ? n : null;
-};
-
-const formatMoneyInput = (source: Record<string, any>, amountKeys: string[], centsKeys: string[]): string => {
-  for (const key of amountKeys) {
-    const value = source?.[key];
-    if (value === undefined || value === null || value === '') continue;
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric) || numeric < 0) continue;
-    return `${numeric}`;
-  }
-  for (const key of centsKeys) {
-    const value = source?.[key];
-    if (value === undefined || value === null || value === '') continue;
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric) || numeric < 0) continue;
-    const amount = numeric / 100;
-    const fixed = Number.isInteger(amount) ? `${amount}` : amount.toFixed(2);
-    return fixed.replace(/\.?0+$/, '');
-  }
-  return '';
-};
-
-const normalizeColors = (raw: unknown): string[] => {
-  let parsed = raw;
-  if (typeof parsed === 'string') {
-    const trimmed = parsed.trim();
-    if (!trimmed) return [];
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch (_err) {
-      parsed = [trimmed];
-    }
-  }
-  if (!Array.isArray(parsed)) return [];
-  return Array.from(
-    new Set(
-      parsed
-        .map((entry) => readText(entry).toLowerCase().replace(/\s+/g, '_'))
-        .filter((entry) => COLOR_OPTIONS.includes(entry as (typeof COLOR_OPTIONS)[number]))
-    )
-  );
-};
-
-const normalizeComparableColors = (colors: string[]): string[] =>
-  Array.from(new Set(colors.map((entry) => readText(entry).toLowerCase()))).sort();
-
 const makeEditSnapshot = (values: {
   title: string;
   description: string;
-  vendorPay: string;
-  ourShare: string;
-  royalty: string;
-  merchType: string;
-  colors: string[];
   isActive: boolean;
 }): ProductEditSnapshot => ({
   title: values.title.trim(),
   description: values.description.trim(),
-  vendorPay: values.vendorPay.trim(),
-  ourShare: values.ourShare.trim(),
-  royalty: values.royalty.trim(),
-  merchType: values.merchType.trim(),
-  colors: normalizeComparableColors(values.colors),
   isActive: Boolean(values.isActive),
 });
 
@@ -208,11 +126,6 @@ export default function AdminProductsPage() {
   const [editArtistId, setEditArtistId] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
-  const [editVendorPay, setEditVendorPay] = useState('');
-  const [editOurShare, setEditOurShare] = useState('');
-  const [editRoyalty, setEditRoyalty] = useState('');
-  const [editMerchType, setEditMerchType] = useState('');
-  const [editColors, setEditColors] = useState<string[]>(['black']);
   const [editListingPhotoUrls, setEditListingPhotoUrls] = useState<string[]>([]);
   const [editReplacementPhotos, setEditReplacementPhotos] = useState<File[]>([]);
   const [editReplacementPhotoPreviews, setEditReplacementPhotoPreviews] = useState<string[]>([]);
@@ -227,8 +140,8 @@ export default function AdminProductsPage() {
     setError(null);
     try {
       const [productsPayload, artistsPayload] = await Promise.all([
-        apiFetch('/admin/products'),
-        apiFetch('/artists'),
+        apiFetch('/admin/products', { cache: 'no-store' }),
+        apiFetch('/artists', { cache: 'no-store' }),
       ]);
 
       const productItems = Array.isArray(productsPayload?.items)
@@ -280,24 +193,6 @@ export default function AdminProductsPage() {
     const nextArtistId = String(product.artistId || product.artist_id || '').trim();
     const nextTitle = firstText(product as Record<string, any>, ['title', 'name']);
     const nextDescription = firstText(product as Record<string, any>, ['merch_story', 'merchStory', 'description']);
-    const nextVendorPay = formatMoneyInput(
-      product as Record<string, any>,
-      ['vendor_pay', 'vendorPay'],
-      ['vendor_pay_cents', 'vendorPayCents', 'vendor_payout_cents', 'vendorPayoutCents']
-    );
-    const nextOurShare = formatMoneyInput(
-      product as Record<string, any>,
-      ['our_share', 'ourShare'],
-      ['our_share_cents', 'ourShareCents']
-    );
-    const nextRoyalty = formatMoneyInput(
-      product as Record<string, any>,
-      ['royalty'],
-      ['royalty_cents', 'royaltyCents']
-    );
-    const nextMerchType = firstText(product as Record<string, any>, ['merch_type', 'merchType']);
-    const parsedColors = normalizeColors((product as Record<string, any>).colors);
-    const nextColors = parsedColors.length > 0 ? parsedColors : ['black'];
     const nextListingPhotoUrls = extractListingPhotoUrls(product);
     const nextActive = Boolean(product.isActive ?? product.is_active ?? product.active);
 
@@ -305,41 +200,39 @@ export default function AdminProductsPage() {
     setEditArtistId(nextArtistId);
     setEditTitle(nextTitle);
     setEditDescription(nextDescription);
-    setEditVendorPay(nextVendorPay);
-    setEditOurShare(nextOurShare);
-    setEditRoyalty(nextRoyalty);
-    setEditMerchType(nextMerchType);
-    setEditColors(nextColors);
     setEditListingPhotoUrls(nextListingPhotoUrls);
     setEditActive(nextActive);
     setEditInitialSnapshot(
       makeEditSnapshot({
         title: nextTitle,
         description: nextDescription,
-        vendorPay: nextVendorPay,
-        ourShare: nextOurShare,
-        royalty: nextRoyalty,
-        merchType: nextMerchType,
-        colors: nextColors,
         isActive: nextActive,
       })
     );
     setEditPhotoNotice(null);
   };
 
-  const validateEditForm = ({ includeTextFields }: { includeTextFields: boolean }): FieldErrors => {
+  const validateEditForm = ({
+    includeTextFields,
+    changedSnapshot,
+  }: {
+    includeTextFields: boolean;
+    changedSnapshot: ProductEditSnapshot | null;
+  }): FieldErrors => {
     const errors: FieldErrors = {};
-    if (includeTextFields) {
-      if (editTitle.trim().length < 2) errors.title = 'Merch Name must be at least 2 characters';
-      if (editDescription.trim().length < 10) errors.merch_story = 'Merch Story must be at least 10 characters';
-      const vendor = parseNumberValue(editVendorPay);
-      if (vendor === null || vendor < 0) errors.vendor_pay = 'To Be Paid To Vendor must be 0 or greater';
-      const ourShare = parseNumberValue(editOurShare);
-      if (ourShare === null || ourShare < 0) errors.our_share = 'Our Share must be 0 or greater';
-      const royalty = parseNumberValue(editRoyalty);
-      if (royalty === null || royalty < 0) errors.royalty = 'Royalty must be 0 or greater';
-      if (!editMerchType.trim()) errors.merch_type = 'Merch Type is required';
-      if (editColors.length < 1) errors.colors = 'Select at least one color';
+    if (includeTextFields && editInitialSnapshot && changedSnapshot) {
+      if (
+        changedSnapshot.title !== editInitialSnapshot.title &&
+        editTitle.trim().length < 2
+      ) {
+        errors.title = 'Merch Name must be at least 2 characters';
+      }
+      if (
+        changedSnapshot.description !== editInitialSnapshot.description &&
+        editDescription.trim().length < 10
+      ) {
+        errors.merch_story = 'Merch Story must be at least 10 characters';
+      }
     }
     if (editReplacementPhotos.length > 0 && editReplacementPhotos.length !== MAX_LISTING_PHOTOS) {
       errors.listing_photos = 'Please select exactly 4 images to replace all photos.';
@@ -351,29 +244,14 @@ export default function AdminProductsPage() {
     return errors;
   };
 
-  const toggleEditColor = (color: string) => {
-    setEditColors((prev) => {
-      if (prev.includes(color)) {
-        if (prev.length === 1) return prev;
-        return prev.filter((entry) => entry !== color);
-      }
-      return [...prev, color];
-    });
-  };
-
   const currentEditSnapshot = useMemo(
     () =>
       makeEditSnapshot({
         title: editTitle,
         description: editDescription,
-        vendorPay: editVendorPay,
-        ourShare: editOurShare,
-        royalty: editRoyalty,
-        merchType: editMerchType,
-        colors: editColors,
         isActive: editActive,
       }),
-    [editTitle, editDescription, editVendorPay, editOurShare, editRoyalty, editMerchType, editColors, editActive]
+    [editTitle, editDescription, editActive]
   );
 
   const hasTextChanges = useMemo(() => {
@@ -381,20 +259,19 @@ export default function AdminProductsPage() {
     return (
       currentEditSnapshot.title !== editInitialSnapshot.title ||
       currentEditSnapshot.description !== editInitialSnapshot.description ||
-      currentEditSnapshot.vendorPay !== editInitialSnapshot.vendorPay ||
-      currentEditSnapshot.ourShare !== editInitialSnapshot.ourShare ||
-      currentEditSnapshot.royalty !== editInitialSnapshot.royalty ||
-      currentEditSnapshot.merchType !== editInitialSnapshot.merchType ||
-      currentEditSnapshot.isActive !== editInitialSnapshot.isActive ||
-      currentEditSnapshot.colors.join('|') !== editInitialSnapshot.colors.join('|')
+      currentEditSnapshot.isActive !== editInitialSnapshot.isActive
     );
   }, [currentEditSnapshot, editInitialSnapshot]);
 
   const hasPhotoChanges = editReplacementPhotos.length > 0;
   const hasPendingChanges = hasTextChanges || hasPhotoChanges;
   const blockingValidationErrors = useMemo(
-    () => validateEditForm({ includeTextFields: hasTextChanges }),
-    [hasTextChanges, editTitle, editDescription, editVendorPay, editOurShare, editRoyalty, editMerchType, editColors, editReplacementPhotos]
+    () =>
+      validateEditForm({
+        includeTextFields: hasTextChanges,
+        changedSnapshot: currentEditSnapshot,
+      }),
+    [hasTextChanges, currentEditSnapshot, editTitle, editDescription, editReplacementPhotos, editInitialSnapshot]
   );
   const hasBlockingValidation = Object.keys(blockingValidationErrors).length > 0;
 
@@ -483,11 +360,6 @@ export default function AdminProductsPage() {
     setEditArtistId('');
     setEditTitle('');
     setEditDescription('');
-    setEditVendorPay('');
-    setEditOurShare('');
-    setEditRoyalty('');
-    setEditMerchType('');
-    setEditColors(['black']);
     setEditListingPhotoUrls([]);
     setEditReplacementPhotos([]);
     setEditReplacementPhotoPreviews([]);
@@ -507,7 +379,10 @@ export default function AdminProductsPage() {
       return;
     }
 
-    const validationErrors = validateEditForm({ includeTextFields: hasTextChanges });
+    const validationErrors = validateEditForm({
+      includeTextFields: hasTextChanges,
+      changedSnapshot: currentEditSnapshot,
+    });
     setEditFieldErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) {
       setEditError('Please fix the highlighted fields.');
@@ -525,11 +400,6 @@ export default function AdminProductsPage() {
             title: editTitle.trim(),
             description: editDescription.trim(),
             merch_story: editDescription.trim(),
-            vendor_pay: editVendorPay.trim(),
-            our_share: editOurShare.trim(),
-            royalty: editRoyalty.trim(),
-            merch_type: editMerchType.trim(),
-            colors: editColors,
             isActive: editActive,
           },
         });
@@ -583,6 +453,12 @@ export default function AdminProductsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <Link
+            to="/partner/admin/inventory-skus"
+            className="group relative inline-flex items-center justify-center rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-6 py-4 text-xs font-black uppercase tracking-[0.2em] text-slate-700 dark:text-slate-200 transition-all hover:scale-[1.02] hover:border-slate-900 dark:hover:border-white/20 hover:text-slate-900 dark:hover:text-white"
+          >
+            SKU Master
+          </Link>
+          <Link
             to="/partner/admin/products/new"
             className="group relative inline-flex items-center justify-center rounded-2xl bg-slate-900 dark:bg-white px-8 py-4 text-xs font-black uppercase tracking-[0.2em] text-white dark:text-slate-950 shadow-2xl shadow-slate-900/20 dark:shadow-white/10 transition-all hover:scale-[1.02] active:scale-95 overflow-hidden"
           >
@@ -617,7 +493,10 @@ export default function AdminProductsPage() {
       )}
 
       {/* Table Section */}
-      <div className="overflow-hidden rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 shadow-2xl shadow-slate-200/50 dark:shadow-none">
+      <div
+        data-testid="admin-products-list"
+        className="overflow-hidden rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 shadow-2xl shadow-slate-200/50 dark:shadow-none"
+      >
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 text-left text-[10px] font-black uppercase tracking-[0.25em] text-slate-400 dark:text-slate-500">
@@ -649,23 +528,33 @@ export default function AdminProductsPage() {
                   : active
                     ? 'active'
                     : 'inactive';
+              const rowProductId = String(product.productId || product.id || '').trim();
               const artistId = product.artistId || product.artist_id || '';
               const thumbnail = extractListingPhotoUrls(product)[0] || '';
 
               return (
-                <tr key={product.id} className="group border-b border-slate-50 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors">
+                <tr
+                  key={rowProductId || product.id}
+                  data-testid="admin-product-row"
+                  data-product-id={rowProductId}
+                  className="group border-b border-slate-50 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors"
+                >
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
                       {thumbnail ? (
                         <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 shadow-sm transition-transform group-hover:scale-105">
                           <img
+                            data-testid="admin-product-row-thumbnail"
                             src={thumbnail}
                             alt={product.title ?? 'Product'}
                             className="h-full w-full object-cover"
                           />
                         </div>
                       ) : (
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-white/5 text-slate-400">
+                        <div
+                          data-testid="admin-product-row-thumbnail-empty"
+                          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-white/5 text-slate-400"
+                        >
                           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
@@ -686,7 +575,9 @@ export default function AdminProductsPage() {
                   </td>
                   <td className="px-8 py-5">
                     <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-900 dark:text-white uppercase">{(product.merchType || 'Other').replace('_', ' ')}</span>
+                      <span className="text-xs font-bold text-slate-900 dark:text-white uppercase">
+                        {(String(product.merchType || product.merch_type || 'Other')).replace('_', ' ')}
+                      </span>
                       <span className="text-[10px] text-slate-400 uppercase tracking-tighter">Category</span>
                     </div>
                   </td>
@@ -702,6 +593,7 @@ export default function AdminProductsPage() {
                     <div className="flex justify-end items-center gap-2">
                       <button
                         type="button"
+                        data-testid="admin-product-row-edit"
                         onClick={() => openEditModal(product)}
                         className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-950 transition-all shadow-sm"
                       >
@@ -709,7 +601,7 @@ export default function AdminProductsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate(`/partner/admin/products/${(product.productId || product.id).trim()}/variants`)}
+                        onClick={() => navigate(`/partner/admin/products/${rowProductId}/variants`)}
                         className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-950 transition-all shadow-sm"
                       >
                         Variants
@@ -726,7 +618,10 @@ export default function AdminProductsPage() {
       {/* Edit Modal */}
       {isEditOpen && editingProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 shadow-2xl animate-in zoom-in-95 duration-300 custom-scrollbar flex flex-col">
+          <div
+            data-testid="admin-product-edit-modal"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 shadow-2xl animate-in zoom-in-95 duration-300 custom-scrollbar flex flex-col"
+          >
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 dark:border-white/10 bg-white/90 dark:bg-slate-950/90 px-8 py-6 backdrop-blur-sm">
               <div>
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white">Edit Product</h2>
@@ -791,49 +686,7 @@ export default function AdminProductsPage() {
                       />
                       {editFieldErrors.merch_story && <p className="text-[10px] text-rose-500 font-bold uppercase">{editFieldErrors.merch_story}</p>}
                     </label>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:col-span-2">
-                      <label className="block space-y-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Vendor Pay (₹)</span>
-                        <input
-                          type="number"
-                          value={editVendorPay}
-                          onChange={(e) => setEditVendorPay(e.target.value)}
-                          className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-5 py-3 text-sm font-bold text-slate-900 dark:text-white outline-none"
-                        />
-                      </label>
-                      <label className="block space-y-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Internal (₹)</span>
-                        <input
-                          type="number"
-                          value={editOurShare}
-                          onChange={(e) => setEditOurShare(e.target.value)}
-                          className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-5 py-3 text-sm font-bold text-slate-900 dark:text-white outline-none"
-                        />
-                      </label>
-                      <label className="block space-y-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Royalty (₹)</span>
-                        <input
-                          type="number"
-                          value={editRoyalty}
-                          onChange={(e) => setEditRoyalty(e.target.value)}
-                          className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-5 py-3 text-sm font-bold text-slate-900 dark:text-white outline-none"
-                        />
-                      </label>
-                    </div>
-
-                    <label className="block space-y-2">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Category</span>
-                      <select
-                        value={editMerchType}
-                        onChange={(e) => setEditMerchType(e.target.value)}
-                        className="block w-full rounded-2xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/40 px-5 py-3 text-sm font-bold text-slate-900 dark:text-white outline-none appearance-none"
-                      >
-                        {MERCH_TYPE_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-white dark:bg-slate-900">{opt.toUpperCase()}</option>)}
-                      </select>
-                    </label>
-
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-6 md:col-span-2">
                       <label className="relative flex cursor-pointer items-center gap-3">
                         <div className="relative">
                           <input type="checkbox" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} className="peer sr-only" />
@@ -844,21 +697,6 @@ export default function AdminProductsPage() {
                       </label>
                     </div>
                   </div>
-
-                  <fieldset className="rounded-3xl border border-slate-200 dark:border-white/10 p-6 bg-slate-50/50 dark:bg-black/20">
-                    <legend className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Color Options</legend>
-                    <div className="flex flex-wrap gap-6">
-                      {COLOR_OPTIONS.map(color => (
-                        <label key={color} className="flex items-center gap-2 cursor-pointer group">
-                          <input type="checkbox" checked={editColors.includes(color)} onChange={() => toggleEditColor(color)} className="h-4 w-4 rounded border-slate-300 text-indigo-600" />
-                          <span className="text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
-                            {color.replace('_', ' ')}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-
                   <fieldset
                     className={`rounded-3xl border p-6 bg-slate-50/50 dark:bg-black/20 ${
                       photoFieldError
@@ -969,3 +807,4 @@ export default function AdminProductsPage() {
     </main>
   );
 }
+

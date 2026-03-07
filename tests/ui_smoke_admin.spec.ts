@@ -1,4 +1,4 @@
-import { test, expect, Locator, Page } from '@playwright/test';
+import { test, expect, Locator, Page, APIResponse } from '@playwright/test';
 import { ADMIN_EMAIL, ADMIN_PASSWORD, LABEL_EMAIL, LABEL_PASSWORD } from './_env';
 import { gotoApp, loginAdmin, loginLabel } from './helpers/auth';
 import { getApiUrl } from './helpers/urls';
@@ -255,47 +255,188 @@ const getListingPhotoFixtures = () => {
   ];
 };
 
-const ensureSmokeProductForAdminEdit = async (page: Page): Promise<string | null> => {
-  const response = await page.request.post(getApiUrl('/api/dev/seed-ui-smoke-product'), {
-    headers: { Accept: 'application/json' },
-  });
-  if (!response.ok()) {
-    return null;
-  }
-  const payload = await response.json().catch(() => null);
-  const productId =
-    payload?.productId || payload?.product?.id || payload?.id || null;
-  if (!productId) {
-    return null;
-  }
-  return String(productId);
+const readResponseSnippet = async (response: APIResponse) =>
+  (await response.text().catch(() => '<response unavailable>')).replace(/\s+/g, ' ').trim().slice(0, 500);
+
+const parseProductId = (payload: any): string => {
+  const candidate =
+    payload?.productId ||
+    payload?.product?.id ||
+    payload?.id ||
+    null;
+  return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : '';
 };
 
-const openAnyEditableProductInModal = async (page: Page): Promise<boolean> => {
+const readAdminProducts = async (page: Page): Promise<any[]> => {
+  const response = await page.request.get(getApiUrl('/api/admin/products'), {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok()) return [];
+  const payload = await response.json().catch(() => null);
+  const items = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : [];
+  return items;
+};
+
+const findSmokeProductIdInList = (items: any[]): string => {
+  const matching = items.find(
+    (item) =>
+      String(item?.title || '').trim().toLowerCase() === SMOKE_PRODUCT_TITLE.toLowerCase()
+  );
+  const productId = String(matching?.productId || matching?.id || '').trim();
+  return productId;
+};
+
+const ensureSmokeProductForAdminEdit = async (page: Page): Promise<string> => {
+  const setupErrors: string[] = [];
+
+  const existingProducts = await readAdminProducts(page);
+  const existingProductId = findSmokeProductIdInList(existingProducts);
+  if (existingProductId) {
+    await page.request.patch(getApiUrl(`/api/admin/products/${existingProductId}`), {
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      data: { isActive: true },
+    }).catch(() => null);
+    return existingProductId;
+  }
+
+  const devSeedResponse = await page.request.post(getApiUrl('/api/dev/seed-ui-smoke-product'), {
+    headers: { Accept: 'application/json' },
+  });
+  if (devSeedResponse.ok()) {
+    const payload = await devSeedResponse.json().catch(() => null);
+    const seededProductId = parseProductId(payload);
+    if (seededProductId) return seededProductId;
+    setupErrors.push(`Dev seed returned ok but no productId: ${JSON.stringify(payload ?? null)}`);
+  } else {
+    const snippet = await readResponseSnippet(devSeedResponse);
+    setupErrors.push(
+      `/api/dev/seed-ui-smoke-product unavailable (${devSeedResponse.status()}): ${snippet}`
+    );
+  }
+
+  let artistsResponse = await page.request.get(getApiUrl('/api/artists'), {
+    headers: { Accept: 'application/json' },
+  });
+  let artistsPayload = artistsResponse.ok() ? await artistsResponse.json().catch(() => null) : null;
+  let artists = Array.isArray(artistsPayload?.artists)
+    ? artistsPayload.artists
+    : Array.isArray(artistsPayload)
+      ? artistsPayload
+      : [];
+
+  if (artists.length === 0) {
+    const seedOrdersResponse = await page.request.post(getApiUrl('/api/admin/test/seed-orders'), {
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      data: { placedCount: 1, paidCount: 0 },
+    });
+    if (!seedOrdersResponse.ok()) {
+      const snippet = await readResponseSnippet(seedOrdersResponse);
+      setupErrors.push(`/api/admin/test/seed-orders failed (${seedOrdersResponse.status()}): ${snippet}`);
+    }
+
+    artistsResponse = await page.request.get(getApiUrl('/api/artists'), {
+      headers: { Accept: 'application/json' },
+    });
+    artistsPayload = artistsResponse.ok() ? await artistsResponse.json().catch(() => null) : null;
+    artists = Array.isArray(artistsPayload?.artists)
+      ? artistsPayload.artists
+      : Array.isArray(artistsPayload)
+        ? artistsPayload
+        : [];
+  }
+
+  const artistId = String(artists[0]?.id || '').trim();
+  if (!artistId) {
+    setupErrors.push('No artist available to create a smoke product.');
+  } else {
+    const createResponse = await page.request.post(getApiUrl('/api/admin/products'), {
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      data: {
+        artistId,
+        title: SMOKE_PRODUCT_TITLE,
+        description: 'Stable seeded product for UI smoke',
+        priceCents: 1999,
+        stock: 12,
+        size: 'M',
+        color: 'Black',
+        sku: `UI-SMOKE-SKU-${Date.now()}`,
+      },
+    });
+
+    if (createResponse.ok()) {
+      const payload = await createResponse.json().catch(() => null);
+      const createdProductId = parseProductId(payload);
+      if (createdProductId) return createdProductId;
+      setupErrors.push(`Create product returned ok but no productId: ${JSON.stringify(payload ?? null)}`);
+    } else {
+      const snippet = await readResponseSnippet(createResponse);
+      setupErrors.push(`/api/admin/products create failed (${createResponse.status()}): ${snippet}`);
+    }
+  }
+
+  const finalProducts = await readAdminProducts(page);
+  const finalProductId = findSmokeProductIdInList(finalProducts);
+  if (finalProductId) return finalProductId;
+
+  throw new Error(`Unable to seed a smoke product for admin edit flows. ${setupErrors.join(' | ')}`);
+};
+
+const openAnyEditableProductInModal = async (
+  page: Page,
+  preferredProductId?: string
+): Promise<string | null> => {
   await gotoApp(page, '/partner/admin/products', { waitUntil: 'domcontentloaded' });
+
+  if (preferredProductId) {
+    const preferredRowById = page
+      .locator(`[data-testid="admin-product-row"][data-product-id="${preferredProductId}"]`)
+      .first();
+    if ((await preferredRowById.count().catch(() => 0)) > 0) {
+      await expect(preferredRowById).toBeVisible({ timeout: 10000 });
+      const editButton = preferredRowById.getByTestId('admin-product-row-edit').first();
+      if ((await editButton.count().catch(() => 0)) > 0) {
+        await editButton.click();
+      } else {
+        await preferredRowById.getByRole('button', { name: /edit/i }).first().click();
+      }
+      return preferredProductId;
+    }
+  }
 
   const preferredRow = page.locator('table tbody tr').filter({ hasText: SMOKE_PRODUCT_TITLE }).first();
   if ((await preferredRow.count().catch(() => 0)) > 0) {
     await expect(preferredRow).toBeVisible({ timeout: 10000 });
-    await preferredRow.getByRole('button', { name: /edit/i }).click();
-    return true;
+    const editButton = preferredRow.getByTestId('admin-product-row-edit').first();
+    if ((await editButton.count().catch(() => 0)) > 0) {
+      await editButton.click();
+    } else {
+      await preferredRow.getByRole('button', { name: /edit/i }).first().click();
+    }
+    const rowProductId = (await preferredRow.getAttribute('data-product-id').catch(() => '')) || '';
+    return rowProductId.trim() || preferredProductId || null;
   }
 
   const firstRow = page.locator('table tbody tr').first();
   if ((await firstRow.count().catch(() => 0)) === 0) {
-    return false;
+    return null;
   }
   await expect(firstRow).toBeVisible({ timeout: 10000 });
-  await firstRow.getByRole('button', { name: /edit/i }).click();
-  return true;
+  const editButton = firstRow.getByTestId('admin-product-row-edit').first();
+  if ((await editButton.count().catch(() => 0)) > 0) {
+    await editButton.click();
+  } else {
+    await firstRow.getByRole('button', { name: /edit/i }).first().click();
+  }
+  const rowProductId = (await firstRow.getAttribute('data-product-id').catch(() => '')) || '';
+  return rowProductId.trim() || null;
 };
 
 test.describe('Admin smoke', () => {
   test('admin product edit modal validates image type with readable message', async ({ page }) => {
     test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
     await loginAdmin(page);
-    await ensureSmokeProductForAdminEdit(page);
-    const opened = await openAnyEditableProductInModal(page);
+    const productId = await ensureSmokeProductForAdminEdit(page);
+    const opened = await openAnyEditableProductInModal(page, productId);
     test.skip(!opened, 'No editable products available for product edit modal validation test.');
     await expect(page.getByRole('heading', { name: /edit product/i })).toBeVisible({ timeout: 15000 });
 
@@ -311,12 +452,77 @@ test.describe('Admin smoke', () => {
     await expect(page.getByTestId('admin-edit-product-save')).toBeDisabled();
   });
 
+  test('admin product edit modal supports text-only save and hides legacy economics fields', async ({ page }) => {
+    test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
+    await loginAdmin(page);
+    const productId = await ensureSmokeProductForAdminEdit(page);
+    const openedProductId = await openAnyEditableProductInModal(page, productId);
+    const targetProductId = openedProductId || productId;
+    test.skip(!targetProductId, 'No editable products available for text-only product edit smoke test.');
+    await expect(page.getByRole('heading', { name: /edit product/i })).toBeVisible({ timeout: 15000 });
+
+    await expect(page.getByText(/vendor pay/i)).toHaveCount(0);
+    await expect(page.getByText(/internal\s*\/\s*our share/i)).toHaveCount(0);
+    await expect(page.getByText(/royalty/i)).toHaveCount(0);
+    await expect(page.getByText(/color options/i)).toHaveCount(0);
+
+    const saveButton = page.getByTestId('admin-edit-product-save');
+    await expect(saveButton).toBeDisabled();
+
+    const nextTitle = `${SMOKE_PRODUCT_TITLE} Text ${Date.now()}`;
+    await page.getByTestId('admin-edit-product-merch-name').fill(nextTitle);
+    await page
+      .getByTestId('admin-edit-product-story')
+      .fill(`Smoke text-only update ${Date.now()} with enough detail for validation.`);
+    await expect(saveButton).toBeEnabled();
+
+    let patchRequests = 0;
+    let photoRequests = 0;
+    const requestListener = (req: any) => {
+      const url = req.url();
+      const method = req.method();
+      if (method === 'PATCH' && /\/api\/admin\/products\/[^/]+(?:[/?#]|$)/i.test(url)) {
+        patchRequests += 1;
+      }
+      if (method === 'PUT' && /\/api\/admin\/products\/[^/]+\/photos(?:[/?#]|$)/i.test(url)) {
+        photoRequests += 1;
+      }
+    };
+    page.on('request', requestListener);
+
+    try {
+      const patchSaveResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PATCH' &&
+          /\/api\/admin\/products\/[^/]+(?:[/?#]|$)/i.test(response.url()) &&
+          [200, 201].includes(response.status()),
+        { timeout: 30000 }
+      );
+      await saveButton.click();
+      await patchSaveResponse;
+
+      await expect(saveButton).toHaveCount(0);
+      await expect(page.getByText(/NO_FIELDS/i)).toHaveCount(0);
+      expect(photoRequests).toBe(0);
+      expect(patchRequests).toBeGreaterThan(0);
+
+      const refreshedRow = page
+        .locator(`[data-testid="admin-product-row"][data-product-id="${targetProductId}"]`)
+        .first();
+      await expect(refreshedRow).toBeVisible({ timeout: 15000 });
+      await expect(refreshedRow).toContainText(nextTitle);
+    } finally {
+      page.off('request', requestListener);
+    }
+  });
+
   test('admin product edit modal supports image-only photo replacement', async ({ page }) => {
     test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
     await loginAdmin(page);
-    await ensureSmokeProductForAdminEdit(page);
-    const opened = await openAnyEditableProductInModal(page);
-    test.skip(!opened, 'No editable products available for image-only replacement smoke test.');
+    const productId = await ensureSmokeProductForAdminEdit(page);
+    const openedProductId = await openAnyEditableProductInModal(page, productId);
+    const targetProductId = openedProductId || productId;
+    test.skip(!targetProductId, 'No editable products available for image-only replacement smoke test.');
     await expect(page.getByRole('heading', { name: /edit product/i })).toBeVisible({ timeout: 15000 });
 
     const saveButton = page.getByTestId('admin-edit-product-save');
@@ -362,208 +568,418 @@ test.describe('Admin smoke', () => {
       expect(patchRequests).toBe(0);
       expect(photoRequests).toBeGreaterThan(0);
 
-      const refreshedFirstRow = page.locator('table tbody tr').first();
-      await expect(refreshedFirstRow).toBeVisible({ timeout: 15000 });
-      await expect(refreshedFirstRow.locator('img').first()).toBeVisible({ timeout: 15000 });
+      const refreshedRow = page
+        .locator(`[data-testid="admin-product-row"][data-product-id="${targetProductId}"]`)
+        .first();
+      await expect(refreshedRow).toBeVisible({ timeout: 15000 });
+      await expect(refreshedRow.getByTestId('admin-product-row-thumbnail').first()).toBeVisible({
+        timeout: 15000,
+      });
+      await expect(refreshedRow.getByTestId('admin-product-row-thumbnail-empty')).toHaveCount(0);
     } finally {
       page.off('request', requestListener);
     }
   });
 
-  test('admin can create product and manage variants', async ({ page }, testInfo) => {
+  test('admin product edit modal supports mixed text + photo save', async ({ page }) => {
+    test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
+    await loginAdmin(page);
+    const productId = await ensureSmokeProductForAdminEdit(page);
+    const openedProductId = await openAnyEditableProductInModal(page, productId);
+    const targetProductId = openedProductId || productId;
+    test.skip(!targetProductId, 'No editable products available for mixed product edit smoke test.');
+    await expect(page.getByRole('heading', { name: /edit product/i })).toBeVisible({ timeout: 15000 });
+
+    const saveButton = page.getByTestId('admin-edit-product-save');
+    await expect(saveButton).toBeDisabled();
+
+    const nextTitle = `${SMOKE_PRODUCT_TITLE} Mixed ${Date.now()}`;
+    await page.getByTestId('admin-edit-product-merch-name').fill(nextTitle);
+    await page
+      .getByTestId('admin-edit-product-story')
+      .fill(`Smoke mixed update ${Date.now()} with enough detail for validation.`);
+
+    const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 10000 });
+    await page.getByTestId('admin-edit-product-photo-trigger').click();
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles(getListingPhotoFixtures());
+    await expect(page.getByTestId('admin-edit-product-photo-preview')).toHaveCount(4, {
+      timeout: 10000,
+    });
+    await expect(saveButton).toBeEnabled();
+
+    let patchRequests = 0;
+    let photoRequests = 0;
+    const requestListener = (req: any) => {
+      const url = req.url();
+      const method = req.method();
+      if (method === 'PATCH' && /\/api\/admin\/products\/[^/]+(?:[/?#]|$)/i.test(url)) {
+        patchRequests += 1;
+      }
+      if (method === 'PUT' && /\/api\/admin\/products\/[^/]+\/photos(?:[/?#]|$)/i.test(url)) {
+        photoRequests += 1;
+      }
+    };
+    page.on('request', requestListener);
+
+    try {
+      const patchSaveResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PATCH' &&
+          /\/api\/admin\/products\/[^/]+(?:[/?#]|$)/i.test(response.url()) &&
+          [200, 201].includes(response.status()),
+        { timeout: 30000 }
+      );
+      const photoSaveResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          /\/api\/admin\/products\/[^/]+\/photos(?:[/?#]|$)/i.test(response.url()) &&
+          [200, 201].includes(response.status()),
+        { timeout: 30000 }
+      );
+      await saveButton.click();
+      await Promise.all([patchSaveResponse, photoSaveResponse]);
+
+      await expect(saveButton).toHaveCount(0);
+      await expect(page.getByText(/NO_FIELDS/i)).toHaveCount(0);
+      expect(patchRequests).toBeGreaterThan(0);
+      expect(photoRequests).toBeGreaterThan(0);
+
+      const refreshedRow = page
+        .locator(`[data-testid="admin-product-row"][data-product-id="${targetProductId}"]`)
+        .first();
+      await expect(refreshedRow).toBeVisible({ timeout: 15000 });
+      await expect(refreshedRow).toContainText(nextTitle);
+      await expect(refreshedRow.getByTestId('admin-product-row-thumbnail').first()).toBeVisible({
+        timeout: 15000,
+      });
+      await expect(refreshedRow.getByTestId('admin-product-row-thumbnail-empty')).toHaveCount(0);
+    } finally {
+      page.off('request', requestListener);
+    }
+  });
+
+  test('admin can manage SKU master and product-to-SKU mapping', async ({ page }) => {
     test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
     await loginAdmin(page);
 
-    await gotoApp(page, '/partner/admin/products', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(/\/partner\/admin\/products/);
+    const productId = await ensureSmokeProductForAdminEdit(page);
 
-    const createProduct = page
-      .getByRole('link', { name: /create product|launch product/i })
-      .or(page.getByRole('button', { name: /create product|launch product/i }))
-      .or(page.getByText(/create product|launch product/i));
-    await expect(createProduct.first()).toBeVisible({ timeout: 15000 });
-    await createProduct.first().click();
-    await expect(page).toHaveURL(/\/partner\/admin\/products\/new/);
+    const uniqueSuffix = Date.now();
+    const supplierSku = `UI-SKU-${uniqueSuffix}`;
+    let createdInventorySkuId = '';
 
-    const artistSelect = await waitForSelectReady(page, 'admin-product-artist');
-    await selectFirstRealOption(artistSelect);
+    await gotoApp(page, '/partner/admin/inventory-skus', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: /sku master/i })).toBeVisible({ timeout: 20000 });
 
-    const merchNameInput = await pickFirstVisible(
-      [
-        page.getByTestId('admin-product-merch-name'),
-        page.getByLabel(/merch name/i),
-        page.getByPlaceholder(/vintage rock tee|merch name/i),
-      ],
-      'merch name input'
-    );
-    await fillIfEmpty(merchNameInput, 'Smoke Tee');
-    await page.getByLabel(/^Merch Story$/i).fill('Created by admin smoke with listing photos');
-    const vendorPayInput = await pickFirstVisible(
-      [
-        page.getByTestId('admin-product-vendor-pay'),
-        page.getByLabel(/vendor pay/i),
-        page.getByPlaceholder(/vendor pay/i),
-      ],
-      'vendor pay input'
-    );
-    const ourShareInput = await pickFirstVisible(
-      [
-        page.getByTestId('admin-product-our-share'),
-        page.getByLabel(/our share/i),
-        page.getByPlaceholder(/our share/i),
-      ],
-      'our share input'
-    );
-    const royaltyInput = await pickFirstVisible(
-      [
-        page.getByTestId('admin-product-royalty'),
-        page.getByLabel(/royalty/i),
-        page.getByPlaceholder(/royalty/i),
-      ],
-      'royalty input'
-    );
-    await fillIfEmpty(vendorPayInput, '1');
-    await fillIfEmpty(ourShareInput, '1');
-    await fillIfEmpty(royaltyInput, '1');
-    await selectMerchTypeTshirt(page);
+    await page.getByTestId('admin-sku-master-create').click();
+    await expect(page.getByRole('heading', { name: /create sku/i })).toBeVisible({ timeout: 10000 });
+    await page.getByTestId('admin-sku-form-supplier-sku').fill(supplierSku);
+    await page.getByTestId('admin-sku-form-merch-type').fill('tshirt');
+    await page.getByTestId('admin-sku-form-color').fill('black');
+    await page.getByTestId('admin-sku-form-size').fill('M');
+    await page.getByTestId('admin-sku-form-stock').fill('12');
 
-    const photoFiles = getListingPhotoFixtures();
-    await page
-      .locator('input[type="file"]')
-      .setInputFiles(photoFiles);
-
-    const createProductResponsePromise = page.waitForResponse(
+    const createSkuResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
-        /\/api\/admin\/products(?:[/?#]|$)/i.test(response.url()),
+        /\/api\/admin\/inventory-skus(?:[/?#]|$)/i.test(response.url()),
       { timeout: 30000 }
     );
-    const launchBtn = page.getByRole('button', { name: /^launch product$/i });
-    await expect(launchBtn).toBeVisible({ timeout: 15000 });
-    await launchBtn.click();
-    const createProductResponse = await createProductResponsePromise.catch(() => null);
-    if (!createProductResponse) {
-      await page.screenshot({
-        path: testInfo.outputPath('create-product-post-never-fired.png'),
-        fullPage: true,
-      });
+    await page.getByTestId('admin-sku-form-save').click();
+    const createSkuResponse = await createSkuResponsePromise;
+    if (!createSkuResponse.ok()) {
+      const body = await createSkuResponse.text().catch(() => '<unavailable>');
+      throw new Error(`Create SKU failed (${createSkuResponse.status()}): ${body}`);
+    }
+    const createSkuPayload = await createSkuResponse.json().catch(() => null);
+    createdInventorySkuId = String(createSkuPayload?.item?.id || '').trim();
+    expect(createdInventorySkuId).toBeTruthy();
+
+    const skuRow = () => page.locator('tr').filter({ hasText: supplierSku }).first();
+    await expect(skuRow()).toBeVisible({ timeout: 20000 });
+
+    await skuRow().getByTestId('admin-sku-master-edit').click();
+    await expect(page.getByRole('heading', { name: /edit sku/i })).toBeVisible({ timeout: 10000 });
+    await page.getByLabel(/quality tier/i).fill('premium');
+    const editSkuResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/admin\/inventory-skus\/[^/]+(?:[/?#]|$)/i.test(response.url()),
+      { timeout: 30000 }
+    );
+    await page.getByTestId('admin-sku-form-save').click();
+    const editSkuResponse = await editSkuResponsePromise;
+    if (!editSkuResponse.ok()) {
+      const body = await editSkuResponse.text().catch(() => '<unavailable>');
+      throw new Error(`Edit SKU failed (${editSkuResponse.status()}): ${body}`);
+    }
+    await expect(skuRow()).toContainText(/premium/i, { timeout: 10000 });
+
+    const deactivateResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/admin\/inventory-skus\/[^/]+(?:[/?#]|$)/i.test(response.url()),
+      { timeout: 30000 }
+    );
+    await skuRow().getByTestId('admin-sku-master-toggle').click();
+    const deactivateResponse = await deactivateResponsePromise;
+    if (!deactivateResponse.ok()) {
+      const body = await deactivateResponse.text().catch(() => '<unavailable>');
+      throw new Error(`Deactivate SKU failed (${deactivateResponse.status()}): ${body}`);
+    }
+    await expect(skuRow()).toContainText(/inactive/i, { timeout: 10000 });
+
+    const activateResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/admin\/inventory-skus\/[^/]+(?:[/?#]|$)/i.test(response.url()),
+      { timeout: 30000 }
+    );
+    await skuRow().getByTestId('admin-sku-master-toggle').click();
+    const activateResponse = await activateResponsePromise;
+    if (!activateResponse.ok()) {
+      const body = await activateResponse.text().catch(() => '<unavailable>');
+      throw new Error(`Activate SKU failed (${activateResponse.status()}): ${body}`);
+    }
+    await expect(skuRow()).toContainText(/active/i, { timeout: 10000 });
+    const ensurePositiveStockResponse = await page.request.patch(
+      getApiUrl(`/api/admin/inventory-skus/${createdInventorySkuId}`),
+      {
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        data: { stock: 12, is_active: true },
+      }
+    );
+    if (!ensurePositiveStockResponse.ok()) {
+      const body = await ensurePositiveStockResponse.text().catch(() => '<unavailable>');
       throw new Error(
-        'Create product POST /api/admin/products never fired; likely form validation prevented submit'
+        `Ensure positive SKU stock failed (${ensurePositiveStockResponse.status()}): ${body}`
       );
     }
-    if (![200, 201].includes(createProductResponse.status())) {
-      const body = await createProductResponse.text().catch(() => '<unavailable>');
-      throw new Error(`Create product failed (${createProductResponse.status()}): ${body}`);
-    }
-    const createPayload = createProductResponse
-      ? await createProductResponse.json().catch(() => null)
-      : null;
-    const createdProductId =
-      createPayload?.id ||
-      createPayload?.product?.id ||
-      createPayload?.data?.id ||
-      null;
-    await expect(page).toHaveURL(/\/partner\/admin\/products$/, { timeout: 15000 });
-    if (createdProductId) {
-      await gotoApp(page, `/partner/admin/products/${createdProductId}/variants`, {
-        waitUntil: 'domcontentloaded',
-      });
-    } else {
-      const variantsAction = page
-        .getByRole('button', { name: /variants/i })
-        .or(page.getByRole('link', { name: /variants/i }))
-        .or(page.getByText(/variants/i));
-      await expect(variantsAction.first()).toBeVisible({ timeout: 20000 });
-      await variantsAction.first().click();
-    }
-    await expect(page).toHaveURL(/\/partner\/admin\/products\/.+\/variants/);
-    await expect(page.getByRole('heading', { name: /product variants/i })).toBeVisible({ timeout: 15000 });
-    const productId = page.url().match(/\/partner\/admin\/products\/([^/]+)\/variants/)?.[1] ?? '';
-    expect(productId, `Missing productId in variants URL: ${page.url()}`).toBeTruthy();
 
-    const sku = `SKU-ADM-${Date.now()}`;
-    const addBtn = page.getByRole('button', { name: /add new config/i });
-    await expect(addBtn).toBeVisible({ timeout: 15000 });
-    await addBtn.click();
+    await gotoApp(page, `/partner/admin/products/${productId}/variants`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(page.getByRole('heading', { name: /product variants/i })).toBeVisible({ timeout: 20000 });
 
-    let lastRow = page.locator('table tr').last();
-    if ((await lastRow.locator('input').count().catch(() => 0)) < 5) {
-      lastRow = page
-        .locator('[data-testid="variant-row"], .variant-row, [role="row"], div.group:has(input)')
-        .last();
+    if ((await page.getByTestId('admin-variant-row').count()) === 0) {
+      await page.getByRole('button', { name: /add variant/i }).click();
     }
 
-    let skuInput = lastRow.locator('input').nth(0);
-    let sizeInput = lastRow.locator('input').nth(1);
-    let colorInput = lastRow.locator('input').nth(2);
-    let priceInput = lastRow.locator('input').nth(3);
-    let stockInput = lastRow.locator('input').nth(4);
+    const firstSkuSelect = page.getByTestId('admin-variant-sku-select-0');
+    await expect(firstSkuSelect).toBeVisible({ timeout: 15000 });
+    await firstSkuSelect.selectOption({ value: createdInventorySkuId });
+    await page.getByTestId('admin-variant-selling-price-0').fill('2199');
 
-    if ((await lastRow.locator('input').count().catch(() => 0)) < 5) {
-      const allInputs = page.locator('input');
-      const totalInputs = await allInputs.count();
-      if (totalInputs < 5) {
-        throw new Error('Variant grid inputs not found after clicking Add New Config.');
-      }
-      skuInput = allInputs.nth(totalInputs - 5);
-      sizeInput = allInputs.nth(totalInputs - 4);
-      colorInput = allInputs.nth(totalInputs - 3);
-      priceInput = allInputs.nth(totalInputs - 2);
-      stockInput = allInputs.nth(totalInputs - 1);
-    }
-
-    await skuInput.fill(sku);
-    await sizeInput.fill('M');
-    await colorInput.fill('black');
-    await priceInput.fill('2199');
-    await stockInput.fill('10');
-
-    const deployVariantsResponsePromise = page.waitForResponse(
+    const saveVariantsResponsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === 'PUT' &&
-        /\/api\/admin\/products\/[^/]+\/variants(?:[/?#]|$)/i.test(response.url()) &&
-        response.status() < 400,
+        /\/api\/admin\/products\/[^/]+\/variants(?:[/?#]|$)/i.test(response.url()),
       { timeout: 30000 }
     );
-    const deployBtn = page.getByRole('button', { name: /deploy changes/i });
-    await expect(deployBtn).toBeVisible({ timeout: 15000 });
-    await deployBtn.click();
-    const deployVariantsResponse = await deployVariantsResponsePromise;
-    if (!deployVariantsResponse.ok()) {
-      const body = await deployVariantsResponse.text().catch(() => '<unavailable>');
-      throw new Error(`Deploy variants failed (${deployVariantsResponse.status()}): ${body}`);
+    await page.getByTestId('admin-variant-save').click();
+    const saveVariantsResponse = await saveVariantsResponsePromise;
+    if (!saveVariantsResponse.ok()) {
+      const body = await saveVariantsResponse.text().catch(() => '<unavailable>');
+      throw new Error(`Save variants failed (${saveVariantsResponse.status()}): ${body}`);
     }
+    let sellableReady = false;
+    let lastVariantSnapshot: any = null;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const enforceSellableStockResponse = await page.request.patch(
+        getApiUrl(`/api/admin/inventory-skus/${createdInventorySkuId}`),
+        {
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          data: { stock: 12, is_active: true },
+        }
+      );
+      if (!enforceSellableStockResponse.ok()) {
+        const body = await enforceSellableStockResponse.text().catch(() => '<unavailable>');
+        throw new Error(
+          `Unable to enforce positive stock for mapped SKU (${enforceSellableStockResponse.status()}): ${body}`
+        );
+      }
+
+      const variantsReadResponse = await page.request.get(
+        getApiUrl(`/api/admin/products/${productId}/variants`),
+        { headers: { Accept: 'application/json' } }
+      );
+      if (!variantsReadResponse.ok()) {
+        const body = await variantsReadResponse.text().catch(() => '<unavailable>');
+        throw new Error(
+          `Unable to read variants after stock update (${variantsReadResponse.status()}): ${body}`
+        );
+      }
+      const variantsReadPayload = await variantsReadResponse.json().catch(() => null);
+      const variants = Array.isArray(variantsReadPayload?.variants)
+        ? variantsReadPayload.variants
+        : Array.isArray(variantsReadPayload?.items)
+          ? variantsReadPayload.items
+          : [];
+      const mappedVariant = variants.find(
+        (variant: any) =>
+          String(variant?.inventory_sku_id || variant?.inventorySkuId || '').trim() ===
+          createdInventorySkuId
+      );
+      lastVariantSnapshot = mappedVariant || null;
+      const stockValue = Number(mappedVariant?.stock ?? 0);
+      const effectiveSellableRaw =
+        mappedVariant?.effective_sellable ?? mappedVariant?.effectiveSellable;
+      const effectiveSellableValue =
+        effectiveSellableRaw === true ||
+        effectiveSellableRaw === 'true' ||
+        effectiveSellableRaw === 1 ||
+        effectiveSellableRaw === '1';
+      if (stockValue > 0 && effectiveSellableValue) {
+        sellableReady = true;
+        break;
+      }
+      await page.waitForTimeout(250);
+    }
+
+    if (!sellableReady) {
+      throw new Error(
+        `Mapped variant did not become sellable after stock setup: ${JSON.stringify(
+          lastVariantSnapshot
+        )}`
+      );
+    }
+
+    await gotoApp(page, `/partner/admin/products/${productId}/variants`, {
+      waitUntil: 'domcontentloaded',
+    });
+
+    const resolveMappedRowIndex = async () => {
+      const rowCount = await page.getByTestId('admin-variant-row').count();
+      for (let i = 0; i < rowCount; i += 1) {
+        const select = page.getByTestId(`admin-variant-sku-select-${i}`);
+        if ((await select.count().catch(() => 0)) === 0) continue;
+        const value = (await select.inputValue().catch(() => '')).trim();
+        if (value === createdInventorySkuId) return i;
+      }
+      return -1;
+    };
+
+    await expect.poll(resolveMappedRowIndex, { timeout: 10000 }).toBeGreaterThanOrEqual(0);
+    const mappedRowIndex = await resolveMappedRowIndex();
+    if (mappedRowIndex < 0) {
+      throw new Error(`Unable to find mapped variant row for inventory SKU ${createdInventorySkuId}`);
+    }
+    const mappedVariantRow = page.getByTestId('admin-variant-row').nth(mappedRowIndex);
+
+    await expect(page.getByTestId(`admin-variant-sku-select-${mappedRowIndex}`)).toHaveValue(
+      createdInventorySkuId,
+      { timeout: 10000 }
+    );
+    await expect(mappedVariantRow).toBeVisible({ timeout: 10000 });
+    await expect(mappedVariantRow.getByTestId('admin-variant-listed-select')).toHaveValue('true');
+    await expect(mappedVariantRow.getByTestId('admin-variant-sku-active')).toHaveText(/yes/i);
     await expect
       .poll(
         async () => {
-          let persistedLastRow = page.locator('table tr').last();
-          if ((await persistedLastRow.locator('input').count().catch(() => 0)) < 5) {
-            persistedLastRow = page
-              .locator('[data-testid="variant-row"], .variant-row, [role="row"], div.group:has(input)')
-              .last();
-          }
-          const inputs = persistedLastRow.locator('input');
-          if ((await inputs.count().catch(() => 0)) < 5) return false;
-          const skuValue = (await inputs.nth(0).inputValue().catch(() => '')).trim();
-          const sizeValue = (await inputs.nth(1).inputValue().catch(() => '')).trim();
-          const colorValue = (await inputs.nth(2).inputValue().catch(() => '')).trim().toLowerCase();
-          const priceValue = (await inputs.nth(3).inputValue().catch(() => '')).trim();
-          const stockValue = (await inputs.nth(4).inputValue().catch(() => '')).trim();
-          return (
-            skuValue.length > 0 &&
-            sizeValue === 'M' &&
-            colorValue === 'black' &&
-            priceValue === '2199' &&
-            stockValue === '10'
-          );
+          const text = ((await mappedVariantRow.getByTestId('admin-variant-stock').textContent()) || '0').trim();
+          return Number(text);
         },
-        { timeout: 20000 }
+        { timeout: 10000 }
       )
-      .toBe(true);
+      .toBeGreaterThan(0);
+    await expect(mappedVariantRow.getByTestId('admin-variant-effective-sellable')).toHaveText(/yes/i, {
+      timeout: 10000,
+    });
 
-    const persistedInputs = page.locator('input');
-    await expect(persistedInputs.first()).toBeVisible({ timeout: 10000 });
-    await expect(persistedInputs.first()).toBeEnabled({ timeout: 10000 });
+    await page.getByRole('button', { name: /add variant/i }).click();
+    const variantRowCount = await page.getByTestId('admin-variant-row').count();
+    const duplicateRowIndex = Math.max(variantRowCount - 1, 0);
+    const duplicateSelect = page.getByTestId(`admin-variant-sku-select-${duplicateRowIndex}`);
+    await duplicateSelect.selectOption({ value: createdInventorySkuId });
+    const duplicatePriceInput = page.getByTestId(`admin-variant-selling-price-${duplicateRowIndex}`);
+    await duplicatePriceInput.fill('2299');
+    await page.getByTestId('admin-variant-save').click();
+    await expect(page.getByText(/this sku is already linked to the product/i)).toBeVisible({
+      timeout: 10000,
+    });
+
+    await gotoApp(page, '/partner/admin/inventory-skus', { waitUntil: 'domcontentloaded' });
+    await expect(skuRow()).toBeVisible({ timeout: 20000 });
+    const deactivateForStatusResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/admin\/inventory-skus\/[^/]+(?:[/?#]|$)/i.test(response.url()),
+      { timeout: 30000 }
+    );
+    await skuRow().getByTestId('admin-sku-master-toggle').click();
+    const deactivateForStatusResponse = await deactivateForStatusResponsePromise;
+    if (!deactivateForStatusResponse.ok()) {
+      const body = await deactivateForStatusResponse.text().catch(() => '<unavailable>');
+      throw new Error(`Deactivate SKU for status check failed (${deactivateForStatusResponse.status()}): ${body}`);
+    }
+
+    await gotoApp(page, `/partner/admin/products/${productId}/variants`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect.poll(resolveMappedRowIndex, { timeout: 10000 }).toBeGreaterThanOrEqual(0);
+    const mappedRowIndexAfterDeactivate = await resolveMappedRowIndex();
+    if (mappedRowIndexAfterDeactivate < 0) {
+      throw new Error(`Unable to find mapped variant row after SKU deactivate for ${createdInventorySkuId}`);
+    }
+    const mappedVariantRowAfterDeactivate = page
+      .getByTestId('admin-variant-row')
+      .nth(mappedRowIndexAfterDeactivate);
+    await expect(mappedVariantRowAfterDeactivate).toBeVisible({ timeout: 10000 });
+    await expect(mappedVariantRowAfterDeactivate.getByTestId('admin-variant-effective-sellable')).toHaveText(/no/i, {
+      timeout: 10000,
+    });
+    await expect(mappedVariantRowAfterDeactivate.getByTestId('admin-variant-status-reasons')).toContainText(/sku inactive/i, {
+      timeout: 10000,
+    });
+
+    await gotoApp(page, '/partner/admin/inventory-skus', { waitUntil: 'domcontentloaded' });
+    await expect(skuRow()).toBeVisible({ timeout: 20000 });
+    const reactivateResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/admin\/inventory-skus\/[^/]+(?:[/?#]|$)/i.test(response.url()),
+      { timeout: 30000 }
+    );
+    await skuRow().getByTestId('admin-sku-master-toggle').click();
+    const reactivateResponse = await reactivateResponsePromise;
+    if (!reactivateResponse.ok()) {
+      const body = await reactivateResponse.text().catch(() => '<unavailable>');
+      throw new Error(`Reactivate SKU failed (${reactivateResponse.status()}): ${body}`);
+    }
+
+    await skuRow().getByTestId('admin-sku-master-stock-input').fill('0');
+    const saveStockResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/admin\/inventory-skus\/[^/]+(?:[/?#]|$)/i.test(response.url()),
+      { timeout: 30000 }
+    );
+    await skuRow().getByTestId('admin-sku-master-stock-save').click();
+    const saveStockResponse = await saveStockResponsePromise;
+    if (!saveStockResponse.ok()) {
+      const body = await saveStockResponse.text().catch(() => '<unavailable>');
+      throw new Error(`Save stock failed (${saveStockResponse.status()}): ${body}`);
+    }
+
+    await gotoApp(page, `/partner/admin/products/${productId}/variants`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect.poll(resolveMappedRowIndex, { timeout: 10000 }).toBeGreaterThanOrEqual(0);
+    const mappedRowIndexAfterStockZero = await resolveMappedRowIndex();
+    if (mappedRowIndexAfterStockZero < 0) {
+      throw new Error(`Unable to find mapped variant row after stock update for ${createdInventorySkuId}`);
+    }
+    const mappedVariantRowAfterStockZero = page
+      .getByTestId('admin-variant-row')
+      .nth(mappedRowIndexAfterStockZero);
+    await expect(mappedVariantRowAfterStockZero).toBeVisible({ timeout: 10000 });
+    await expect(mappedVariantRowAfterStockZero.getByTestId('admin-variant-effective-sellable')).toHaveText(/no/i, {
+      timeout: 10000,
+    });
+    await expect(mappedVariantRowAfterStockZero.getByTestId('admin-variant-status-reasons')).toContainText(/out of stock/i, {
+      timeout: 10000,
+    });
   });
 
   test('admin artists page shows featured column and toggle', async ({ page }) => {

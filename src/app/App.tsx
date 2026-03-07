@@ -31,6 +31,7 @@ import AdminArtistRequests from '../dashboards/admin/AdminArtistRequests';
 import AdminProductsPage from '../dashboards/admin/AdminProductsPage';
 import AdminCreateProductPage from '../dashboards/admin/AdminCreateProductPage';
 import AdminProductVariants from '../dashboards/admin/AdminProductVariants';
+import AdminSkuMasterPage from '../dashboards/admin/AdminSkuMasterPage';
 import AdminDropsPage from '../dashboards/admin/AdminDropsPage';
 import AdminProvisioningPage from '../pages/admin/AdminProvisioningPage';
 import AdminLeadsPage from '../pages/admin/AdminLeadsPage';
@@ -1181,6 +1182,10 @@ function AppRoutes() {
           element={requireAuthElement(<AdminCreateProductPage />)}
         />
         <Route
+          path="admin/inventory-skus"
+          element={requireAuthElement(<AdminSkuMasterPage />)}
+        />
+        <Route
           path="admin/drops"
           element={requireAuthElement(<AdminDropsPage />)}
         />
@@ -1312,6 +1317,10 @@ function AppRoutes() {
       <Route
         path="/admin/products"
         element={<LegacyRedirect to="/partner/admin/products" />}
+      />
+      <Route
+        path="/admin/inventory-skus"
+        element={<LegacyRedirect to="/partner/admin/inventory-skus" />}
       />
       <Route
         path="/admin/homepage-banners"
