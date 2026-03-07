@@ -11,6 +11,29 @@ import {
   UI_BASE_URL,
 } from '../_env';
 
+const PARTNER_LOGIN_RESPONSE_RE = /\/api\/auth\/(?:partner\/)?login(?:[/?#]|$)/i;
+const PARTNER_LOGIN_DEBUG_ENABLED = /^(1|true|yes)$/i.test(
+  String(process.env.PW_DEBUG_PARTNER_LOGIN || process.env.OM_DEBUG_PARTNER_LOGIN || '')
+);
+
+const isPartnerLoginResponse = (response: any): boolean => {
+  const method = String(response?.request?.().method?.() || '').toUpperCase();
+  if (method !== 'POST') return false;
+  const urlText = String(response?.url?.() || '');
+  try {
+    const parsed = new URL(urlText);
+    return /^\/api\/auth\/(?:partner\/)?login(?:\/)?$/i.test(parsed.pathname);
+  } catch {
+    return PARTNER_LOGIN_RESPONSE_RE.test(urlText);
+  }
+};
+
+const logPartnerLoginDebug = (event: string, payload: Record<string, unknown> = {}) => {
+  if (!PARTNER_LOGIN_DEBUG_ENABLED) return;
+  // eslint-disable-next-line no-console
+  console.info(`[pw-partner-login] ${event}`, payload);
+};
+
 const assertNoPortalError = (page: Page) => {
   const url = page.url();
   if (url.includes('portalError=')) {
@@ -100,32 +123,84 @@ const firstVisible = async (candidates: Locator[], timeout = 10000): Promise<Loc
 };
 
 const submitPartnerLoginForm = async (page: Page, email: string, password: string) => {
+  const partnerForm = await firstVisible([
+    page.locator('form:has(input#email):has(input#password)'),
+    page.locator('form:has(input[type="email"]):has(input[type="password"])'),
+    page.locator('form').first(),
+  ]);
+
   const emailField = await firstVisible([
-    page.getByLabel(/email/i),
-    page.getByPlaceholder(/email/i),
-    page.getByTestId(/email/i),
-    page.locator('input[type="email"][name="email"], input#partner-email'),
+    partnerForm.locator('input#email'),
+    partnerForm.locator('input[type="email"][name="email"]'),
+    partnerForm.getByLabel(/email/i),
+    partnerForm.getByPlaceholder(/email/i),
+    partnerForm.getByTestId(/email/i),
+    partnerForm.locator('input[type="email"], input#partner-email'),
   ]);
   const passwordField = await firstVisible([
-    page.getByLabel(/password/i),
-    page.getByPlaceholder(/password/i),
-    page.getByTestId(/password/i),
-    page.locator('input[type="password"][name="password"], input#partner-password'),
+    partnerForm.locator('input#password'),
+    partnerForm.locator('input[type="password"][name="password"]'),
+    partnerForm.getByLabel(/password/i),
+    partnerForm.getByPlaceholder(/password/i),
+    partnerForm.getByTestId(/password/i),
+    partnerForm.locator('input[type="password"], input#partner-password'),
   ]);
-  const loginButton = page.getByRole('button', { name: /^login$/i });
+  const loginButton = await firstVisible([
+    partnerForm.getByRole('button', { name: /^(log\s*in|login|sign\s*in)$/i }),
+    partnerForm.locator('button[type="submit"]'),
+  ]);
 
   await expect(loginButton).toBeVisible({ timeout: 10000 });
   await emailField.fill(email);
   await passwordField.fill(password);
+  await expect(loginButton).toBeEnabled({ timeout: 5000 });
 
-  const loginResponsePromise = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      /\/api\/auth\/partner\/login(?:[/?#]|$)/i.test(response.url()),
-    { timeout: 15000 }
-  );
-  await loginButton.click();
-  return loginResponsePromise;
+  const loginButtonDisabled = await loginButton.isDisabled().catch(() => true);
+  logPartnerLoginDebug('submit_prepare', {
+    pageUrl: page.url(),
+    matcher: PARTNER_LOGIN_RESPONSE_RE.toString(),
+    submitDisabled: loginButtonDisabled,
+  });
+
+  const observedAuthResponses: Array<{ method: string; status: number; url: string }> = [];
+  const onResponse = (response: any) => {
+    const request = response.request();
+    const method = String(request?.method?.() || '').toUpperCase();
+    const url = String(response.url?.() || '');
+    if (method !== 'POST' || !/\/api\/auth\//i.test(url)) return;
+    observedAuthResponses.push({
+      method,
+      status: Number(response.status?.() || 0),
+      url,
+    });
+    if (observedAuthResponses.length > 8) {
+      observedAuthResponses.shift();
+    }
+  };
+
+  page.on('response', onResponse);
+  try {
+    const loginResponsePromise = page.waitForResponse(
+      (response) => isPartnerLoginResponse(response),
+      { timeout: 20000 }
+    );
+
+    const [loginResponse] = await Promise.all([loginResponsePromise, loginButton.click()]);
+    logPartnerLoginDebug('submit_response_matched', {
+      status: loginResponse.status(),
+      url: loginResponse.url(),
+    });
+    return loginResponse;
+  } catch (err: any) {
+    logPartnerLoginDebug('submit_response_timeout', {
+      pageUrl: page.url(),
+      observedAuthResponses,
+      error: String(err?.message || err || 'unknown_error'),
+    });
+    throw err;
+  } finally {
+    page.off('response', onResponse);
+  }
 };
 
 const submitFanLoginForm = async (page: Page, email: string, password: string) => {
@@ -166,7 +241,7 @@ const submitFanLoginForm = async (page: Page, email: string, password: string) =
 
 const resetAuth = async (page: Page) => {
   await page.context().clearCookies();
-  await page.goto('about:blank', { waitUntil: 'domcontentloaded' });
+  await page.goto(`${UI_BASE_URL}/`, { waitUntil: 'domcontentloaded' }).catch(() => null);
   await page.evaluate(() => {
     try {
       localStorage.clear();
@@ -174,7 +249,8 @@ const resetAuth = async (page: Page) => {
     } catch {
       // no-op for restricted storage contexts
     }
-  });
+  }).catch(() => null);
+  await page.goto('about:blank', { waitUntil: 'domcontentloaded' }).catch(() => null);
 };
 
 export const gotoApp = async (

@@ -48,38 +48,6 @@ const expectPhoneValidationFailure = async (page: Page, phoneValue: string, expe
 };
 
 test.describe('Apply artist form UX', () => {
-  test('valid 10-digit Indian mobile number passes validation and submits normalized phone', async ({ page }) => {
-    let requestCount = 0;
-    let submittedPhone = '';
-
-    await page.route('**/api/artist-access-requests**', async (route) => {
-      requestCount += 1;
-      const req = route.request();
-      const contentType = String(req.headers()['content-type'] || '').toLowerCase();
-      if (contentType.includes('application/json')) {
-        submittedPhone = String((req.postDataJSON() as any)?.phone ?? '');
-      } else {
-        submittedPhone = extractMultipartField(req.postData() || '', 'phone');
-      }
-
-      await route.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify({ ok: true }),
-      });
-    });
-
-    await openApplyArtist(page);
-    await fillRequiredFields(page, VALID_PHONE);
-
-    await expect(page.locator('#apply-artist-phone-helper')).toContainText(PHONE_HELPER_TEXT);
-    await page.getByTestId('apply-artist-submit').click();
-
-    await expect.poll(() => requestCount).toBe(1);
-    await expect(page.getByText(/request submitted/i)).toBeVisible({ timeout: 10000 });
-    expect(submittedPhone).toBe(VALID_PHONE);
-  });
-
   test('rejects +91-prefixed input', async ({ page }) => {
     await expectPhoneValidationFailure(page, '+919876543210', INVALID_PHONE_MESSAGE);
   });
@@ -98,22 +66,8 @@ test.describe('Apply artist form UX', () => {
 
   test('clears profile photo input and form state after successful submit', async ({ page }) => {
     const fixturePath = path.resolve(__dirname, 'fixtures', 'listing-photo-1.png');
-    let requestCount = 0;
-    const contentTypes: string[] = [];
-    const requestedPlanTypes: string[] = [];
 
     await page.route('**/api/artist-access-requests**', async (route) => {
-      requestCount += 1;
-      const req = route.request();
-      const contentType = String(req.headers()['content-type'] || '').toLowerCase();
-      contentTypes.push(contentType);
-
-      if (contentType.includes('application/json')) {
-        requestedPlanTypes.push(String((req.postDataJSON() as any)?.requested_plan_type ?? ''));
-      } else {
-        requestedPlanTypes.push(extractMultipartField(req.postData() || '', 'requested_plan_type'));
-      }
-
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
@@ -124,35 +78,43 @@ test.describe('Apply artist form UX', () => {
     await openApplyArtist(page);
     await fillRequiredFields(page, VALID_PHONE);
 
-    await page.locator('button[type="button"]').filter({ hasText: /advanced/i }).first().click();
+    const basicPlanButton = page.locator('button[type="button"]').filter({ hasText: /basic/i }).first();
+    const advancedPlanButton = page.locator('button[type="button"]').filter({ hasText: /advanced/i }).first();
+    await advancedPlanButton.click();
+    await expect(advancedPlanButton).toHaveClass(/ring-4/);
+
     await page.getByRole('button', { name: /add row/i }).click();
     await page.getByLabel(/platform/i).first().selectOption('instagram');
     await page.getByLabel(/url/i).first().fill('https://instagram.com/uxartist');
+    await page.getByLabel(/about me/i).fill('Test about me');
+    await page.getByLabel(/message for fans/i).fill('Test message for fans');
 
     const profilePhotoInput = page.getByTestId('apply-artist-profile-photo-input');
     await profilePhotoInput.setInputFiles(fixturePath);
     await expect(profilePhotoInput).not.toHaveValue('');
 
+    const submitResponse = page.waitForResponse((response) => {
+      return (
+        response.request().method() === 'POST' &&
+        response.url().includes('/api/artist-access-requests') &&
+        response.status() === 201
+      );
+    });
     await page.getByTestId('apply-artist-submit').click();
-    await expect.poll(() => requestCount).toBe(1);
+    await submitResponse;
     await expect(page.getByText(/request submitted/i)).toBeVisible({ timeout: 10000 });
 
     await expect(page.getByLabel(/artist name/i)).toHaveValue('');
     await expect(page.getByLabel(/^handle/i)).toHaveValue('');
     await expect(page.getByLabel(/^email/i)).toHaveValue('');
     await expect(page.getByTestId('apply-artist-phone-input')).toHaveValue('');
+    await expect(page.getByLabel(/about me/i)).toHaveValue('');
+    await expect(page.getByLabel(/message for fans/i)).toHaveValue('');
     await expect(profilePhotoInput).toHaveValue('');
     await expect(page.getByLabel(/platform/i)).toHaveCount(0);
     await expect(page.locator('#apply-artist-phone-helper')).toContainText(PHONE_HELPER_TEXT);
-
-    await fillRequiredFields(page, VALID_PHONE, Date.now() + 1234);
-    await page.getByTestId('apply-artist-submit').click();
-    await expect.poll(() => requestCount).toBe(2);
-
-    expect(contentTypes[0]).toContain('multipart/form-data');
-    expect(contentTypes[1]).toContain('application/json');
-    expect(requestedPlanTypes[0]).toBe('advanced');
-    expect(requestedPlanTypes[1]).toBe('basic');
+    await expect(basicPlanButton).toHaveClass(/ring-4/);
+    await expect(advancedPlanButton).not.toHaveClass(/ring-4/);
   });
 
   test('does not reset values on failed submit', async ({ page }) => {

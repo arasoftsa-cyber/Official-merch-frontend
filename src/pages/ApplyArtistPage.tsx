@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ErrorState from '../components/ux/ErrorState';
 import { API_BASE } from '../shared/api/http';
 import { Container, Page } from '../ui/Page';
@@ -46,7 +46,7 @@ const INITIAL_FORM: FormState = {
 type ValidationErrors = Record<string, string>;
 
 const normalizeHandle = (value: string) => value.trim().replace(/^@+/, '').toLowerCase();
-const normalizePhone = (value: string) => value.trim();
+const normalizePhone = (value: string) => value.trim().replace(/\D+/g, '');
 const buildSocialsArray = (rows: SocialRow[]) =>
   (Array.isArray(rows) ? rows : [])
     .map((row) => ({
@@ -84,6 +84,35 @@ const mapValidationDetails = (details: any[]): ValidationErrors => {
   return next;
 };
 
+const validateFormState = (state: FormState): ValidationErrors => {
+  const next: ValidationErrors = {};
+  const normalizedPhone = normalizePhone(state.phone);
+  if (!state.artistName.trim()) next.artistName = 'Artist Name is required.';
+  if (!state.handle.trim()) next.handle = 'Handle is required.';
+  if (!state.email.trim()) next.email = 'Email is required.';
+  if (!normalizedPhone) next.phone = 'Phone number is required';
+  if (!state.requestedPlanType.trim()) next.requestedPlanType = 'Plan Type is required.';
+  if (state.handle.trim() && normalizeHandle(state.handle).length < 2) {
+    next.handle = 'Handle must be at least 2 characters.';
+  }
+  if (state.email.trim() && !EMAIL_RE.test(state.email.trim())) {
+    next.email = 'Enter a valid email address.';
+  }
+  if (normalizedPhone && !INDIAN_MOBILE_RE.test(normalizedPhone)) {
+    next.phone = 'Enter a valid 10-digit Indian mobile number';
+  }
+  state.socials.forEach((row, index) => {
+    if (!row.platform.trim() || !row.url.trim()) {
+      next[`socials.${index}`] = 'Platform and URL are required.';
+      return;
+    }
+    if (!HTTP_RE.test(row.url.trim())) {
+      next[`socials.${index}`] = 'URL must start with http or https.';
+    }
+  });
+  return next;
+};
+
 export default function ApplyArtistPage() {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -98,39 +127,10 @@ export default function ApplyArtistPage() {
 
   const canAddSocial = form.socials.length < MAX_SOCIAL_ROWS;
 
-  const clientValidation = useMemo(() => {
-    const next: ValidationErrors = {};
-    const normalizedPhone = normalizePhone(form.phone);
-    if (!form.artistName.trim()) next.artistName = 'Artist Name is required.';
-    if (!form.handle.trim()) next.handle = 'Handle is required.';
-    if (!form.email.trim()) next.email = 'Email is required.';
-    if (!normalizedPhone) next.phone = 'Phone number is required';
-    if (!form.requestedPlanType.trim()) next.requestedPlanType = 'Plan Type is required.';
-    if (form.handle.trim() && normalizeHandle(form.handle).length < 2) {
-      next.handle = 'Handle must be at least 2 characters.';
-    }
-    if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) {
-      next.email = 'Enter a valid email address.';
-    }
-    if (normalizedPhone && !INDIAN_MOBILE_RE.test(normalizedPhone)) {
-      next.phone = 'Enter a valid 10-digit Indian mobile number';
-    }
-    form.socials.forEach((row, index) => {
-      if (!row.platform.trim() || !row.url.trim()) {
-        next[`socials.${index}`] = 'Platform and URL are required.';
-        return;
-      }
-      if (!HTTP_RE.test(row.url.trim())) {
-        next[`socials.${index}`] = 'URL must start with http or https.';
-      }
-    });
-    return next;
-  }, [form]);
-
   const onFieldChange =
     (field: keyof Omit<FormState, 'socials' | 'profilePhoto'>) =>
       (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        const value = event.target.value;
+        const value = field === 'phone' ? normalizePhone(event.target.value) : event.target.value;
         setForm((prev) => ({ ...prev, [field]: value }));
         setErrors((prev) => {
           if (!prev[field]) return prev;
@@ -200,7 +200,9 @@ export default function ApplyArtistPage() {
     event.preventDefault();
     if (submitting) return;
 
-    const nextErrors = clientValidation;
+    const normalizedPhone = normalizePhone(form.phone);
+    const formToValidate: FormState = { ...form, phone: normalizedPhone };
+    const nextErrors = validateFormState(formToValidate);
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
@@ -212,7 +214,6 @@ export default function ApplyArtistPage() {
     setSubmitting(true);
 
     const handle = normalizeHandle(form.handle);
-    const normalizedPhone = normalizePhone(form.phone);
     const socialsArray = buildSocialsArray(form.socials);
 
     let response: Response;
@@ -223,7 +224,7 @@ export default function ApplyArtistPage() {
         fd.append('artist_name', form.artistName.trim());
         fd.append('handle', handle);
         fd.append('email', form.email.trim().toLowerCase());
-        fd.append('phone', normalizedPhone);
+        fd.append('phone', formToValidate.phone);
         fd.append('requested_plan_type', form.requestedPlanType);
         fd.append('about_me', form.aboutMe.trim());
         fd.append('message_for_fans', form.messageForFans.trim());
@@ -241,7 +242,7 @@ export default function ApplyArtistPage() {
             artist_name: form.artistName.trim(),
             handle,
             email: form.email.trim().toLowerCase(),
-            phone: normalizedPhone,
+            phone: formToValidate.phone,
             requested_plan_type: form.requestedPlanType,
             about_me: form.aboutMe.trim(),
             message_for_fans: form.messageForFans.trim(),
@@ -328,7 +329,7 @@ export default function ApplyArtistPage() {
           </p>
         )}
 
-        <form className="space-y-4" onSubmit={submit}>
+        <form className="space-y-4" onSubmit={submit} noValidate>
           <label className="block text-sm font-medium text-slate-700 dark:text-white/80">
             Artist Name *
             <input

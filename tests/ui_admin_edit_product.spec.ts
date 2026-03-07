@@ -249,6 +249,22 @@ test.describe('Admin edit product modal', () => {
     );
   });
 
+  test('shows readable validation error for invalid image type', async ({ page }) => {
+    await setupAdminProductsMocks(page);
+    await openEditModal(page);
+
+    await page.getByTestId('admin-edit-product-photo-input').setInputFiles({
+      name: 'invalid-file.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('not-an-image'),
+    });
+
+    await expect(page.getByText(/only png, jpg, and webp images are allowed/i)).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(page.getByTestId('admin-edit-product-save')).toBeDisabled();
+  });
+
   test('mixed text + image save calls both endpoints and refreshes row state', async ({ page }) => {
     const state = await setupAdminProductsMocks(page);
     await openEditModal(page);
