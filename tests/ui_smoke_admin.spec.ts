@@ -1,6 +1,7 @@
 import { test, expect, Locator, Page } from '@playwright/test';
 import { ADMIN_EMAIL, ADMIN_PASSWORD, LABEL_EMAIL, LABEL_PASSWORD } from './_env';
 import { gotoApp, loginAdmin, loginLabel } from './helpers/auth';
+import { getApiUrl } from './helpers/urls';
 import path from 'path';
 
 async function waitForSelectReady(page: Page, testId: string, timeout = 15000): Promise<Locator> {
@@ -242,7 +243,133 @@ const applySearchIfPresent = async (page: Page, text: string) => {
   return false;
 };
 
+const SMOKE_PRODUCT_TITLE = 'UI Smoke Purchasable Product';
+
+const getListingPhotoFixtures = () => {
+  const fixturesDir = path.resolve(__dirname, 'fixtures');
+  return [
+    path.join(fixturesDir, 'listing-photo-1.png'),
+    path.join(fixturesDir, 'listing-photo-2.png'),
+    path.join(fixturesDir, 'listing-photo-3.png'),
+    path.join(fixturesDir, 'listing-photo-4.png'),
+  ];
+};
+
+const ensureSmokeProductForAdminEdit = async (page: Page): Promise<string | null> => {
+  const response = await page.request.post(getApiUrl('/api/dev/seed-ui-smoke-product'), {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok()) {
+    return null;
+  }
+  const payload = await response.json().catch(() => null);
+  const productId =
+    payload?.productId || payload?.product?.id || payload?.id || null;
+  if (!productId) {
+    return null;
+  }
+  return String(productId);
+};
+
+const openAnyEditableProductInModal = async (page: Page): Promise<boolean> => {
+  await gotoApp(page, '/partner/admin/products', { waitUntil: 'domcontentloaded' });
+
+  const preferredRow = page.locator('table tbody tr').filter({ hasText: SMOKE_PRODUCT_TITLE }).first();
+  if ((await preferredRow.count().catch(() => 0)) > 0) {
+    await expect(preferredRow).toBeVisible({ timeout: 10000 });
+    await preferredRow.getByRole('button', { name: /edit/i }).click();
+    return true;
+  }
+
+  const firstRow = page.locator('table tbody tr').first();
+  if ((await firstRow.count().catch(() => 0)) === 0) {
+    return false;
+  }
+  await expect(firstRow).toBeVisible({ timeout: 10000 });
+  await firstRow.getByRole('button', { name: /edit/i }).click();
+  return true;
+};
+
 test.describe('Admin smoke', () => {
+  test('admin product edit modal validates image type with readable message', async ({ page }) => {
+    test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
+    await loginAdmin(page);
+    await ensureSmokeProductForAdminEdit(page);
+    const opened = await openAnyEditableProductInModal(page);
+    test.skip(!opened, 'No editable products available for product edit modal validation test.');
+    await expect(page.getByRole('heading', { name: /edit product/i })).toBeVisible({ timeout: 15000 });
+
+    await page.getByTestId('admin-edit-product-photo-input').setInputFiles({
+      name: 'invalid-file.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('not-an-image'),
+    });
+
+    await expect(page.getByText(/only png, jpg, and webp images are allowed/i)).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(page.getByTestId('admin-edit-product-save')).toBeDisabled();
+  });
+
+  test('admin product edit modal supports image-only photo replacement', async ({ page }) => {
+    test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
+    await loginAdmin(page);
+    await ensureSmokeProductForAdminEdit(page);
+    const opened = await openAnyEditableProductInModal(page);
+    test.skip(!opened, 'No editable products available for image-only replacement smoke test.');
+    await expect(page.getByRole('heading', { name: /edit product/i })).toBeVisible({ timeout: 15000 });
+
+    const saveButton = page.getByTestId('admin-edit-product-save');
+    await expect(saveButton).toBeDisabled();
+
+    let patchRequests = 0;
+    let photoRequests = 0;
+    const requestListener = (req: any) => {
+      const url = req.url();
+      const method = req.method();
+      if (method === 'PATCH' && /\/api\/admin\/products\/[^/]+(?:[/?#]|$)/i.test(url)) {
+        patchRequests += 1;
+      }
+      if (method === 'PUT' && /\/api\/admin\/products\/[^/]+\/photos(?:[/?#]|$)/i.test(url)) {
+        photoRequests += 1;
+      }
+    };
+    page.on('request', requestListener);
+
+    try {
+      const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 10000 });
+      await page.getByTestId('admin-edit-product-photo-trigger').click();
+      const fileChooser = await fileChooserPromise;
+      await fileChooser.setFiles(getListingPhotoFixtures());
+
+      await expect(page.getByTestId('admin-edit-product-photo-preview')).toHaveCount(4, {
+        timeout: 10000,
+      });
+      await expect(saveButton).toBeEnabled();
+
+      const photoSaveResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          /\/api\/admin\/products\/[^/]+\/photos(?:[/?#]|$)/i.test(response.url()) &&
+          [200, 201].includes(response.status()),
+        { timeout: 30000 }
+      );
+      await saveButton.click();
+      await photoSaveResponse;
+
+      await expect(saveButton).toHaveCount(0);
+      await expect(page.getByText(/NO_FIELDS/i)).toHaveCount(0);
+      expect(patchRequests).toBe(0);
+      expect(photoRequests).toBeGreaterThan(0);
+
+      const refreshedFirstRow = page.locator('table tbody tr').first();
+      await expect(refreshedFirstRow).toBeVisible({ timeout: 15000 });
+      await expect(refreshedFirstRow.locator('img').first()).toBeVisible({ timeout: 15000 });
+    } finally {
+      page.off('request', requestListener);
+    }
+  });
+
   test('admin can create product and manage variants', async ({ page }, testInfo) => {
     test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
     await loginAdmin(page);
@@ -300,13 +427,7 @@ test.describe('Admin smoke', () => {
     await fillIfEmpty(royaltyInput, '1');
     await selectMerchTypeTshirt(page);
 
-    const fixturesDir = path.resolve(__dirname, 'fixtures');
-    const photoFiles = [
-      path.join(fixturesDir, 'listing-photo-1.png'),
-      path.join(fixturesDir, 'listing-photo-2.png'),
-      path.join(fixturesDir, 'listing-photo-3.png'),
-      path.join(fixturesDir, 'listing-photo-4.png'),
-    ];
+    const photoFiles = getListingPhotoFixtures();
     await page
       .locator('input[type="file"]')
       .setInputFiles(photoFiles);

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch, apiFetchForm } from '../../shared/api/http';
 import { resolveMediaUrl } from '../../shared/utils/media';
@@ -47,9 +47,22 @@ type Product = {
 };
 
 type FieldErrors = Record<string, string>;
+type ProductEditSnapshot = {
+  title: string;
+  description: string;
+  vendorPay: string;
+  ourShare: string;
+  royalty: string;
+  merchType: string;
+  colors: string[];
+  isActive: boolean;
+};
 
 const COLOR_OPTIONS = ['black', 'white', 'yellow', 'maroon', 'navy_blue'] as const;
 const MERCH_TYPE_OPTIONS = ['tshirt', 'hoodie', 'cap', 'poster', 'other'] as const;
+const MAX_LISTING_PHOTOS = 4;
+const LISTING_PHOTO_ACCEPT = 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp';
+const ALLOWED_LISTING_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 const readText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
@@ -109,6 +122,63 @@ const normalizeColors = (raw: unknown): string[] => {
   );
 };
 
+const normalizeComparableColors = (colors: string[]): string[] =>
+  Array.from(new Set(colors.map((entry) => readText(entry).toLowerCase()))).sort();
+
+const makeEditSnapshot = (values: {
+  title: string;
+  description: string;
+  vendorPay: string;
+  ourShare: string;
+  royalty: string;
+  merchType: string;
+  colors: string[];
+  isActive: boolean;
+}): ProductEditSnapshot => ({
+  title: values.title.trim(),
+  description: values.description.trim(),
+  vendorPay: values.vendorPay.trim(),
+  ourShare: values.ourShare.trim(),
+  royalty: values.royalty.trim(),
+  merchType: values.merchType.trim(),
+  colors: normalizeComparableColors(values.colors),
+  isActive: Boolean(values.isActive),
+});
+
+const isAllowedListingPhoto = (file: File): boolean => {
+  const mimeType = readText(file.type).toLowerCase();
+  if (mimeType && ALLOWED_LISTING_PHOTO_MIME_TYPES.has(mimeType)) return true;
+  return /\.(png|jpe?g|webp)$/i.test(readText(file.name));
+};
+
+const mapEditSaveErrorMessage = (err: any): string => {
+  const raw = readText(err?.message).toLowerCase();
+  const details = Array.isArray(err?.details) ? err.details : [];
+  const firstDetailMessage = readText(details[0]?.message).toLowerCase();
+  const combined = `${raw} ${firstDetailMessage}`;
+
+  if (raw === 'no_fields') return 'No changes to save yet.';
+  if (combined.includes('exactly 4 photos')) {
+    return 'Please select exactly 4 product images to replace all photos.';
+  }
+  if (
+    combined.includes('invalid') &&
+    combined.includes('photo')
+  ) {
+    return 'Please select valid product images (PNG, JPG, or WEBP).';
+  }
+  if (raw.startsWith('http_5') || raw === 'internal_server_error') {
+    return "We couldn't update the product right now. Please try again.";
+  }
+  if (raw === 'failed to fetch') {
+    return "We couldn't update the product right now. Please check your connection and try again.";
+  }
+  if (raw === 'validation') {
+    return readText(details[0]?.message) || 'Please review the highlighted fields and try again.';
+  }
+  return "We couldn't update the product right now. Please try again.";
+};
+
 const extractListingPhotoUrls = (product: Product | null | undefined): string[] => {
   if (!product) return [];
   const candidates = [
@@ -145,8 +215,12 @@ export default function AdminProductsPage() {
   const [editColors, setEditColors] = useState<string[]>(['black']);
   const [editListingPhotoUrls, setEditListingPhotoUrls] = useState<string[]>([]);
   const [editReplacementPhotos, setEditReplacementPhotos] = useState<File[]>([]);
+  const [editReplacementPhotoPreviews, setEditReplacementPhotoPreviews] = useState<string[]>([]);
   const [editActive, setEditActive] = useState(true);
   const [editFieldErrors, setEditFieldErrors] = useState<FieldErrors>({});
+  const [editPhotoNotice, setEditPhotoNotice] = useState<string | null>(null);
+  const [editInitialSnapshot, setEditInitialSnapshot] = useState<ProductEditSnapshot | null>(null);
+  const editPhotoInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -181,6 +255,18 @@ export default function AdminProductsPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (editReplacementPhotos.length === 0) {
+      setEditReplacementPhotoPreviews([]);
+      return;
+    }
+    const previews = editReplacementPhotos.map((file) => URL.createObjectURL(file));
+    setEditReplacementPhotoPreviews(previews);
+    return () => {
+      previews.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [editReplacementPhotos]);
+
   const artistLabelById = useMemo(() => {
     const map: Record<string, string> = {};
     artists.forEach((artist) => {
@@ -191,46 +277,76 @@ export default function AdminProductsPage() {
   }, [artists]);
 
   const applyEditProductToForm = (product: Product) => {
-    setEditingProduct(product);
-    setEditArtistId(String(product.artistId || product.artist_id || '').trim());
-    setEditTitle(firstText(product as Record<string, any>, ['title', 'name']));
-    setEditDescription(
-      firstText(product as Record<string, any>, ['merch_story', 'merchStory', 'description'])
+    const nextArtistId = String(product.artistId || product.artist_id || '').trim();
+    const nextTitle = firstText(product as Record<string, any>, ['title', 'name']);
+    const nextDescription = firstText(product as Record<string, any>, ['merch_story', 'merchStory', 'description']);
+    const nextVendorPay = formatMoneyInput(
+      product as Record<string, any>,
+      ['vendor_pay', 'vendorPay'],
+      ['vendor_pay_cents', 'vendorPayCents', 'vendor_payout_cents', 'vendorPayoutCents']
     );
-    setEditVendorPay(
-      formatMoneyInput(
-        product as Record<string, any>,
-        ['vendor_pay', 'vendorPay'],
-        ['vendor_pay_cents', 'vendorPayCents', 'vendor_payout_cents', 'vendorPayoutCents']
-      )
+    const nextOurShare = formatMoneyInput(
+      product as Record<string, any>,
+      ['our_share', 'ourShare'],
+      ['our_share_cents', 'ourShareCents']
     );
-    setEditOurShare(
-      formatMoneyInput(product as Record<string, any>, ['our_share', 'ourShare'], ['our_share_cents', 'ourShareCents'])
+    const nextRoyalty = formatMoneyInput(
+      product as Record<string, any>,
+      ['royalty'],
+      ['royalty_cents', 'royaltyCents']
     );
-    setEditRoyalty(
-      formatMoneyInput(product as Record<string, any>, ['royalty'], ['royalty_cents', 'royaltyCents'])
-    );
-    setEditMerchType(firstText(product as Record<string, any>, ['merch_type', 'merchType']));
+    const nextMerchType = firstText(product as Record<string, any>, ['merch_type', 'merchType']);
     const parsedColors = normalizeColors((product as Record<string, any>).colors);
-    setEditColors(parsedColors.length > 0 ? parsedColors : ['black']);
-    setEditListingPhotoUrls(extractListingPhotoUrls(product));
-    setEditActive(Boolean(product.isActive ?? product.is_active ?? product.active));
+    const nextColors = parsedColors.length > 0 ? parsedColors : ['black'];
+    const nextListingPhotoUrls = extractListingPhotoUrls(product);
+    const nextActive = Boolean(product.isActive ?? product.is_active ?? product.active);
+
+    setEditingProduct(product);
+    setEditArtistId(nextArtistId);
+    setEditTitle(nextTitle);
+    setEditDescription(nextDescription);
+    setEditVendorPay(nextVendorPay);
+    setEditOurShare(nextOurShare);
+    setEditRoyalty(nextRoyalty);
+    setEditMerchType(nextMerchType);
+    setEditColors(nextColors);
+    setEditListingPhotoUrls(nextListingPhotoUrls);
+    setEditActive(nextActive);
+    setEditInitialSnapshot(
+      makeEditSnapshot({
+        title: nextTitle,
+        description: nextDescription,
+        vendorPay: nextVendorPay,
+        ourShare: nextOurShare,
+        royalty: nextRoyalty,
+        merchType: nextMerchType,
+        colors: nextColors,
+        isActive: nextActive,
+      })
+    );
+    setEditPhotoNotice(null);
   };
 
-  const validateEditForm = (): FieldErrors => {
+  const validateEditForm = ({ includeTextFields }: { includeTextFields: boolean }): FieldErrors => {
     const errors: FieldErrors = {};
-    if (editTitle.trim().length < 2) errors.title = 'Merch Name must be at least 2 characters';
-    if (editDescription.trim().length < 10) errors.merch_story = 'Merch Story must be at least 10 characters';
-    const vendor = parseNumberValue(editVendorPay);
-    if (vendor === null || vendor < 0) errors.vendor_pay = 'To Be Paid To Vendor must be 0 or greater';
-    const ourShare = parseNumberValue(editOurShare);
-    if (ourShare === null || ourShare < 0) errors.our_share = 'Our Share must be 0 or greater';
-    const royalty = parseNumberValue(editRoyalty);
-    if (royalty === null || royalty < 0) errors.royalty = 'Royalty must be 0 or greater';
-    if (!editMerchType.trim()) errors.merch_type = 'Merch Type is required';
-    if (editColors.length < 1) errors.colors = 'Select at least one color';
-    if (editReplacementPhotos.length > 0 && editReplacementPhotos.length !== 4) {
-      errors.listing_photos = 'Exactly 4 listing photos are required when replacing';
+    if (includeTextFields) {
+      if (editTitle.trim().length < 2) errors.title = 'Merch Name must be at least 2 characters';
+      if (editDescription.trim().length < 10) errors.merch_story = 'Merch Story must be at least 10 characters';
+      const vendor = parseNumberValue(editVendorPay);
+      if (vendor === null || vendor < 0) errors.vendor_pay = 'To Be Paid To Vendor must be 0 or greater';
+      const ourShare = parseNumberValue(editOurShare);
+      if (ourShare === null || ourShare < 0) errors.our_share = 'Our Share must be 0 or greater';
+      const royalty = parseNumberValue(editRoyalty);
+      if (royalty === null || royalty < 0) errors.royalty = 'Royalty must be 0 or greater';
+      if (!editMerchType.trim()) errors.merch_type = 'Merch Type is required';
+      if (editColors.length < 1) errors.colors = 'Select at least one color';
+    }
+    if (editReplacementPhotos.length > 0 && editReplacementPhotos.length !== MAX_LISTING_PHOTOS) {
+      errors.listing_photos = 'Please select exactly 4 images to replace all photos.';
+    }
+    const hasUnsupportedFile = editReplacementPhotos.some((file) => !isAllowedListingPhoto(file));
+    if (hasUnsupportedFile) {
+      errors.listing_photos = 'Only PNG, JPG, and WEBP images are allowed.';
     }
     return errors;
   };
@@ -245,12 +361,105 @@ export default function AdminProductsPage() {
     });
   };
 
+  const currentEditSnapshot = useMemo(
+    () =>
+      makeEditSnapshot({
+        title: editTitle,
+        description: editDescription,
+        vendorPay: editVendorPay,
+        ourShare: editOurShare,
+        royalty: editRoyalty,
+        merchType: editMerchType,
+        colors: editColors,
+        isActive: editActive,
+      }),
+    [editTitle, editDescription, editVendorPay, editOurShare, editRoyalty, editMerchType, editColors, editActive]
+  );
+
+  const hasTextChanges = useMemo(() => {
+    if (!editInitialSnapshot) return false;
+    return (
+      currentEditSnapshot.title !== editInitialSnapshot.title ||
+      currentEditSnapshot.description !== editInitialSnapshot.description ||
+      currentEditSnapshot.vendorPay !== editInitialSnapshot.vendorPay ||
+      currentEditSnapshot.ourShare !== editInitialSnapshot.ourShare ||
+      currentEditSnapshot.royalty !== editInitialSnapshot.royalty ||
+      currentEditSnapshot.merchType !== editInitialSnapshot.merchType ||
+      currentEditSnapshot.isActive !== editInitialSnapshot.isActive ||
+      currentEditSnapshot.colors.join('|') !== editInitialSnapshot.colors.join('|')
+    );
+  }, [currentEditSnapshot, editInitialSnapshot]);
+
+  const hasPhotoChanges = editReplacementPhotos.length > 0;
+  const hasPendingChanges = hasTextChanges || hasPhotoChanges;
+  const blockingValidationErrors = useMemo(
+    () => validateEditForm({ includeTextFields: hasTextChanges }),
+    [hasTextChanges, editTitle, editDescription, editVendorPay, editOurShare, editRoyalty, editMerchType, editColors, editReplacementPhotos]
+  );
+  const hasBlockingValidation = Object.keys(blockingValidationErrors).length > 0;
+
+  const openPhotoPicker = () => {
+    if (editPhotoInputRef.current) {
+      editPhotoInputRef.current.value = '';
+    }
+    editPhotoInputRef.current?.click();
+  };
+
+  const onReplacementPhotosChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setEditError(null);
+    setEditPhotoNotice(null);
+
+    if (files.length === 0) {
+      setEditReplacementPhotos([]);
+      setEditFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next.listing_photos;
+        return next;
+      });
+      return;
+    }
+
+    if (files.some((file) => !isAllowedListingPhoto(file))) {
+      setEditReplacementPhotos([]);
+      setEditFieldErrors((prev) => ({
+        ...prev,
+        listing_photos: 'Only PNG, JPG, and WEBP images are allowed.',
+      }));
+      if (editPhotoInputRef.current) {
+        editPhotoInputRef.current.value = '';
+      }
+      return;
+    }
+
+    const limitedFiles = files.slice(0, MAX_LISTING_PHOTOS);
+    setEditReplacementPhotos(limitedFiles);
+    if (files.length > MAX_LISTING_PHOTOS) {
+      setEditPhotoNotice('Only the first 4 selected images will be used.');
+    }
+    setEditFieldErrors((prev) => {
+      const next = { ...prev };
+      if (limitedFiles.length !== MAX_LISTING_PHOTOS) {
+        next.listing_photos = 'Please select exactly 4 images to replace all photos.';
+      } else {
+        delete next.listing_photos;
+      }
+      return next;
+    });
+  };
+
   const openEditModal = async (product: Product) => {
     setIsEditOpen(true);
     setEditLoading(true);
     setEditError(null);
     setEditFieldErrors({});
     setEditReplacementPhotos([]);
+    setEditReplacementPhotoPreviews([]);
+    setEditPhotoNotice(null);
+    setEditInitialSnapshot(null);
+    if (editPhotoInputRef.current) {
+      editPhotoInputRef.current.value = '';
+    }
     applyEditProductToForm(product);
     try {
       const payload = await apiFetch(`/products/${product.id}`);
@@ -281,13 +490,24 @@ export default function AdminProductsPage() {
     setEditColors(['black']);
     setEditListingPhotoUrls([]);
     setEditReplacementPhotos([]);
+    setEditReplacementPhotoPreviews([]);
     setEditActive(true);
+    setEditPhotoNotice(null);
+    setEditInitialSnapshot(null);
+    if (editPhotoInputRef.current) {
+      editPhotoInputRef.current.value = '';
+    }
   };
 
   const saveEdit = async () => {
-    if (!editingProduct?.id) return;
+    if (!editingProduct?.id || saving) return;
 
-    const validationErrors = validateEditForm();
+    if (!hasPendingChanges) {
+      setEditError('No changes to save yet.');
+      return;
+    }
+
+    const validationErrors = validateEditForm({ includeTextFields: hasTextChanges });
     setEditFieldErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) {
       setEditError('Please fix the highlighted fields.');
@@ -298,22 +518,24 @@ export default function AdminProductsPage() {
     setEditError(null);
 
     try {
-      await apiFetch(`/admin/products/${editingProduct.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          title: editTitle.trim(),
-          description: editDescription.trim(),
-          merch_story: editDescription.trim(),
-          vendor_pay: editVendorPay.trim(),
-          our_share: editOurShare.trim(),
-          royalty: editRoyalty.trim(),
-          merch_type: editMerchType.trim(),
-          colors: editColors,
-          isActive: editActive,
-        }),
-      });
+      if (hasTextChanges) {
+        await apiFetch(`/admin/products/${editingProduct.id}`, {
+          method: 'PATCH',
+          body: {
+            title: editTitle.trim(),
+            description: editDescription.trim(),
+            merch_story: editDescription.trim(),
+            vendor_pay: editVendorPay.trim(),
+            our_share: editOurShare.trim(),
+            royalty: editRoyalty.trim(),
+            merch_type: editMerchType.trim(),
+            colors: editColors,
+            isActive: editActive,
+          },
+        });
+      }
 
-      if (editReplacementPhotos.length === 4) {
+      if (hasPhotoChanges) {
         const fd = new FormData();
         editReplacementPhotos.forEach((file) => {
           fd.append('photos', file);
@@ -333,11 +555,20 @@ export default function AdminProductsPage() {
       closeEditModal();
       await load();
     } catch (err: any) {
-      setEditError(err?.message ?? 'Failed to update product');
+      setEditError(mapEditSaveErrorMessage(err));
     } finally {
       setSaving(false);
     }
   };
+
+  const visibleListingPhotoUrls =
+    editReplacementPhotoPreviews.length > 0 ? editReplacementPhotoPreviews : editListingPhotoUrls;
+  const photoFieldError = editFieldErrors.listing_photos || '';
+  const photoHelperId = 'admin-edit-product-photo-helper';
+  const photoErrorId = 'admin-edit-product-photo-error';
+  const photoDescribedBy =
+    editPhotoNotice && !photoFieldError ? `${photoHelperId} ${photoErrorId}` : photoHelperId;
+  const saveDisabled = saving || editLoading || !hasPendingChanges || hasBlockingValidation;
 
   return (
     <main className="space-y-8 min-h-screen pb-20">
@@ -628,25 +859,87 @@ export default function AdminProductsPage() {
                     </div>
                   </fieldset>
 
-                  <fieldset className="rounded-3xl border border-slate-200 dark:border-white/10 p-6 bg-slate-50/50 dark:bg-black/20">
+                  <fieldset
+                    className={`rounded-3xl border p-6 bg-slate-50/50 dark:bg-black/20 ${
+                      photoFieldError
+                        ? 'border-rose-300 dark:border-rose-500/40'
+                        : 'border-slate-200 dark:border-white/10'
+                    }`}
+                  >
                     <legend className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400">Visual Assets (4 Required)</legend>
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                      {Array.from({ length: 4 }).map((_, idx) => {
-                        const src = editListingPhotoUrls[idx];
+                      {Array.from({ length: MAX_LISTING_PHOTOS }).map((_, idx) => {
+                        const src = visibleListingPhotoUrls[idx];
                         return (
-                          <div key={idx} className="aspect-square rounded-2xl border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-black/40 overflow-hidden">
-                            {src ? <img src={src} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-[10px] text-slate-300 font-black">SLOT {idx + 1}</div>}
+                          <div
+                            key={idx}
+                            data-testid={`admin-edit-product-photo-slot-${idx + 1}`}
+                            className="aspect-square rounded-2xl border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-black/40 overflow-hidden"
+                          >
+                            {src ? (
+                              <img
+                                data-testid="admin-edit-product-photo-preview"
+                                src={src}
+                                alt={`Product preview ${idx + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center text-[10px] text-slate-300 font-black">SLOT {idx + 1}</div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
-                    <label className="mt-8 group relative flex flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-slate-300 dark:border-white/10 py-10 hover:border-indigo-500 cursor-pointer transition-all">
+                    <button
+                      type="button"
+                      data-testid="admin-edit-product-photo-trigger"
+                      onClick={openPhotoPicker}
+                      disabled={saving || editLoading}
+                      aria-describedby={photoDescribedBy}
+                      aria-invalid={Boolean(photoFieldError)}
+                      className="mt-8 group relative flex w-full flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-slate-300 dark:border-white/10 py-10 hover:border-indigo-500 transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
                       <div className="text-center space-y-2">
                         <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Replace All Photos</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase">PNG / JPG / WEBP</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">
+                          {editReplacementPhotos.length > 0
+                            ? `${editReplacementPhotos.length} / ${MAX_LISTING_PHOTOS} selected`
+                            : 'PNG / JPG / WEBP'}
+                        </p>
                       </div>
-                      <input type="file" multiple accept="image/*" className="sr-only" onChange={(e) => setEditReplacementPhotos(Array.from(e.target.files || []))} />
-                    </label>
+                    </button>
+                    <input
+                      ref={editPhotoInputRef}
+                      id="admin-edit-product-photo-input"
+                      data-testid="admin-edit-product-photo-input"
+                      type="file"
+                      multiple
+                      accept={LISTING_PHOTO_ACCEPT}
+                      className="sr-only"
+                      onChange={onReplacementPhotosChange}
+                      aria-describedby={photoDescribedBy}
+                      aria-invalid={Boolean(photoFieldError)}
+                    />
+                    <p
+                      id={photoHelperId}
+                      className={`mt-3 text-[10px] font-bold uppercase tracking-wider ${
+                        photoFieldError
+                          ? 'text-rose-500 dark:text-rose-400'
+                          : 'text-slate-400 dark:text-slate-500'
+                      }`}
+                    >
+                      {photoFieldError
+                        ? photoFieldError
+                        : 'Upload up to 4 product images (PNG, JPG, or WEBP).'}
+                    </p>
+                    {editPhotoNotice && !photoFieldError && (
+                      <p
+                        id={photoErrorId}
+                        className="mt-1 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400"
+                      >
+                        {editPhotoNotice}
+                      </p>
+                    )}
                   </fieldset>
                 </>
               )}
@@ -657,10 +950,10 @@ export default function AdminProductsPage() {
                 data-testid="admin-edit-product-save"
                 type="button"
                 onClick={saveEdit}
-                disabled={saving}
+                disabled={saveDisabled}
                 className="flex-1 rounded-[1.25rem] bg-slate-900 dark:bg-white py-4 text-[10px] font-black uppercase tracking-[0.3em] text-white dark:text-slate-950 shadow-2xl transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100"
               >
-                {saving ? 'Synchronizing...' : 'Commit Changes'}
+                {saving ? 'Saving changes...' : 'Commit Changes'}
               </button>
               <button
                 type="button"
