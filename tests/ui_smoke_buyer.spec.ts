@@ -4,6 +4,109 @@ import { gotoApp, loginBuyer, loginFanWithCredentials } from './helpers/auth';
 import { getApiUrl } from './helpers/urls';
 
 const PRODUCT_CARD_SELECTORS = ['article[role="button"]', '[data-testid*="product"]', '[data-testid*="card"]'];
+const DROP_CARD_SELECTOR =
+  '[data-testid="drop-card"], a[href^="/drops/"], [data-testid="drop-list"] a';
+const QUIZ_DROP_SCAN_LIMIT = 30;
+const QUIZ_SETUP_VISIBILITY_TIMEOUT_MS = 15000;
+
+type QuizDropScanResult = {
+  cardCount: number;
+  scannedCount: number;
+  foundConfiguredQuiz: boolean;
+};
+
+const readResponseSnippet = async (response: Awaited<ReturnType<APIRequestContext['post']>>) => {
+  const body = await response.text().catch(() => '<response body unavailable>');
+  return body.replace(/\s+/g, ' ').trim().slice(0, 500);
+};
+
+const ensurePublicQuizDropSeeded = async (): Promise<void> => {
+  const apiContext = await playwrightRequest.newContext({
+    extraHTTPHeaders: { Accept: 'application/json' },
+  });
+
+  try {
+    const loginResponse = await apiContext.post(getApiUrl('/api/auth/partner/login'), {
+      data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+    });
+
+    if (!loginResponse.ok()) {
+      const responseSnippet = await readResponseSnippet(loginResponse);
+      throw new Error(
+        `Quiz smoke setup failed during admin auth (${loginResponse.status()}). ` +
+          `Expected admin login for /api/dev/seed-ui-smoke. Response: ${responseSnippet}`
+      );
+    }
+
+    const seedResponse = await apiContext.post(getApiUrl('/api/dev/seed-ui-smoke'));
+    if (!seedResponse.ok()) {
+      const responseSnippet = await readResponseSnippet(seedResponse);
+      throw new Error(
+        `Quiz smoke setup failed while calling /api/dev/seed-ui-smoke (${seedResponse.status()}). ` +
+          `Response: ${responseSnippet}`
+      );
+    }
+
+    const payload = await seedResponse.json().catch(() => null);
+    if (payload && payload.ok === false) {
+      throw new Error(
+        `Quiz smoke setup returned ok=false from /api/dev/seed-ui-smoke: ${JSON.stringify(payload)}`
+      );
+    }
+  } finally {
+    await apiContext.dispose();
+  }
+};
+
+const getPublicDropCardCount = async (page: Page): Promise<number> => {
+  await gotoApp(page, '/drops', { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('networkidle').catch(() => null);
+  const cards = page.locator(DROP_CARD_SELECTOR);
+  return cards.count();
+};
+
+const scanPublicDropsForConfiguredQuiz = async (page: Page): Promise<QuizDropScanResult> => {
+  await gotoApp(page, '/drops', { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('networkidle').catch(() => null);
+
+  const cards = page.locator(DROP_CARD_SELECTOR);
+  const cardCount = await cards.count();
+  const scanLimit = Math.min(cardCount, QUIZ_DROP_SCAN_LIMIT);
+
+  for (let i = 0; i < scanLimit; i += 1) {
+    const card = cards.nth(i);
+    const clicked = await card.click({ timeout: 5000 }).then(() => true).catch(() => false);
+    if (!clicked) continue;
+
+    await page.waitForLoadState('domcontentloaded').catch(() => null);
+
+    const quizCta = page
+      .getByRole('button', { name: /quiz|take quiz|answer quiz|participate/i })
+      .first();
+    const quizHeading = page.getByText(/quiz/i).first();
+    const hasQuizSignal =
+      (await quizCta.isVisible().catch(() => false)) ||
+      (await quizHeading.isVisible().catch(() => false));
+
+    if (hasQuizSignal) {
+      const hasConfiguredQuiz = await hasConfiguredQuizOnDropPage(page);
+      if (hasConfiguredQuiz) {
+        return { cardCount, scannedCount: i + 1, foundConfiguredQuiz: true };
+      }
+    }
+
+    const navigatedBack = await page
+      .goBack({ waitUntil: 'domcontentloaded' })
+      .then(() => true)
+      .catch(() => false);
+    if (!navigatedBack) {
+      await gotoApp(page, '/drops', { waitUntil: 'domcontentloaded' });
+    }
+    await page.waitForLoadState('networkidle').catch(() => null);
+  }
+
+  return { cardCount, scannedCount: scanLimit, foundConfiguredQuiz: false };
+};
 
 const hasConfiguredQuizOnDropPage = async (page: Page): Promise<boolean> => {
   const startQuizButton = page.getByRole('button', { name: /start quiz/i }).first();
@@ -59,49 +162,31 @@ const hasConfiguredQuizOnDropPage = async (page: Page): Promise<boolean> => {
 };
 
 const openFirstPublicDropWithQuiz = async (page: Page): Promise<void> => {
-  await gotoApp(page, '/drops', { waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('networkidle').catch(() => null);
+  const initialScan = await scanPublicDropsForConfiguredQuiz(page);
+  if (initialScan.foundConfiguredQuiz) return;
 
-  const cards = page.locator(
-    '[data-testid="drop-card"], a[href^="/drops/"], [data-testid="drop-list"] a'
-  );
-  const count = await cards.count();
-  if (count === 0) {
-    throw new Error('No drops found on /drops. UI list empty; cannot run quiz lead smoke.');
-  }
+  await ensurePublicQuizDropSeeded();
 
-  for (let i = 0; i < Math.min(count, 30); i += 1) {
-    const card = cards.nth(i);
-    const clicked = await card.click({ timeout: 5000 }).then(() => true).catch(() => false);
-    if (!clicked) continue;
+  await expect
+    .poll(() => getPublicDropCardCount(page), {
+      timeout: QUIZ_SETUP_VISIBILITY_TIMEOUT_MS,
+      intervals: [500, 1000, 1500, 2000],
+    })
+    .toBeGreaterThan(0);
 
-    await page.waitForLoadState('domcontentloaded').catch(() => null);
+  const seededScan = await scanPublicDropsForConfiguredQuiz(page);
+  if (seededScan.foundConfiguredQuiz) return;
 
-    const quizCta = page
-      .getByRole('button', { name: /quiz|take quiz|answer quiz|participate/i })
-      .first();
-    const quizHeading = page.getByText(/quiz/i).first();
-    const hasQuizSignal =
-      (await quizCta.isVisible().catch(() => false)) ||
-      (await quizHeading.isVisible().catch(() => false));
-
-    if (hasQuizSignal) {
-      const hasConfiguredQuiz = await hasConfiguredQuizOnDropPage(page);
-      if (hasConfiguredQuiz) {
-        return;
-      }
-    }
-
-    const navigatedBack = await page.goBack({ waitUntil: 'domcontentloaded' }).then(() => true).catch(() => false);
-    if (!navigatedBack) {
-      await gotoApp(page, '/drops', { waitUntil: 'domcontentloaded' });
-    }
-    await page.waitForLoadState('networkidle').catch(() => null);
+  if (seededScan.cardCount === 0) {
+    throw new Error(
+      'Quiz smoke setup succeeded, but /drops is still empty in the UI. ' +
+        'Check drop publish state, featured query filters, and cache propagation.'
+    );
   }
 
   throw new Error(
-    'No public drop with a quiz found after scanning the first 30 drops. ' +
-      'Either publish at least one quiz-enabled drop or enable a dev seed fallback.'
+    `Quiz smoke setup succeeded and /drops shows ${seededScan.cardCount} card(s), ` +
+      `but no configured quiz was found in the first ${seededScan.scannedCount} card(s).`
   );
 };
 

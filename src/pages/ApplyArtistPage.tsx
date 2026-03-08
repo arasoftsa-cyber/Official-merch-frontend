@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ErrorState from '../components/ux/ErrorState';
 import { API_BASE } from '../shared/api/http';
 import { Container, Page } from '../ui/Page';
@@ -21,6 +21,7 @@ type FormState = {
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+const INDIAN_MOBILE_RE = /^[6-9]\d{9}$/;
 const HTTP_RE = /^https?:\/\//i;
 const MAX_SOCIAL_ROWS = 5;
 const SOCIAL_PLATFORMS = ['instagram', 'youtube', 'spotify', 'facebook', 'x', 'website', 'other'];
@@ -45,6 +46,7 @@ const INITIAL_FORM: FormState = {
 type ValidationErrors = Record<string, string>;
 
 const normalizeHandle = (value: string) => value.trim().replace(/^@+/, '').toLowerCase();
+const normalizePhone = (value: string) => value.trim().replace(/\D+/g, '');
 const buildSocialsArray = (rows: SocialRow[]) =>
   (Array.isArray(rows) ? rows : [])
     .map((row) => ({
@@ -82,12 +84,42 @@ const mapValidationDetails = (details: any[]): ValidationErrors => {
   return next;
 };
 
+const validateFormState = (state: FormState): ValidationErrors => {
+  const next: ValidationErrors = {};
+  const normalizedPhone = normalizePhone(state.phone);
+  if (!state.artistName.trim()) next.artistName = 'Artist Name is required.';
+  if (!state.handle.trim()) next.handle = 'Handle is required.';
+  if (!state.email.trim()) next.email = 'Email is required.';
+  if (!normalizedPhone) next.phone = 'Phone number is required';
+  if (!state.requestedPlanType.trim()) next.requestedPlanType = 'Plan Type is required.';
+  if (state.handle.trim() && normalizeHandle(state.handle).length < 2) {
+    next.handle = 'Handle must be at least 2 characters.';
+  }
+  if (state.email.trim() && !EMAIL_RE.test(state.email.trim())) {
+    next.email = 'Enter a valid email address.';
+  }
+  if (normalizedPhone && !INDIAN_MOBILE_RE.test(normalizedPhone)) {
+    next.phone = 'Enter a valid 10-digit Indian mobile number';
+  }
+  state.socials.forEach((row, index) => {
+    if (!row.platform.trim() || !row.url.trim()) {
+      next[`socials.${index}`] = 'Platform and URL are required.';
+      return;
+    }
+    if (!HTTP_RE.test(row.url.trim())) {
+      next[`socials.${index}`] = 'URL must start with http or https.';
+    }
+  });
+  return next;
+};
+
 export default function ApplyArtistPage() {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const profilePhotoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     document.title = 'Artist Request';
@@ -95,35 +127,10 @@ export default function ApplyArtistPage() {
 
   const canAddSocial = form.socials.length < MAX_SOCIAL_ROWS;
 
-  const clientValidation = useMemo(() => {
-    const next: ValidationErrors = {};
-    if (!form.artistName.trim()) next.artistName = 'Artist Name is required.';
-    if (!form.handle.trim()) next.handle = 'Handle is required.';
-    if (!form.email.trim()) next.email = 'Email is required.';
-    if (!form.phone.trim()) next.phone = 'Phone is required.';
-    if (!form.requestedPlanType.trim()) next.requestedPlanType = 'Plan Type is required.';
-    if (form.handle.trim() && normalizeHandle(form.handle).length < 2) {
-      next.handle = 'Handle must be at least 2 characters.';
-    }
-    if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) {
-      next.email = 'Enter a valid email address.';
-    }
-    form.socials.forEach((row, index) => {
-      if (!row.platform.trim() || !row.url.trim()) {
-        next[`socials.${index}`] = 'Platform and URL are required.';
-        return;
-      }
-      if (!HTTP_RE.test(row.url.trim())) {
-        next[`socials.${index}`] = 'URL must start with http or https.';
-      }
-    });
-    return next;
-  }, [form]);
-
   const onFieldChange =
     (field: keyof Omit<FormState, 'socials' | 'profilePhoto'>) =>
       (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        const value = event.target.value;
+        const value = field === 'phone' ? normalizePhone(event.target.value) : event.target.value;
         setForm((prev) => ({ ...prev, [field]: value }));
         setErrors((prev) => {
           if (!prev[field]) return prev;
@@ -193,7 +200,9 @@ export default function ApplyArtistPage() {
     event.preventDefault();
     if (submitting) return;
 
-    const nextErrors = clientValidation;
+    const normalizedPhone = normalizePhone(form.phone);
+    const formToValidate: FormState = { ...form, phone: normalizedPhone };
+    const nextErrors = validateFormState(formToValidate);
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
@@ -215,7 +224,7 @@ export default function ApplyArtistPage() {
         fd.append('artist_name', form.artistName.trim());
         fd.append('handle', handle);
         fd.append('email', form.email.trim().toLowerCase());
-        fd.append('phone', form.phone.trim());
+        fd.append('phone', formToValidate.phone);
         fd.append('requested_plan_type', form.requestedPlanType);
         fd.append('about_me', form.aboutMe.trim());
         fd.append('message_for_fans', form.messageForFans.trim());
@@ -233,7 +242,7 @@ export default function ApplyArtistPage() {
             artist_name: form.artistName.trim(),
             handle,
             email: form.email.trim().toLowerCase(),
-            phone: form.phone.trim(),
+            phone: formToValidate.phone,
             requested_plan_type: form.requestedPlanType,
             about_me: form.aboutMe.trim(),
             message_for_fans: form.messageForFans.trim(),
@@ -300,6 +309,9 @@ export default function ApplyArtistPage() {
     setErrors({});
     setSubmitError(null);
     setSuccess(true);
+    if (profilePhotoInputRef.current) {
+      profilePhotoInputRef.current.value = '';
+    }
     setSubmitting(false);
   };
 
@@ -317,7 +329,7 @@ export default function ApplyArtistPage() {
           </p>
         )}
 
-        <form className="space-y-4" onSubmit={submit}>
+        <form className="space-y-4" onSubmit={submit} noValidate>
           <label className="block text-sm font-medium text-slate-700 dark:text-white/80">
             Artist Name *
             <input
@@ -361,10 +373,22 @@ export default function ApplyArtistPage() {
               type="text"
               value={form.phone}
               onChange={onFieldChange('phone')}
+              inputMode="numeric"
+              autoComplete="tel"
+              placeholder="9876543210"
+              data-testid="apply-artist-phone-input"
               className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2 text-slate-900 dark:text-white focus:border-indigo-500 dark:focus:border-white/40 focus:outline-none"
               aria-invalid={Boolean(errors.phone)}
+              aria-describedby="apply-artist-phone-helper"
             />
-            {errors.phone && <p className="text-xs text-rose-500 dark:text-rose-300">{errors.phone}</p>}
+            <p
+              id="apply-artist-phone-helper"
+              className={`mt-1 min-h-[1.25rem] text-xs ${
+                errors.phone ? 'text-rose-500 dark:text-rose-300' : 'text-slate-500 dark:text-white/60'
+              }`}
+            >
+              {errors.phone || 'Enter your 10-digit mobile number. Country code +91 is assumed.'}
+            </p>
           </label>
 
           <div className="space-y-3">
@@ -581,8 +605,10 @@ export default function ApplyArtistPage() {
             Profile Photo
             <input
               type="file"
+              ref={profilePhotoInputRef}
               accept="image/*"
               onChange={onPhotoChange}
+              data-testid="apply-artist-profile-photo-input"
               className="mt-2 block w-full rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2 text-slate-900 dark:text-white file:mr-3 file:rounded-full file:border-0 file:bg-indigo-100 dark:file:bg-white file:px-3 file:py-1 file:text-xs file:font-semibold file:text-indigo-700 dark:file:text-black"
             />
           </label>
@@ -601,6 +627,7 @@ export default function ApplyArtistPage() {
           <button
             type="submit"
             disabled={submitting}
+            data-testid="apply-artist-submit"
             className="w-full rounded-full bg-indigo-600 dark:bg-white px-4 py-2 text-sm font-semibold text-white dark:text-black transition hover:bg-indigo-700 dark:hover:bg-white/90 disabled:opacity-50"
           >
             {submitting ? 'Submitting...' : 'Request Onboarding'}

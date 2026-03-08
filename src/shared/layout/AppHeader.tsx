@@ -99,11 +99,16 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
 
   const isLoggedIn = loggedIn && !roleLoading;
   const userRole = String(role || '').toLowerCase();
+  const pathname = String(location.pathname || '').toLowerCase();
   const isPartner =
     userRole.includes('admin') ||
     userRole.includes('artist') ||
     userRole.includes('label') ||
     userRole.includes('partner');
+  const isArtistOrLabelRole = userRole === 'artist' || userRole === 'label';
+  const isArtistOrLabelPartnerRoute =
+    pathname.startsWith('/partner/artist') || pathname.startsWith('/partner/label');
+  const showCart = !isArtistOrLabelRole && !isArtistOrLabelPartnerRoute;
   const actionPadding = variant === 'buyer' ? 'px-3 py-1.5' : 'px-3 py-1.5';
   const loginTarget = `/login?returnTo=${encodeURIComponent(
     `${location.pathname}${location.search}`
@@ -125,18 +130,20 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link
-            to="/cart"
-            aria-label="View cart"
-            className={`hidden items-center gap-2 rounded-md border border-slate-300 dark:border-white/25 text-sm text-slate-700 hover:bg-slate-100 dark:text-white dark:hover:bg-white/10 md:inline-flex ${actionPadding}`}
-          >
-            <span>Cart</span>
-            {cartCount > 0 && (
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 dark:bg-white px-1.5 text-xs font-semibold text-white dark:text-black">
-                {cartCount}
-              </span>
-            )}
-          </Link>
+          {showCart && (
+            <Link
+              to="/cart"
+              aria-label="View cart"
+              className={`hidden items-center gap-2 rounded-md border border-slate-300 dark:border-white/25 text-sm text-slate-700 hover:bg-slate-100 dark:text-white dark:hover:bg-white/10 md:inline-flex ${actionPadding}`}
+            >
+              <span>Cart</span>
+              {cartCount > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 dark:bg-white px-1.5 text-xs font-semibold text-white dark:text-black">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          )}
 
           {isLoggedIn ? (
             <>
@@ -194,14 +201,16 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
                 {item.label}
               </Link>
             ))}
-            <Link to="/cart" className="inline-flex w-fit items-center gap-2 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white">
-              <span>Cart</span>
-              {cartCount > 0 && (
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 dark:bg-white px-1.5 text-xs font-semibold text-white dark:text-black">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
+            {showCart && (
+              <Link to="/cart" className="inline-flex w-fit items-center gap-2 text-sm text-slate-600 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white">
+                <span>Cart</span>
+                {cartCount > 0 && (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 dark:bg-white px-1.5 text-xs font-semibold text-white dark:text-black">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+            )}
             {isLoggedIn ? (
               <>
                 {isPartner && (
