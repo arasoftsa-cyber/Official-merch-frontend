@@ -1,20 +1,16 @@
-import { test, expect } from '@playwright/test';
-import { ARTIST_EMAIL, ARTIST_PASSWORD } from './_env';
-import { gotoApp, loginArtist } from './helpers/auth';
+import { test, expect } from '../helpers/session';
+import { gotoApp } from '../helpers/auth';
 
 test.describe('Artist status smoke', () => {
-  test('artist dashboard recent order row drills into order detail', async ({ page }) => {
-    test.skip(!ARTIST_EMAIL || !ARTIST_PASSWORD, 'Missing artist credentials');
-
-    await loginArtist(page);
-    await gotoApp(page, '/partner/artist', { waitUntil: 'domcontentloaded' });
-    await page.waitForLoadState('domcontentloaded');
-    await expect(page).toHaveURL(/\/partner\/artist/, { timeout: 15000 });
-    await expect(page.getByRole('heading', { name: /artist dashboard/i })).toBeVisible({
+  test('artist dashboard recent order row drills into order detail', async ({ artistPage }) => {
+    await gotoApp(artistPage, '/partner/artist', { waitUntil: 'domcontentloaded' });
+    await artistPage.waitForLoadState('domcontentloaded');
+    await expect(artistPage).toHaveURL(/\/partner\/artist/, { timeout: 15000 });
+    await expect(artistPage.getByRole('heading', { name: /artist dashboard/i })).toBeVisible({
       timeout: 15000,
     });
 
-    const recentOrdersSection = page.locator('section:has(h2:has-text("Recent Orders"))').first();
+    const recentOrdersSection = artistPage.locator('section:has(h2:has-text("Recent Orders"))').first();
     await expect(recentOrdersSection).toBeVisible({ timeout: 15000 });
 
     await expect
@@ -51,16 +47,16 @@ test.describe('Artist status smoke', () => {
       await firstRow.click();
     }
 
-    await page.waitForLoadState('domcontentloaded');
-    await expect(page).toHaveURL(/\/partner\/artist\/orders\//i, { timeout: 20000 });
-    const heading = page.getByRole('heading', { name: /artist order detail/i });
+    await artistPage.waitForLoadState('domcontentloaded');
+    await expect(artistPage).toHaveURL(/\/partner\/artist\/orders\//i, { timeout: 20000 });
+    const heading = artistPage.getByRole('heading', { name: /artist order detail/i });
     await expect(heading).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/order id/i)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(orderId, { exact: true }).first()).toBeVisible({
+    await expect(artistPage.getByText(/order id/i)).toBeVisible({ timeout: 15000 });
+    await expect(artistPage.getByText(orderId, { exact: true }).first()).toBeVisible({
       timeout: 15000,
     });
 
-    const firstPrice = page.locator('text=/\\$\\d+(?:\\.\\d{2})?/').first();
+    const firstPrice = artistPage.locator('text=/\\$\\d+(?:\\.\\d{2})?/').first();
     await expect(firstPrice).toBeVisible({ timeout: 15000 });
 
     await expect
@@ -69,7 +65,7 @@ test.describe('Artist status smoke', () => {
           const handle = await firstPrice.elementHandle();
           if (!handle) return false;
 
-          const rowText = await page.evaluate((el) => {
+          const rowText = await artistPage.evaluate((el) => {
             // climb up a few levels to capture the full row-ish container
             let cur = el;
             for (let i = 0; i < 6; i++) {

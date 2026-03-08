@@ -22,9 +22,16 @@
   "scripts": {
     "test:guard": "powershell -ExecutionPolicy Bypass -File .\\scripts\\check_no_hardcoded_test_creds.ps1",
     "ui:install": "npx playwright install --with-deps",
+    "ui:test": "npx playwright test",
+    "ui:test:stress": "npx playwright test --workers=100%",
     "ui:smoke:full": "npx playwright test --config=playwright.config.ts --reporter=line",
-    "ui:smoke": "npx playwright test",
-    "ui:smoke:verbose": "npx playwright test ui_smoke_buyer.spec.ts ui_smoke_admin.spec.ts ui_smoke_artist.spec.ts --config=playwright.config.ts --reporter=list --workers=1",
+    "ui:smoke": "npx playwright test tests/smoke",
+    "ui:admin": "npx playwright test tests/admin",
+    "ui:forms": "npx playwright test tests/forms",
+    "ui:onboarding": "npx playwright test tests/onboarding",
+    "ui:commerce": "npx playwright test tests/commerce tests/auth",
+    "ui:regression": "npx playwright test tests/admin tests/forms tests/commerce tests/onboarding tests/auth",
+    "ui:smoke:verbose": "npx playwright test tests/smoke/admin.smoke.spec.ts tests/smoke/artist.smoke.spec.ts tests/smoke/buyer.smoke.spec.ts tests/smoke/label.smoke.spec.ts --config=playwright.config.ts --reporter=list --workers=1",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"

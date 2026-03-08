@@ -1,5 +1,5 @@
 ﻿import { test, expect, type Page } from '@playwright/test';
-import { UI_BASE_URL } from './_env';
+import { UI_BASE_URL } from '../_env';
 
 const REGISTER_PATH = '/fan/register?returnTo=%2Ffan';
 const GENERIC_SERVER_FALLBACK =

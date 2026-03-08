@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import path from 'path';
-import { gotoApp, loginAdmin } from './helpers/auth';
+import { gotoApp, loginAdmin } from '../helpers/auth';
 
 type ProductItem = {
   id: string;
@@ -27,7 +27,7 @@ const makeInitialProducts = (): ProductItem[] => [
 const mockArtists = [{ id: 'artist-1', name: 'Artist One' }];
 
 const getFixturePhotos = () => {
-  const fixturesDir = path.resolve(__dirname, 'fixtures');
+  const fixturesDir = path.resolve(__dirname, '..', 'fixtures');
   return [
     path.join(fixturesDir, 'listing-photo-1.png'),
     path.join(fixturesDir, 'listing-photo-2.png'),

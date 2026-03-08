@@ -33,11 +33,19 @@ const { UI_BASE_URL, VITE_API_BASE_URL } = require('./tests/_env');
 
 console.log(`[playwright] baseURL=${UI_BASE_URL} apiBaseURL=${VITE_API_BASE_URL}`);
 
+const configuredWorkers = Number(process.env.PW_WORKERS || '');
+const resolvedWorkers =
+  Number.isFinite(configuredWorkers) && configuredWorkers > 0
+    ? configuredWorkers
+    : process.env.CI
+      ? 1
+      : 2;
+
 export default defineConfig({
   testDir: './tests',
   globalSetup: require.resolve('./tests/global-setup'),
   timeout: 60_000,
-  workers: process.env.CI ? 1 : 3,
+  workers: resolvedWorkers,
   retries: 0,
   use: {
     baseURL: UI_BASE_URL,

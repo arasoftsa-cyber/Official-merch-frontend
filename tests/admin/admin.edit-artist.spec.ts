@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import path from 'path';
-import { gotoApp, loginAdmin } from './helpers/auth';
+import { gotoApp, loginAdmin } from '../helpers/auth';
 
 type ArtistState = {
   id: string;
@@ -340,7 +340,7 @@ test.describe('Admin artist edit modal', () => {
     const state = await setupAdminArtistMocks(page);
     await openArtistEditModal(page);
 
-    const imagePath = path.resolve(__dirname, 'fixtures', 'listing-photo-1.png');
+    const imagePath = path.resolve(__dirname, '..', 'fixtures', 'listing-photo-1.png');
     await page.locator('input[type="file"]').first().setInputFiles(imagePath);
     await page.getByRole('button', { name: /save changes/i }).click();
 

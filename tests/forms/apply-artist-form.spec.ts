@@ -1,6 +1,6 @@
 ﻿import path from 'path';
 import { test, expect, type Page } from '@playwright/test';
-import { UI_BASE_URL } from './_env';
+import { UI_BASE_URL } from '../_env';
 
 const APPLY_ARTIST_PATH = '/apply/artist';
 const VALID_PHONE = '9876543210';
@@ -65,7 +65,7 @@ test.describe('Apply artist form UX', () => {
   });
 
   test('clears profile photo input and form state after successful submit', async ({ page }) => {
-    const fixturePath = path.resolve(__dirname, 'fixtures', 'listing-photo-1.png');
+    const fixturePath = path.resolve(__dirname, '..', 'fixtures', 'listing-photo-1.png');
 
     await page.route('**/api/artist-access-requests**', async (route) => {
       await route.fulfill({
@@ -118,7 +118,7 @@ test.describe('Apply artist form UX', () => {
   });
 
   test('does not reset values on failed submit', async ({ page }) => {
-    const fixturePath = path.resolve(__dirname, 'fixtures', 'listing-photo-1.png');
+    const fixturePath = path.resolve(__dirname, '..', 'fixtures', 'listing-photo-1.png');
     let requestCount = 0;
 
     await page.route('**/api/artist-access-requests**', async (route) => {

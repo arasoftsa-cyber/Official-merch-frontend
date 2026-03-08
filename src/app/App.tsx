@@ -839,11 +839,18 @@ function useAuthStatus() {
       const fetchRole = async () => {
         const me = await apiFetch('/auth/whoami');
         if (!isMounted) return;
-        const resolvedRole =
+        const resolvedRoleRaw =
           me?.role ||
           (Array.isArray(me?.roles) ? me.roles[0] : null) ||
           me?.user?.role ||
           null;
+        const resolvedRole = String(resolvedRoleRaw || '').trim().toLowerCase();
+        if (!resolvedRole) {
+          clearTokens();
+          setRole(null);
+          setHasToken(false);
+          return;
+        }
         setRole(resolvedRole);
         setHasToken(true);
       };

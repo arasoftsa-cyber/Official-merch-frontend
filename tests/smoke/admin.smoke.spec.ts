@@ -1,30 +1,24 @@
-import { test, expect } from '@playwright/test';
-import { ADMIN_EMAIL, ADMIN_PASSWORD, LABEL_EMAIL, LABEL_PASSWORD } from './_env';
-import { gotoApp, loginAdmin, loginLabel } from './helpers/auth';
+import { test, expect } from '../helpers/session';
+import { gotoApp, loginAdmin } from '../helpers/auth';
 
 test.describe('Admin smoke', () => {
+  test('admin artists page shows featured column and toggle', async ({ adminPage }) => {
+    await gotoApp(adminPage, '/partner/admin/artists', { waitUntil: 'domcontentloaded' });
+    await expect(adminPage).toHaveURL(/\/partner\/admin\/artists/);
 
-  test('admin artists page shows featured column and toggle', async ({ page }) => {
-    test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
-    await loginAdmin(page);
+    await expect(adminPage.getByTestId('admin-artist-featured-header')).toBeVisible({ timeout: 15000 });
 
-    await gotoApp(page, '/partner/admin/artists', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(/\/partner\/admin\/artists/);
-
-    await expect(page.getByTestId('admin-artist-featured-header')).toBeVisible({ timeout: 15000 });
-
-    const featuredToggleByTestId = page.locator('[data-testid^="admin-artist-featured-toggle-"]').first();
+    const featuredToggleByTestId = adminPage.locator('[data-testid^="admin-artist-featured-toggle-"]').first();
     const featuredToggle =
       (await featuredToggleByTestId.count()) > 0
         ? featuredToggleByTestId
-        : page.locator('table tbody input[type="checkbox"]').first();
+        : adminPage.locator('table tbody input[type="checkbox"]').first();
 
     await expect(featuredToggle).toBeVisible({ timeout: 15000 });
     await expect(featuredToggle).toBeEnabled({ timeout: 15000 });
   });
 
   test('onboarding request flow supports required plan + admin approval payload fields', async ({ page }) => {
-    test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
     const stamp = Date.now();
     const artistName = `Smoke Plan Artist ${stamp}`;
     const handle = `smoke-plan-${stamp}`;
@@ -147,54 +141,5 @@ test.describe('Admin smoke', () => {
     }
 
     await expect(page.getByText(/approved|application approved|success/i)).toBeVisible({ timeout: 20000 });
-  });
-
-});
-
-test.describe('Label smoke', () => {
-  test('label dashboard renders portfolio overview', async ({ page }) => {
-    test.skip(!LABEL_EMAIL || !LABEL_PASSWORD, 'Missing label credentials');
-    await loginLabel(page);
-    await gotoApp(page, '/partner/label');
-    const shellHeading = page.getByRole('heading', { name: /label dashboard|dashboard/i }).first();
-    await expect(shellHeading).toBeVisible({ timeout: 15000 });
-
-    await expect(
-      page.locator("main").getByRole("paragraph").filter({ hasText: /^artists$/i }).first()
-    ).toBeVisible({ timeout: 15000 });
-    await expect(page.getByTestId("label-metric-active-artists")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByTestId("label-metric-inactive-artists")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByTestId("label-metric-label-gross")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/artist performance/i)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('button', { name: /logout/i })).toBeVisible({ timeout: 15000 });
-
-    await expect(page.getByText(/^artist$/i)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/orders\s*30d/i)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/gross\s*30d/i)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/units\s*30d/i)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(/active\s*products/i)).toBeVisible({ timeout: 15000 });
-
-    const artistPerformanceSection = page
-      .getByRole('heading', { name: /artist performance/i })
-      .first()
-      .locator('xpath=ancestor::section[1]');
-    const rowLikeElements = artistPerformanceSection.locator('div.divide-y > button');
-    await expect(rowLikeElements.first()).toBeVisible({ timeout: 15000 });
-    expect(await rowLikeElements.count()).toBeGreaterThan(0);
-
-    const logoutButton = page.getByRole('button', { name: /logout/i });
-    await expect(logoutButton).toBeVisible({ timeout: 15000 });
-    await logoutButton.click();
-    await expect(page).toHaveURL(/\/($|\?)/, { timeout: 15000 });
-
-    await gotoApp(page, '/partner/label', { waitUntil: 'domcontentloaded', authRetry: false });
-    await expect(page).toHaveURL(/\/(fan|partner)\/login/, { timeout: 15000 });
-    const redirectedUrl = new URL(page.url());
-    if (/^\/(fan|partner)\/login$/i.test(redirectedUrl.pathname)) {
-      expect(
-        redirectedUrl.searchParams.get('returnTo') ||
-          redirectedUrl.searchParams.get('returnUrl')
-      ).toBe('/partner/label');
-    }
   });
 });

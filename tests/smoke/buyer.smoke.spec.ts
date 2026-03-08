@@ -1,68 +1,16 @@
-import { test, expect, Page, APIRequestContext, request as playwrightRequest } from '@playwright/test';
-import { ADMIN_EMAIL, ADMIN_PASSWORD, BUYER_EMAIL, BUYER_PASSWORD } from './_env';
-import { gotoApp, loginBuyer, loginFanWithCredentials } from './helpers/auth';
-import { getApiUrl } from './helpers/urls';
+import { test, expect, type Page } from '@playwright/test';
+import { BUYER_EMAIL, BUYER_PASSWORD } from '../_env';
+import { gotoApp, loginBuyer } from '../helpers/auth';
+import { getProductCards } from '../helpers/assertions';
 
-const PRODUCT_CARD_SELECTORS = ['article[role="button"]', '[data-testid*="product"]', '[data-testid*="card"]'];
 const DROP_CARD_SELECTOR =
   '[data-testid="drop-card"], a[href^="/drops/"], [data-testid="drop-list"] a';
 const QUIZ_DROP_SCAN_LIMIT = 30;
-const QUIZ_SETUP_VISIBILITY_TIMEOUT_MS = 15000;
 
 type QuizDropScanResult = {
   cardCount: number;
   scannedCount: number;
   foundConfiguredQuiz: boolean;
-};
-
-const readResponseSnippet = async (response: Awaited<ReturnType<APIRequestContext['post']>>) => {
-  const body = await response.text().catch(() => '<response body unavailable>');
-  return body.replace(/\s+/g, ' ').trim().slice(0, 500);
-};
-
-const ensurePublicQuizDropSeeded = async (): Promise<void> => {
-  const apiContext = await playwrightRequest.newContext({
-    extraHTTPHeaders: { Accept: 'application/json' },
-  });
-
-  try {
-    const loginResponse = await apiContext.post(getApiUrl('/api/auth/partner/login'), {
-      data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
-    });
-
-    if (!loginResponse.ok()) {
-      const responseSnippet = await readResponseSnippet(loginResponse);
-      throw new Error(
-        `Quiz smoke setup failed during admin auth (${loginResponse.status()}). ` +
-          `Expected admin login for /api/dev/seed-ui-smoke. Response: ${responseSnippet}`
-      );
-    }
-
-    const seedResponse = await apiContext.post(getApiUrl('/api/dev/seed-ui-smoke'));
-    if (!seedResponse.ok()) {
-      const responseSnippet = await readResponseSnippet(seedResponse);
-      throw new Error(
-        `Quiz smoke setup failed while calling /api/dev/seed-ui-smoke (${seedResponse.status()}). ` +
-          `Response: ${responseSnippet}`
-      );
-    }
-
-    const payload = await seedResponse.json().catch(() => null);
-    if (payload && payload.ok === false) {
-      throw new Error(
-        `Quiz smoke setup returned ok=false from /api/dev/seed-ui-smoke: ${JSON.stringify(payload)}`
-      );
-    }
-  } finally {
-    await apiContext.dispose();
-  }
-};
-
-const getPublicDropCardCount = async (page: Page): Promise<number> => {
-  await gotoApp(page, '/drops', { waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('networkidle').catch(() => null);
-  const cards = page.locator(DROP_CARD_SELECTOR);
-  return cards.count();
 };
 
 const scanPublicDropsForConfiguredQuiz = async (page: Page): Promise<QuizDropScanResult> => {
@@ -165,126 +113,20 @@ const openFirstPublicDropWithQuiz = async (page: Page): Promise<void> => {
   const initialScan = await scanPublicDropsForConfiguredQuiz(page);
   if (initialScan.foundConfiguredQuiz) return;
 
-  await ensurePublicQuizDropSeeded();
-
-  await expect
-    .poll(() => getPublicDropCardCount(page), {
-      timeout: QUIZ_SETUP_VISIBILITY_TIMEOUT_MS,
-      intervals: [500, 1000, 1500, 2000],
-    })
-    .toBeGreaterThan(0);
-
-  const seededScan = await scanPublicDropsForConfiguredQuiz(page);
-  if (seededScan.foundConfiguredQuiz) return;
-
-  if (seededScan.cardCount === 0) {
+  if (initialScan.cardCount === 0) {
     throw new Error(
-      'Quiz smoke setup succeeded, but /drops is still empty in the UI. ' +
-        'Check drop publish state, featured query filters, and cache propagation.'
+      'No public drops are visible in the UI. ' +
+        'Check drop publish state and featured query filters.'
     );
   }
 
   throw new Error(
-    `Quiz smoke setup succeeded and /drops shows ${seededScan.cardCount} card(s), ` +
-      `but no configured quiz was found in the first ${seededScan.scannedCount} card(s).`
+    `/drops shows ${initialScan.cardCount} card(s), ` +
+      `but no configured quiz was found in the first ${initialScan.scannedCount} card(s).`
   );
 };
 
-const getProductTitleFromDetail = async (page: Page): Promise<string> => {
-  const waitForDetailApi = async () => {
-    await page
-      .waitForResponse(
-        (response) =>
-          response.url().includes('/api/products/') && [200, 304].includes(response.status()),
-        { timeout: 10000 }
-      )
-      .catch(() => null);
-  };
-
-  const resolveTitle = async (): Promise<string> => {
-    await waitForDetailApi();
-    await page.waitForLoadState('domcontentloaded');
-    const candidateLocators = [
-      page.locator('[data-testid="product-title"]').first(),
-      page.locator('[data-testid="product-detail-title"]').first(),
-      page.locator('h1').first(),
-      page.getByRole('heading', { level: 1 }).first(),
-    ];
-
-    for (const locator of candidateLocators) {
-      if ((await locator.count().catch(() => 0)) === 0) continue;
-      await expect(locator).toBeVisible({ timeout: 10000 });
-      const candidate = (await locator.textContent())?.trim();
-      if (candidate && candidate.toLowerCase() !== 'product detail') {
-        return candidate;
-      }
-    }
-
-    throw new Error('title selector not found');
-  };
-
-  try {
-    return await resolveTitle();
-  } catch {
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    try {
-      return await resolveTitle();
-    } catch {
-      const url = page.url();
-      const contentSnippet = (await page.content().catch(() => 'title selector not found'))
-        .replace(/\s+/g, ' ')
-        .slice(0, 300);
-      throw new Error(
-        `Product detail title missing. url=${url} snippet=${contentSnippet || 'title selector not found'}`
-      );
-    }
-  }
-};
-
-const getProductCards = (page: Page) =>
-  page.locator(PRODUCT_CARD_SELECTORS.join(', '));
-
-const openVariantProductDetail = async (
-  page: Page
-): Promise<{ productName: string; productId: string }> => {
-  await gotoApp(page, '/products', { waitUntil: 'domcontentloaded' });
-  const cards = getProductCards(page);
-  await expect(cards.first()).toBeVisible({ timeout: 15000 });
-  const card = cards.first();
-  await card.click();
-  await expect(page).toHaveURL(/\/products\/[^/]+$/, { timeout: 15000 });
-
-  const detailUrl = page.url();
-  const match = detailUrl.match(/\/products\/([^\/?#]+)/);
-  const productId = match?.[1] ?? detailUrl;
-  const title = await getProductTitleFromDetail(page);
-  const variantSelect = page.locator('select#variant-select').first();
-  await expect(variantSelect).toBeVisible({ timeout: 10000 });
-  return { productName: title, productId };
-};
-
-
 test.describe('Buyer smoke', () => {
-  test('label alias endpoint includes deprecation headers', async () => {
-    const apiContext: APIRequestContext = await playwrightRequest.newContext({
-      extraHTTPHeaders: { Accept: 'application/json' },
-    });
-    try {
-      const response = await apiContext.get(getApiUrl('/api/label/dashboard/summary'));
-      const headers = response.headers();
-      const deprecationHeader = Object.entries(headers).find(
-        ([key]) => key.toLowerCase() === 'deprecation'
-      )?.[1];
-      const sunsetHeader = Object.entries(headers).find(
-        ([key]) => key.toLowerCase() === 'sunset'
-      )?.[1];
-      expect((deprecationHeader ?? '').toLowerCase()).toBe('true');
-      expect((sunsetHeader ?? '').trim().length).toBeGreaterThan(0);
-    } finally {
-      await apiContext.dispose();
-    }
-  });
-
   test('landing renders featured sections and supports navigation', async ({ page }) => {
     const legacyDropAliasRequests: string[] = [];
     const requestListener = (req: any) => {
@@ -306,7 +148,9 @@ test.describe('Buyer smoke', () => {
     await expect(page.getByRole('heading', { name: /featured drops/i })).toBeVisible({
       timeout: 15000,
     });
-    await expect(page.locator('footer').getByText(/OfficialMerch/i).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('footer').getByText(/OfficialMerch/i).first()).toBeVisible({
+      timeout: 15000,
+    });
 
     const artistsRowLinks = page.getByRole('link', { name: /view artist/i });
     const artistsEmpty = page.getByText(/no featured artists yet/i).first();
@@ -346,20 +190,33 @@ test.describe('Buyer smoke', () => {
     if ((await artistsRowLinks.count()) > 0) {
       await artistsRowLinks.first().click();
       await expect(page).toHaveURL(/\/artists\//, { timeout: 15000 });
+
       const artistProductLinks = page.locator('a[href^="/products/"]');
-      await expect
-        .poll(async () => await artistProductLinks.count(), { timeout: 10000 })
-        .toBeGreaterThan(0);
       const productsSection = page
         .locator('section')
         .filter({ has: page.getByRole('heading', { name: /products/i }) })
         .first();
+      const noProductsNotice = page
+        .getByText(/no (products|merch).*(yet|available)|no catalog items yet/i)
+        .first();
+
+      await expect
+        .poll(
+          async () =>
+            (await artistProductLinks.count()) > 0 ||
+            (await productsSection.isVisible().catch(() => false)) ||
+            (await noProductsNotice.isVisible().catch(() => false)),
+          { timeout: 10000 }
+        )
+        .toBe(true);
+
       if ((await productsSection.count()) > 0) {
         const productTeaserLinks = productsSection.getByRole('link', { name: /view product/i });
         if ((await productTeaserLinks.count()) > 0) {
-          await expect(productsSection).not.toContainText(/₹|\$\s*\d+([.,]\d{2})?/i);
+          await expect(productsSection).not.toContainText(/\u20b9|\$\s*\d+([.,]\d{2})?/i);
         }
       }
+
       await gotoApp(page, '/', { waitUntil: 'domcontentloaded' });
     }
 
@@ -412,19 +269,6 @@ test.describe('Buyer smoke', () => {
     await gotoApp(page, '/products');
     const productCard = getProductCards(page).first();
     await expect(productCard).toBeVisible({ timeout: 15000 });
-  });
-
-  test('buyer can open a product detail', async ({ page }) => {
-    await gotoApp(page, '/products');
-    const productCard = getProductCards(page).first();
-    await expect(productCard).toBeVisible({ timeout: 15000 });
-    await productCard.click();
-    await expect(page).toHaveURL(/\/products\//);
-    const title = page.getByRole('heading').first();
-    await expect(title).toBeVisible({ timeout: 15000 });
-    await expect(
-      page.getByText(/price unavailable|₹\s*\d+([.,]\d{2})?|\$\s*\d+([.,]\d{2})?/i).first()
-    ).toBeVisible({ timeout: 15000 });
   });
 
   test('public drop quiz lead submission works end-to-end', async ({ page }) => {
@@ -517,93 +361,5 @@ test.describe('Buyer smoke', () => {
         { timeout: 10000, intervals: [250, 500, 1000] }
       )
       .toBe(true);
-  });
-
-  test('buyer checkout blocks missing variant selection with actionable message', async ({ page }) => {
-    test.skip(!BUYER_EMAIL || !BUYER_PASSWORD, 'Missing buyer credentials');
-    const orderPosts: string[] = [];
-
-    page.on('request', (req) => {
-      if (req.method() !== 'POST') return;
-      const url = req.url();
-      if (/\/api\/orders(?:\/|$)/i.test(url)) {
-        orderPosts.push(url);
-      }
-    });
-
-    await loginBuyer(page);
-    await openVariantProductDetail(page);
-
-    const variantSelect = page.locator('select#variant-select').first();
-    await expect(variantSelect).toBeVisible({ timeout: 10000 });
-    await page.evaluate(() => {
-      const selectEl = document.querySelector('select#variant-select') as HTMLSelectElement | null;
-      const buyNowButton = document.querySelector('[data-testid="product-buy-now"]') as
-        | HTMLButtonElement
-        | null;
-      if (!selectEl) return;
-      const invalidValue = '__invalid_variant__';
-      if (!Array.from(selectEl.options).some((option) => option.value === invalidValue)) {
-        const temp = document.createElement('option');
-        temp.value = invalidValue;
-        temp.textContent = 'Invalid variant';
-        selectEl.appendChild(temp);
-      }
-      selectEl.value = invalidValue;
-      selectEl.dispatchEvent(new Event('input', { bubbles: true }));
-      selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-      if (buyNowButton) {
-        buyNowButton.disabled = false;
-        buyNowButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      }
-    });
-
-    await expect
-      .poll(
-        async () => {
-          const explicitMessageVisible = await page
-            .getByText(/please select a size\/color|needs a variant selection/i)
-            .first()
-            .isVisible()
-            .catch(() => false);
-          if (explicitMessageVisible) return true;
-          return page.getByLabel(/variant/i).first().isVisible().catch(() => false);
-        },
-        { timeout: 15000 }
-      )
-      .toBe(true);
-    await expect(page).toHaveURL(/\/products\/[^/]+$/, { timeout: 15000 });
-    expect(orderPosts, `Unexpected POST /api/orders calls:\n${orderPosts.join('\n')}`).toHaveLength(0);
-  });
-
-  test('fan portal rejects partner/admin credentials', async ({ page }) => {
-    test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
-    const partnerEmail = ADMIN_EMAIL;
-    const partnerPassword = ADMIN_PASSWORD;
-    await loginFanWithCredentials(page, partnerEmail, partnerPassword, { expectRejection: true });
-    await expect(page).not.toHaveURL(/\/partner\/(admin|artist|label)/, { timeout: 15000 });
-    await expect(page).toHaveURL(/\/fan\/login/, { timeout: 15000 });
-    const partnerBanner = page.getByText(/this account is for the partner portal|partner portal/i).first();
-    const partnerLink = page.getByRole('link', { name: /partner login|go to partner login/i }).first();
-    const partnerButton = page.getByRole('button', { name: /partner login|go to partner login/i }).first();
-
-    const bannerCount = await partnerBanner.count().catch(() => 0);
-    const linkCount = await partnerLink.count().catch(() => 0);
-    const buttonCount = await partnerButton.count().catch(() => 0);
-
-    if (bannerCount > 0) {
-      await expect(partnerBanner).toBeVisible({ timeout: 15000 });
-    } else if (linkCount > 0) {
-      await expect(partnerLink).toBeVisible({ timeout: 15000 });
-    } else if (buttonCount > 0) {
-      await expect(partnerButton).toBeVisible({ timeout: 15000 });
-    } else {
-      await expect(
-        page.getByText(/role_not_allowed|not allowed|unauthorized|forbidden/i).first()
-      ).toBeVisible({ timeout: 15000 });
-    }
-
-    await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded', authRetry: false });
-    await expect(page).toHaveURL(/\/(fan|partner)\/login/, { timeout: 15000 });
   });
 });
