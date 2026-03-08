@@ -198,6 +198,12 @@ export default function AdminDashboard() {
           <KpiCard label="PRODUCTS" value="—" hint="Manage catalog & variants" />
         </Link>
         <Link
+          to="/partner/admin/inventory-skus"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer rounded-2xl transition"
+        >
+          <KpiCard label="SKU MASTER" value="—" hint="Central supplier SKU control" />
+        </Link>
+        <Link
           to="/partner/admin/drops"
           className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/60 hover:border-slate-200 dark:hover:border-white/20 hover:bg-slate-50 dark:hover:bg-white/10 cursor-pointer rounded-2xl transition"
         >
