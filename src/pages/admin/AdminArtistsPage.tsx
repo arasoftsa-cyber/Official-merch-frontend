@@ -107,7 +107,7 @@ export default function AdminArtistsPage() {
     try {
       const response = await apiFetch(`/admin/artists/${row.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ is_featured: nextValue }) as any,
+        body: { is_featured: nextValue } as any,
       });
       const persisted = Boolean(response?.is_featured ?? response?.isFeatured ?? nextValue);
       setRows((current) =>

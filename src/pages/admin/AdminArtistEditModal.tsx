@@ -5,6 +5,10 @@ import {
   normalizeAdminArtistSubscription,
   useAdminArtistSubscription,
 } from './hooks/useAdminArtistSubscription';
+import {
+  buildAdminArtistUpdatePayload,
+  normalizeSocialRows,
+} from './adminArtistUpdatePayload';
 
 type SocialRow = {
   platform: string;
@@ -16,6 +20,7 @@ type ArtistCapabilities = {
   canEditHandle: boolean;
   canEditEmail: boolean;
   canEditStatus: boolean;
+  canEditFeatured: boolean;
   canEditPhone: boolean;
   canEditAboutMe: boolean;
   canEditMessageForFans: boolean;
@@ -72,6 +77,7 @@ const DEFAULT_CAPABILITIES: ArtistCapabilities = {
   canEditHandle: false,
   canEditEmail: true,
   canEditStatus: true,
+  canEditFeatured: true,
   canEditPhone: true,
   canEditAboutMe: true,
   canEditMessageForFans: true,
@@ -168,6 +174,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [subscriptionFieldErrors, setSubscriptionFieldErrors] = useState<Record<string, string>>(
     {}
@@ -195,6 +202,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
       setLoading(true);
       setSaving(false);
       setError(null);
+      setInfo(null);
       setFieldErrors({});
       setSubscriptionFieldErrors({});
       setSubscriptionSaveError(null);
@@ -351,6 +359,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
     }
     setSubscriptionFieldErrors(nextSubscriptionErrors);
     setSubscriptionSaveError(null);
+    setInfo(null);
 
     if (Object.keys(nextErrors).length > 0 || Object.keys(nextSubscriptionErrors).length > 0) {
       setError('Please fix the highlighted fields.');
@@ -360,42 +369,63 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
     setSaving(true);
     setError(null);
     try {
-      const payload: Record<string, any> = {};
-      if (caps.canEditName) payload.name = form.name.trim();
-      if (caps.canEditHandle) payload.handle = form.handle.trim().replace(/^@+/, '');
-      if (emailEditable) payload.email = form.email.trim().toLowerCase();
-      payload.status = form.status.trim().toLowerCase();
-      payload.is_featured = Boolean(form.is_featured);
-      if (caps.canEditPhone) payload.phone = form.phone.trim();
-      payload.about = form.about.trim();
-      payload.message_for_fans = form.message_for_fans.trim();
-      payload.socials = form.socials
-        .map((entry) => ({
-          platform: String(entry.platform || '').trim(),
-          value: String(entry.value || '').trim(),
-        }))
-        .filter((entry) => entry.platform || entry.value);
+      const artistPatchPayload = buildAdminArtistUpdatePayload({
+        initial: {
+          name: detail.name,
+          handle: detail.handle,
+          email: detail.email,
+          status: detail.status,
+          is_featured: detail.is_featured,
+          phone: detail.phone,
+          about: detail.about,
+          message_for_fans: detail.message_for_fans,
+          socials: detail.socials,
+          profilePhotoUrl: detail.profilePhotoUrl,
+        },
+        current: {
+          name: form.name,
+          handle: form.handle,
+          email: form.email,
+          status: form.status,
+          is_featured: form.is_featured,
+          phone: form.phone,
+          about: form.about,
+          message_for_fans: form.message_for_fans,
+          socials: normalizeSocialRows(form.socials),
+          profilePhotoUrl: form.profilePhotoUrl,
+        },
+        capabilities: {
+          canEditName: caps.canEditName,
+          canEditHandle: caps.canEditHandle,
+          canEditEmail: caps.canEditEmail,
+          canEditStatus: caps.canEditStatus,
+          canEditFeatured: caps.canEditFeatured,
+          canEditPhone: caps.canEditPhone,
+          canEditAboutMe: caps.canEditAboutMe,
+          canEditMessageForFans: caps.canEditMessageForFans,
+          canEditSocials: caps.canEditSocials,
+          canEditProfilePhoto: caps.canEditProfilePhoto,
+        },
+      });
 
       if (caps.canEditProfilePhoto) {
         if (profilePhotoFile && caps.canUploadProfilePhoto) {
           const fd = new FormData();
           fd.append('file', profilePhotoFile);
           const upload = await apiFetchForm('/media-assets', fd, { method: 'POST' });
-          const uploadedUrl = String(upload?.publicUrl || '').trim();
-          if (uploadedUrl) payload.profile_photo_url = uploadedUrl;
-          if (upload?.id) payload.profile_photo_media_asset_id = upload.id;
-        } else {
-          payload.profile_photo_url = form.profilePhotoUrl.trim();
+          const uploadedUrl = String(upload?.publicUrl ?? upload?.public_url ?? '').trim();
+          if (uploadedUrl) {
+            artistPatchPayload.profile_photo_url = uploadedUrl;
+          } else {
+            const currentProfileUrl = String(form.profilePhotoUrl || '').trim();
+            artistPatchPayload.profile_photo_url = currentProfileUrl || null;
+          }
+          if (upload?.id) artistPatchPayload.profile_photo_media_asset_id = upload.id;
         }
       }
 
-      await apiFetch(`/admin/artists/${artistId}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload) as any,
-      });
-
+      const subscriptionPatchPayload: Record<string, string> = {};
       if (subscription?.id) {
-        const subscriptionPatchPayload: Record<string, string> = {};
         const nextStatus = toText(subscriptionForm.status).toLowerCase();
         if (nextStatus !== toText(subscription.status).toLowerCase()) {
           subscriptionPatchPayload.status = nextStatus;
@@ -422,32 +452,52 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
             subscriptionPatchPayload.transactionId = nextTransactionId;
           }
         }
+      }
 
-        if (Object.keys(subscriptionPatchPayload).length > 0) {
-          try {
-            const updated = await apiFetch(`/admin/artist-subscriptions/${subscription.id}`, {
-              method: 'PATCH',
-              body: JSON.stringify(subscriptionPatchPayload) as any,
-            });
-            setSubscription(normalizeAdminArtistSubscription(updated));
-          } catch (err: any) {
-            const status = Number(err?.status || 0);
-            const message = String(err?.message ?? '').trim() || 'Failed to update subscription.';
-            setSubscriptionSaveError(
-              status === 409
-                ? `Subscription update conflict: ${message}`
-                : `Subscription update failed: ${message}`
-            );
-            setError('Artist saved, but subscription update failed.');
-            return;
-          }
+      if (
+        Object.keys(artistPatchPayload).length === 0 &&
+        Object.keys(subscriptionPatchPayload).length === 0
+      ) {
+        setInfo('No changes to save.');
+        return;
+      }
+
+      if (Object.keys(artistPatchPayload).length > 0) {
+        await apiFetch(`/admin/artists/${artistId}`, {
+          method: 'PATCH',
+          body: artistPatchPayload as any,
+        });
+      }
+
+      if (subscription?.id && Object.keys(subscriptionPatchPayload).length > 0) {
+        try {
+          const updated = await apiFetch(`/admin/artist-subscriptions/${subscription.id}`, {
+            method: 'PATCH',
+            body: subscriptionPatchPayload as any,
+          });
+          setSubscription(normalizeAdminArtistSubscription(updated));
+        } catch (err: any) {
+          const status = Number(err?.status || 0);
+          const message = String(err?.message ?? '').trim() || 'Failed to update subscription.';
+          setSubscriptionSaveError(
+            status === 409
+              ? `Subscription update conflict: ${message}`
+              : `Subscription update failed: ${message}`
+          );
+          setError('Artist saved, but subscription update failed.');
+          return;
         }
       }
 
       await onSaved?.();
       onClose();
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to save artist.');
+      if (String(err?.message ?? '').trim().toLowerCase() === 'no_fields') {
+        setError(null);
+        setInfo('No changes to save.');
+      } else {
+        setError(err?.message ?? 'Failed to save artist.');
+      }
     } finally {
       setSaving(false);
     }
@@ -472,6 +522,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
 
           <div className="grow overflow-y-auto px-6 py-6 pr-5">
             {error && <p className="mb-4 rounded-lg bg-rose-50 dark:bg-rose-500/10 px-4 py-2 text-sm font-medium text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-500/20">{error}</p>}
+            {info && <p className="mb-4 rounded-lg bg-sky-50 dark:bg-sky-500/10 px-4 py-2 text-sm font-medium text-sky-700 dark:text-sky-200 border border-sky-200 dark:border-sky-500/20">{info}</p>}
             {loading && <p className="text-sm text-slate-500 dark:text-slate-300 animate-pulse">Loading artist details...</p>}
 
             {!loading && detail && (
@@ -524,6 +575,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                       value={form.status ?? ''}
                       onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))}
                       onMouseDown={focusOnPointerDown}
+                      disabled={!caps.canEditStatus || saving}
                       className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition appearance-none cursor-pointer"
                     >
                       {statusOptions.map((entry) => (
@@ -545,7 +597,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                         onChange={(event) =>
                           setForm((prev) => ({ ...prev, is_featured: event.target.checked }))
                         }
-                        disabled={saving}
+                        disabled={!caps.canEditFeatured || saving}
                         className="h-5 w-5 rounded border border-slate-300 dark:border-white/20 bg-white dark:bg-black/30 accent-emerald-500 disabled:opacity-50 transition"
                       />
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -571,6 +623,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                       onChange={(event) => setForm((prev) => ({ ...prev, about: event.target.value }))}
                       onMouseDown={focusOnPointerDown}
                       rows={4}
+                      disabled={!caps.canEditAboutMe || saving}
                       className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition min-h-[100px]"
                     />
                   </label>
@@ -584,6 +637,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                       }
                       onMouseDown={focusOnPointerDown}
                       rows={3}
+                      disabled={!caps.canEditMessageForFans || saving}
                       className="mt-1.5 w-full rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-black/20 px-4 py-2.5 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition min-h-[80px]"
                     />
                   </label>
@@ -600,6 +654,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                             value={social.platform}
                             onChange={(event) => updateSocial(index, 'platform', event.target.value)}
                             onMouseDown={focusOnPointerDown}
+                            disabled={!caps.canEditSocials || saving}
                             placeholder="Platform"
                             className="rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-4 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition"
                           />
@@ -607,12 +662,14 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                             value={social.value}
                             onChange={(event) => updateSocial(index, 'value', event.target.value)}
                             onMouseDown={focusOnPointerDown}
+                            disabled={!caps.canEditSocials || saving}
                             placeholder="URL / Handle"
                             className="rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-black/20 px-4 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 dark:focus:ring-emerald-500 outline-none transition"
                           />
                           <button
                             type="button"
                             onClick={() => removeSocial(index)}
+                            disabled={!caps.canEditSocials || saving}
                             className="rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition shadow-sm"
                           >
                             Remove
@@ -623,6 +680,7 @@ export default function AdminArtistEditModal({ open, artistId, onClose, onSaved 
                     <button
                       type="button"
                       onClick={addSocial}
+                      disabled={!caps.canEditSocials || saving}
                       className="mt-4 rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-sm inline-flex items-center gap-2"
                     >
                       <span className="text-base">+</span> Add Social
