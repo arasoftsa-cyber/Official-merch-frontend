@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { fetchJson } from '../shared/api';
-import { trackPageView } from '../shared/telemetry';
-import ErrorBanner from '../components/ux/ErrorBanner';
-import LoadingSkeleton from '../components/ux/LoadingSkeleton';
-import ProductCardPublic from '../components/public/ProductCardPublic';
+import { fetchJson } from '../shared/api/fetchJson';
+import { trackPageView } from '../shared/lib/telemetry';
+import ErrorBanner from '../shared/components/ux/ErrorBanner';
+import LoadingSkeleton from '../shared/components/ux/LoadingSkeleton';
+import ProductCardPublic from '../features/catalog/components/ProductCardPublic';
 import { resolveMediaUrl } from '../shared/utils/media';
 
 type ArtistData = {

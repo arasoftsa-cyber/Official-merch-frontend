@@ -53,7 +53,7 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                 <div>
                   <p className="text-sm font-semibold text-white">{item.title}</p>
                   <p className="text-xs text-slate-400">
-                    ${item.price.toFixed(2)} × {item.qty}
+                    ${item.price.toFixed(2)} Ã— {item.qty}
                   </p>
                 </div>
                 <button

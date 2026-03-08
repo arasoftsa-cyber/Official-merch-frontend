@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchJson } from '../shared/api';
-import EmptyState from '../components/ux/EmptyState';
-import LoadingSkeleton from '../components/ux/LoadingSkeleton';
-import { trackPageView } from '../shared/telemetry';
-import ProductsGrid from '../components/products/ProductsGrid';
+import { fetchJson } from '../shared/api/fetchJson';
+import EmptyState from '../shared/components/ux/EmptyState';
+import LoadingSkeleton from '../shared/components/ux/LoadingSkeleton';
+import { trackPageView } from '../shared/lib/telemetry';
+import ProductsGrid from '../features/catalog/components/ProductsGrid';
 
 type ProductDTO = {
   id: string;

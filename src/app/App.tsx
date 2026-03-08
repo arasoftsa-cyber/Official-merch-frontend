@@ -1,68 +1,94 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Routes,
   Route,
   Navigate,
   Outlet,
-  Link,
   useLocation,
   useParams,
-  useNavigate,
 } from 'react-router-dom';
-import Smoke from '../pages/Smoke';
 import { apiFetch } from '../shared/api/http';
 import { getAccessToken, setAccessToken, clearTokens } from '../shared/auth/tokenStore';
 import { API_BASE } from '../shared/api/http';
 import { getMe, getConfig } from '../shared/api/appApi';
-import FanLoginPage from '../pages/fan/FanLoginPage';
-import FanRegisterPage from '../pages/fan/FanRegisterPage';
-import PartnerLoginPage from '../pages/partner/PartnerLoginPage';
-import PartnerEntryRedirect from '../pages/partner/PartnerEntryRedirect';
-import PartnerLayout from '../layouts/PartnerLayout';
-import CartPage from '../pages/CartPage';
-import LabelDashboard from '../dashboards/label/LabelDashboard';
-import LabelArtistDetailPage from '../dashboards/label/LabelArtistDetailPage';
-import AdminDashboard from '../dashboards/admin/AdminDashboard';
-import AdminOrderDetail from '../dashboards/admin/AdminOrderDetail';
-import { ForbiddenPage, NotFoundPage } from '../pages/Errors';
+import { ForbiddenPage, NotFoundPage } from '../pages/ErrorPages';
 import { safeErrorMessage } from '../shared/utils/safeError';
-import AdminOrders from '../dashboards/admin/AdminOrders';
-import AdminArtistRequests from '../dashboards/admin/AdminArtistRequests';
-import AdminProductsPage from '../dashboards/admin/AdminProductsPage';
-import AdminCreateProductPage from '../dashboards/admin/AdminCreateProductPage';
-import AdminProductVariants from '../dashboards/admin/AdminProductVariants';
-import AdminSkuMasterPage from '../dashboards/admin/AdminSkuMasterPage';
-import AdminDropsPage from '../dashboards/admin/AdminDropsPage';
-import AdminProvisioningPage from '../pages/admin/AdminProvisioningPage';
-import AdminLeadsPage from '../pages/admin/AdminLeadsPage';
-import AdminArtistsPage from '../pages/admin/AdminArtistsPage';
-import AdminArtistDetailPage from '../pages/admin/AdminArtistDetailPage';
-import AdminArtistEditPage from '../pages/admin/AdminArtistEditPage';
-import AdminHomepageBannersPage from '../pages/admin/AdminHomepageBannersPage';
-import BuyerOrdersPage from '../pages/buyer/BuyerOrdersPage';
-import BuyerOrderDetailPage from '../pages/buyer/BuyerOrderDetailPage';
-import BuyerLayout from '../pages/buyer/BuyerLayout';
-import BuyerDashboardPage from '../pages/buyer/BuyerDashboardPage';
-import BuyerAddressesPage from '../pages/buyer/BuyerAddressesPage';
-import BuyerPaymentMethodsPage from '../pages/buyer/BuyerPaymentMethodsPage';
-import ArtistProductsPage from '../pages/artist/ArtistProductsPage';
-import ArtistProductVariantsPage from '../pages/artist/ArtistProductVariantsPage';
 import PublicLayout from '../shared/layout/PublicLayout';
-import ArtistDropsPage from '../pages/artist/ArtistDropsPage';
 import LandingPage from '../pages/LandingPage';
 import ProductsPage from '../pages/ProductsPage';
-import ProductDetail from '../pages/ProductDetail';
 import ArtistPage from '../pages/ArtistPage';
-import DropPage from '../pages/DropPage';
-import ApplyArtistPage from '../pages/ApplyArtistPage';
 import ArtistsPage from '../pages/ArtistsPage';
 import DropsPage from '../pages/DropsPage';
-import LogoutPage from '../pages/LogoutPage';
 import RedirectPage from '../pages/RedirectPage';
-import { ToastProvider } from '../components/ux/ToastHost';
 import { CartProvider } from '../cart/CartContext';
-import ThemeToggle from '../components/ThemeToggle';
-import { Page, Container } from '../ui/Page';
+import ThemeToggle from '../shared/components/ThemeToggle';
+
+const PartnerLayout = lazy(() => import('../layouts/PartnerLayout'));
+const SmokePage = lazy(() => import('../pages/SmokePage'));
+const FanLoginPage = lazy(() => import('../features/auth/pages/fan/FanLoginPage'));
+const FanRegisterPage = lazy(() => import('../features/auth/pages/fan/FanRegisterPage'));
+const PartnerLoginPage = lazy(() => import('../features/auth/pages/partner/PartnerLoginPage'));
+const PartnerEntryRedirectPage = lazy(
+  () => import('../features/auth/pages/partner/PartnerEntryRedirectPage')
+);
+const CartPage = lazy(() => import('../pages/CartPage'));
+const ProductDetailPage = lazy(() => import('../pages/ProductDetailPage'));
+const DropPage = lazy(() => import('../pages/DropPage'));
+const ApplyArtistPage = lazy(() => import('../features/onboarding/pages/ApplyArtistPage'));
+const LogoutPage = lazy(() => import('../pages/LogoutPage'));
+const LabelDashboardPage = lazy(() => import('../features/label/pages/LabelDashboardPage'));
+const LabelArtistDetailPage = lazy(() => import('../features/label/pages/LabelArtistDetailPage'));
+const AdminDashboardPage = lazy(() => import('../features/admin/pages/AdminDashboardPage'));
+const AdminOrderDetailPage = lazy(() => import('../features/admin/pages/AdminOrderDetailPage'));
+const AdminOrdersPage = lazy(() => import('../features/admin/pages/AdminOrdersPage'));
+const AdminArtistRequestsPage = lazy(
+  () => import('../features/admin/pages/AdminArtistRequestsPage')
+);
+const AdminProductsPage = lazy(() => import('../features/admin/pages/AdminProductsPage'));
+const AdminCreateProductPage = lazy(
+  () => import('../features/admin/pages/AdminCreateProductPage')
+);
+const AdminProductVariantsPage = lazy(
+  () => import('../features/admin/pages/AdminProductVariantsPage')
+);
+const AdminSkuMasterPage = lazy(() => import('../features/admin/pages/AdminSkuMasterPage'));
+const AdminDropsPage = lazy(() => import('../features/admin/pages/AdminDropsPage'));
+const AdminProvisioningPage = lazy(() => import('../features/admin/pages/AdminProvisioningPage'));
+const AdminLeadsPage = lazy(() => import('../features/admin/pages/AdminLeadsPage'));
+const AdminArtistsPage = lazy(() => import('../features/admin/pages/AdminArtistsPage'));
+const AdminArtistDetailPage = lazy(() => import('../features/admin/pages/AdminArtistDetailPage'));
+const AdminArtistEditPage = lazy(() => import('../features/admin/pages/AdminArtistEditPage'));
+const AdminHomepageBannersPage = lazy(
+  () => import('../features/admin/pages/AdminHomepageBannersPage')
+);
+const BuyerOrdersPage = lazy(() => import('../features/buyer/pages/BuyerOrdersPage'));
+const BuyerOrderDetailPage = lazy(() => import('../features/buyer/pages/BuyerOrderDetailPage'));
+const BuyerLayout = lazy(() => import('../features/buyer/pages/BuyerLayout'));
+const BuyerDashboardPage = lazy(() => import('../features/buyer/pages/BuyerDashboardPage'));
+const BuyerAddressesPage = lazy(() => import('../features/buyer/pages/BuyerAddressesPage'));
+const BuyerPaymentMethodsPage = lazy(
+  () => import('../features/buyer/pages/BuyerPaymentMethodsPage')
+);
+const ArtistProductsPage = lazy(() => import('../features/artist/pages/ArtistProductsPage'));
+const ArtistProductVariantsPage = lazy(
+  () => import('../features/artist/pages/ArtistProductVariantsPage')
+);
+const ArtistDropsPage = lazy(() => import('../features/artist/pages/ArtistDropsPage'));
+const ArtistDashboardPage = lazy(() =>
+  import('../features/artist/pages/ArtistDashboardPage').then((module) => ({
+    default: module.ArtistDashboardPage,
+  }))
+);
+const ArtistOrdersPage = lazy(() =>
+  import('../features/artist/pages/ArtistDashboardPage').then((module) => ({
+    default: module.ArtistOrdersPage,
+  }))
+);
+const ArtistOrderDetailPage = lazy(() =>
+  import('../features/artist/pages/ArtistDashboardPage').then((module) => ({
+    default: module.ArtistOrderDetailPage,
+  }))
+);
 
 const LOGIN_PATHS = ['/fan/login', '/partner/login', '/login'];
 const AUTH_BYPASS_PATHS = [...LOGIN_PATHS, '/logout'];
@@ -71,10 +97,6 @@ const LOGIN_OR_REGISTER_PATH_RE = /^\/(fan|partner)\/(login|register)(?:\/|$)/i;
 
 function isExactPath(pathname: string, candidate: string): boolean {
   return pathname === candidate || pathname === `${candidate}/`;
-}
-
-function isLoginPath(pathname: string): boolean {
-  return LOGIN_PATHS.some((path) => isExactPath(pathname, path));
 }
 
 function isAuthBypassPath(pathname: string): boolean {
@@ -163,15 +185,6 @@ function getPostLoginRedirect({
   return roleHomePath(role);
 }
 
-function DashboardPlaceholder({ title }: { title: string }) {
-  return (
-    <main>
-      <h1>{title}</h1>
-      <p>Projection-only dashboard placeholder.</p>
-    </main>
-  );
-}
-
 function StatusPage() {
   return (
     <main>
@@ -179,542 +192,6 @@ function StatusPage() {
       <p>API Base: {API_BASE}</p>
       <p>OK</p>
     </main>
-  );
-}
-
-type ArtistSummary = {
-  totalOrders?: number;
-  totalUnits?: number;
-  grossCents?: number;
-  [key: string]: any;
-};
-
-type ArtistOrder = {
-  id?: string;
-  orderId?: string;
-  status?: string;
-  totalCents?: number;
-  createdAt?: string;
-  buyerUserId?: string;
-  items?: Array<{
-    productId?: string;
-    productVariantId?: string;
-    quantity?: number;
-    priceCents?: number;
-  }>;
-  [key: string]: any;
-};
-
-const KNOWN_ARTIST_ORDER_STATUSES = [
-  'placed',
-  'paid',
-  'captured',
-  'fulfilled',
-  'cancelled',
-  'refunded',
-];
-
-function ArtistDashboard() {
-  const navigate = useNavigate();
-  const [summary, setSummary] = useState<ArtistSummary | null>(null);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
-  const [orders, setOrders] = useState<ArtistOrder[]>([]);
-  const [ordersError, setOrdersError] = useState<string | null>(null);
-  const [dropsCount, setDropsCount] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      setSummaryError(null);
-      setOrdersError(null);
-      try {
-        const [summaryPayload, ordersPayload, dropsPayload] = await Promise.all([
-          apiFetch('/api/artist/dashboard/summary'),
-          apiFetch('/api/artist/dashboard/orders?status=all&range=30d&sort=default&limit=10'),
-          apiFetch('/api/artist/drops'),
-        ]);
-        if (!active) return;
-        setSummary(summaryPayload ?? null);
-        const orderItems = Array.isArray(ordersPayload?.items)
-          ? ordersPayload.items
-          : Array.isArray(ordersPayload)
-            ? ordersPayload
-            : [];
-        setOrders(orderItems);
-        const dropItems = Array.isArray(dropsPayload?.items)
-          ? dropsPayload.items
-          : Array.isArray(dropsPayload)
-            ? dropsPayload
-            : [];
-        setDropsCount(dropItems.length);
-      } catch (err: any) {
-        if (!active) return;
-        const message = err?.message ?? 'Failed to load artist dashboard.';
-        setSummaryError(message);
-        setOrdersError(message);
-        setDropsCount(0);
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const formatCurrency = (cents?: number) => {
-    if (typeof cents !== 'number' || !Number.isFinite(cents)) return '-';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 2,
-    }).format(cents / 100);
-  };
-
-  return (
-    <Page>
-      <Container className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Artist</p>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Artist Dashboard</h1>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-5">
-          <button
-            type="button"
-            onClick={() => navigate('/partner/artist/orders')}
-            className="cursor-pointer rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 text-left transition hover:border-slate-300 dark:hover:border-white/30 hover:bg-slate-100 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/50"
-          >
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Orders</p>
-            <p className="mt-2 text-2xl text-slate-900 dark:text-white">{loading ? '...' : summary?.totalOrders ?? '-'}</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/partner/artist/orders?metric=units')}
-            className="cursor-pointer rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 text-left transition hover:border-slate-300 dark:hover:border-white/30 hover:bg-slate-100 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/50"
-          >
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Units</p>
-            <p className="mt-2 text-2xl text-slate-900 dark:text-white">{loading ? '...' : summary?.totalUnits ?? '-'}</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/partner/artist/orders?metric=gross')}
-            className="cursor-pointer rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 text-left transition hover:border-slate-300 dark:hover:border-white/30 hover:bg-slate-100 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/50"
-          >
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Gross</p>
-            <p className="mt-2 text-2xl text-slate-900 dark:text-white">{loading ? '...' : formatCurrency(summary?.grossCents)}</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/partner/artist/products')}
-            className="cursor-pointer rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 text-left transition hover:border-slate-300 dark:hover:border-white/30 hover:bg-slate-100 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/50"
-          >
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Products</p>
-            <p className="mt-2 text-2xl text-slate-900 dark:text-white">—</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/partner/artist/drops')}
-            className="cursor-pointer rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4 text-left transition hover:border-slate-300 dark:hover:border-white/30 hover:bg-slate-100 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 dark:focus-visible:ring-white/50"
-          >
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Drops</p>
-            <p className="mt-2 text-2xl text-slate-900 dark:text-white">{loading ? '...' : dropsCount}</p>
-          </button>
-        </div>
-
-        {summaryError && (
-          <p role="alert" className="mt-4 text-sm text-rose-600 dark:text-rose-300">
-            Summary unavailable: {summaryError}
-          </p>
-        )}
-
-        <section className="mt-8">
-          <div className="mb-3">
-            <h2 className="text-lg font-medium text-slate-900 dark:text-white">Recent Orders</h2>
-          </div>
-          {loading && <p className="text-slate-500 dark:text-slate-400">Loading recent orders...</p>}
-          {!loading && ordersError && (
-            <p role="alert" className="text-sm text-rose-600 dark:text-rose-300">
-              Orders unavailable: {ordersError}
-            </p>
-          )}
-          {!loading && !ordersError && orders.length === 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">No recent orders yet.</p>
-          )}
-          {!loading && !ordersError && orders.length > 0 && (
-            <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5">
-              <table className="w-full text-left text-sm text-slate-900 dark:text-white">
-                <thead className="bg-slate-50 dark:bg-transparent">
-                  <tr className="border-b border-slate-200 dark:border-white/10 text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
-                    <th className="px-4 py-3">Order</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Total</th>
-                    <th className="px-4 py-3">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.slice(0, 10).map((order, index) => {
-                    const orderId = order?.orderId ?? order?.id ?? '';
-                    const target = orderId
-                      ? `/partner/artist/orders/${orderId}`
-                      : '/partner/artist/orders';
-                    return (
-                      <tr
-                        key={orderId || `order-${index}`}
-                        className="cursor-pointer border-b border-slate-100 dark:border-white/5 transition hover:bg-slate-50 dark:hover:bg-white/10 focus-visible:bg-slate-50 dark:focus-visible:bg-white/10"
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => navigate(target)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            navigate(target);
-                          }
-                        }}
-                      >
-                        <td className="px-4 py-3">{order?.orderId ?? order?.id ?? '-'}</td>
-                        <td className="px-4 py-3">{order?.status ?? '-'}</td>
-                        <td className="px-4 py-3">{formatCurrency(order?.totalCents)}</td>
-                        <td className="px-4 py-3">{order?.createdAt ?? '-'}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </Container>
-    </Page>
-  );
-}
-
-function ArtistOrdersPage() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [orders, setOrders] = useState<ArtistOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState('all');
-  const metric = new URLSearchParams(location.search).get('metric');
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const payload = await apiFetch('/api/artist/dashboard/orders');
-        if (!active) return;
-        const items = Array.isArray(payload?.items)
-          ? payload.items
-          : Array.isArray(payload)
-            ? payload
-            : [];
-        setOrders(items);
-      } catch (err: any) {
-        if (!active) return;
-        setOrders([]);
-        setError(err?.message ?? 'Failed to load artist orders');
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const formatCurrency = (cents?: number) => {
-    if (typeof cents !== 'number' || !Number.isFinite(cents)) return '-';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 2,
-    }).format(cents / 100);
-  };
-
-  const formatDateTime = (value?: string) => {
-    if (!value) return '-';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString();
-  };
-
-  const statusOptions = useMemo(() => {
-    const dynamicStatuses = orders
-      .map((order) => `${order?.status ?? ''}`.trim().toLowerCase())
-      .filter(Boolean);
-    const merged = Array.from(new Set([...KNOWN_ARTIST_ORDER_STATUSES, ...dynamicStatuses]));
-    return ['all', ...merged];
-  }, [orders]);
-
-  const filteredOrders = useMemo(() => {
-    const statusFiltered =
-      statusFilter === 'all'
-        ? orders
-        : orders.filter(
-          (order) => `${order?.status ?? ''}`.trim().toLowerCase() === statusFilter
-        );
-    if (metric === 'units') {
-      return [...statusFiltered].sort((a, b) => {
-        const aUnits = Array.isArray(a?.items)
-          ? a.items.reduce((sum, item) => sum + Number(item?.quantity ?? 0), 0)
-          : 0;
-        const bUnits = Array.isArray(b?.items)
-          ? b.items.reduce((sum, item) => sum + Number(item?.quantity ?? 0), 0)
-          : 0;
-        return bUnits - aUnits;
-      });
-    }
-    if (metric === 'gross') {
-      return [...statusFiltered].sort(
-        (a, b) => Number(b?.totalCents ?? 0) - Number(a?.totalCents ?? 0)
-      );
-    }
-    return statusFiltered;
-  }, [orders, statusFilter, metric]);
-
-  const metricHint =
-    metric === 'units'
-      ? 'Sorted by units'
-      : metric === 'gross'
-        ? 'Sorted by gross'
-        : null;
-  const totalHeaderClass = metric === 'gross' ? 'px-4 py-3 text-slate-900 dark:text-white' : 'px-4 py-3';
-
-  return (
-    <Page>
-      <Container className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Artist</p>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Artist Orders</h1>
-          </div>
-          <Link className="text-sm text-slate-600 dark:text-slate-300 underline" to="/partner/artist">
-            Back to dashboard
-          </Link>
-        </div>
-
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <label htmlFor="artist-orders-status" className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
-            Status
-          </label>
-          <select
-            id="artist-orders-status"
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="rounded-xl border border-slate-200 dark:border-white/15 bg-white dark:bg-white/5 px-3 py-2 text-sm text-slate-900 dark:text-white outline-none focus:border-slate-300 dark:focus:border-white/40"
-          >
-            {statusOptions.map((status) => (
-              <option key={status} value={status} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                {status === 'all' ? 'All' : status}
-              </option>
-            ))}
-          </select>
-          {metricHint && (
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-white/60">{metricHint}</p>
-          )}
-        </div>
-
-        <section className="mt-6">
-          {loading && <p className="text-slate-500 dark:text-slate-400">Loading artist orders...</p>}
-          {!loading && error && (
-            <p role="alert" className="text-sm text-rose-600 dark:text-rose-300">
-              Orders unavailable: {error}
-            </p>
-          )}
-          {!loading && !error && filteredOrders.length === 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">No orders found for this filter.</p>
-          )}
-          {!loading && !error && filteredOrders.length > 0 && (
-            <div
-              className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5"
-              data-testid="artist-orders-table"
-            >
-              <table className="w-full text-left text-sm text-slate-900 dark:text-white">
-                <thead className="bg-slate-50 dark:bg-transparent">
-                  <tr className="border-b border-slate-200 dark:border-white/10 text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">
-                    <th className="px-4 py-3">Order</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className={totalHeaderClass}>Total</th>
-                    <th className="px-4 py-3">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredOrders.map((order, index) => {
-                    const orderId = order?.orderId ?? order?.id ?? `order-${index}`;
-                    return (
-                      <tr
-                        key={orderId}
-                        data-testid="artist-orders-row"
-                        className="cursor-pointer border-b border-slate-100 dark:border-white/5 transition hover:bg-slate-50 dark:hover:bg-white/10"
-                        onClick={() => navigate(`/partner/artist/orders/${orderId}`)}
-                      >
-                        <td className="px-4 py-3 font-mono">{order?.orderId ?? order?.id ?? '-'}</td>
-                        <td className="px-4 py-3">{order?.status ?? '-'}</td>
-                        <td className="px-4 py-3">{formatCurrency(order?.totalCents)}</td>
-                        <td className="px-4 py-3">{formatDateTime(order?.createdAt)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </Container>
-    </Page>
-  );
-}
-
-type ArtistOrderDetailItem = {
-  productId?: string;
-  productTitle?: string;
-  productVariantId?: string;
-  variantSku?: string | null;
-  variantSize?: string | null;
-  variantColor?: string | null;
-  quantity?: number;
-  priceCents?: number;
-  lineTotalCents?: number;
-};
-
-type ArtistOrderDetail = {
-  id?: string;
-  status?: string;
-  totalCents?: number;
-  createdAt?: string | null;
-  items?: ArtistOrderDetailItem[];
-};
-
-function ArtistOrderDetailPage() {
-  const { orderId } = useParams<{ orderId: string }>();
-  const [detail, setDetail] = useState<ArtistOrderDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      if (!orderId) {
-        setError('Missing order id');
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      setError(null);
-      try {
-        const payload = await apiFetch(`/api/artist/dashboard/orders/${orderId}`);
-        if (!active) return;
-        setDetail(payload ?? null);
-      } catch (err: any) {
-        if (!active) return;
-        setDetail(null);
-        setError(err?.message ?? 'Failed to load artist order detail');
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [orderId]);
-
-  const formatCurrency = (cents?: number) => {
-    if (typeof cents !== 'number' || !Number.isFinite(cents)) return '-';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 2,
-    }).format(cents / 100);
-  };
-
-  const formatDateTime = (value?: string | null) => {
-    if (!value) return '-';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString();
-  };
-
-  return (
-    <Page>
-      <Container className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Artist</p>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Artist Order Detail</h1>
-          </div>
-          <Link className="text-sm text-slate-600 dark:text-slate-300 underline" to="/partner/artist/orders">
-            Back to artist orders
-          </Link>
-        </div>
-
-        {loading && <p className="mt-6 text-slate-500 dark:text-slate-400">Loading order detail...</p>}
-        {!loading && error && (
-          <p role="alert" className="mt-6 text-sm text-rose-600 dark:text-rose-300">
-            {error}
-          </p>
-        )}
-
-        {!loading && !error && detail && (
-          <section className="mt-6 space-y-4">
-            <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 p-4">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Order ID</p>
-              <p className="mt-2 font-mono text-sm text-slate-900 dark:text-white">{detail.id ?? '-'}</p>
-              <div className="mt-3 grid gap-3 text-sm text-slate-600 dark:text-white/80 md:grid-cols-3">
-                <p>Status: {detail.status ?? '-'}</p>
-                <p>Created: {formatDateTime(detail.createdAt)}</p>
-                <p>Total: {formatCurrency(detail.totalCents)}</p>
-              </div>
-            </div>
-
-            <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5">
-              <div className="grid grid-cols-[1.6fr_1.2fr_0.8fr_1fr_1fr] gap-3 border-b border-slate-200 dark:border-white/10 px-4 py-3 text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-transparent">
-                <span>Product</span>
-                <span>Variant</span>
-                <span>Qty</span>
-                <span>Price</span>
-                <span>Line total</span>
-              </div>
-              <div className="divide-y divide-slate-100 dark:divide-white/10">
-                {(detail.items ?? []).map((item, index) => {
-                  const variantParts = [item.variantSku, item.variantSize, item.variantColor]
-                    .filter(Boolean)
-                    .join(' / ');
-                  return (
-                    <div
-                      key={`${item.productId ?? 'item'}-${index}`}
-                      className="grid grid-cols-[1.6fr_1.2fr_0.8fr_1fr_1fr] gap-3 px-4 py-3 text-sm text-slate-900 dark:text-white"
-                    >
-                      <span>{item.productTitle ?? item.productId ?? '-'}</span>
-                      <span>{variantParts || item.productVariantId || '-'}</span>
-                      <span>{item.quantity ?? 0}</span>
-                      <span>{formatCurrency(item.priceCents)}</span>
-                      <span>{formatCurrency(item.lineTotalCents)}</span>
-                    </div>
-                  );
-                })}
-                {(detail.items ?? []).length === 0 && (
-                  <p className="px-4 py-4 text-sm text-slate-500 dark:text-slate-400">No line items available.</p>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
-      </Container>
-    </Page>
   );
 }
 
@@ -992,7 +469,8 @@ function AppRoutes() {
   };
 
   return (
-    <Routes>
+    <Suspense fallback={<Loading />}>
+      <Routes>
       <Route element={<AppLayout />}>
         <Route
           index
@@ -1014,7 +492,7 @@ function AppRoutes() {
           path="products/:id"
           element={
             <PublicLayout>
-              <ProductDetail />
+              <ProductDetailPage />
             </PublicLayout>
           }
         />
@@ -1088,17 +566,17 @@ function AppRoutes() {
         path="/partner"
         element={<PartnerLayout />}
       >
-        <Route index element={<PartnerEntryRedirect />} />
+        <Route index element={<PartnerEntryRedirectPage />} />
         <Route
           path="login"
           element={loginEntryElement(<PartnerLoginPage />)}
         />
-        <Route path="dashboard" element={<PartnerEntryRedirect />} />
+        <Route path="dashboard" element={<PartnerEntryRedirectPage />} />
         <Route
           path="artist"
           element={requireAuthElement(<Outlet />)}
         >
-          <Route index element={<ArtistDashboard />} />
+          <Route index element={<ArtistDashboardPage />} />
           <Route
             path="dashboard"
             element={<Navigate to="/partner/artist" replace />}
@@ -1130,19 +608,19 @@ function AppRoutes() {
         </Route>
         <Route
           path="label"
-          element={requireAuthElement(<LabelDashboard />)}
+          element={requireAuthElement(<LabelDashboardPage />)}
         />
         <Route
           path="label/orders"
-          element={requireAuthElement(<LabelDashboard />)}
+          element={requireAuthElement(<LabelDashboardPage />)}
         />
         <Route
           path="label/orders/:id"
-          element={requireAuthElement(<LabelDashboard />)}
+          element={requireAuthElement(<LabelDashboardPage />)}
         />
         <Route
           path="label/artists"
-          element={requireAuthElement(<LabelDashboard />)}
+          element={requireAuthElement(<LabelDashboardPage />)}
         />
         <Route
           path="label/artists/:artistId"
@@ -1154,15 +632,15 @@ function AppRoutes() {
         />
         <Route
           path="admin"
-          element={requireAuthElement(<AdminDashboard />)}
+          element={requireAuthElement(<AdminDashboardPage />)}
         />
         <Route
           path="admin/orders"
-          element={requireAuthElement(<AdminOrders />)}
+          element={requireAuthElement(<AdminOrdersPage />)}
         />
         <Route
           path="admin/artist-requests"
-          element={requireAuthElement(<AdminArtistRequests />)}
+          element={requireAuthElement(<AdminArtistRequestsPage />)}
         />
         <Route
           path="admin/leads"
@@ -1202,22 +680,22 @@ function AppRoutes() {
         />
         <Route
           path="admin/products/:productId/variants"
-          element={requireAuthElement(<AdminProductVariants />)}
+          element={requireAuthElement(<AdminProductVariantsPage />)}
         />
         <Route
           path="admin/orders/:id"
-          element={requireAuthElement(<AdminOrderDetail />)}
+          element={requireAuthElement(<AdminOrderDetailPage />)}
         />
         <Route
           path="admin/order/:id"
-          element={requireAuthElement(<AdminOrderDetail />)}
+          element={requireAuthElement(<AdminOrderDetailPage />)}
         />
       </Route>
       <Route path="/logout" element={<LogoutPage />} />
       <Route path="/status" element={<StatusPage />} />
       <Route path="/me" element={<MePage />} />
       <Route path="/config" element={<ConfigPage />} />
-      <Route path="/smoke" element={requireAuthElement(<Smoke />)} />
+      <Route path="/smoke" element={requireAuthElement(<SmokePage />)} />
       <Route path="/fan" element={requireAuthElement(<BuyerLayout />)}>
         <Route index element={<BuyerDashboardPage />} />
         <Route path="orders" element={<BuyerOrdersPage />} />
@@ -1362,17 +840,16 @@ function AppRoutes() {
         element={requireAuthElement(<AdminProvisioningPage />)}
       />
       <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }
 
 export default function App() {
   return (
     <CartProvider>
-      <ToastProvider>
-        <AppRoutes />
-        <ThemeToggle />
-      </ToastProvider>
+      <AppRoutes />
+      <ThemeToggle />
     </CartProvider>
   );
 }
