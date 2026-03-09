@@ -47,16 +47,26 @@ test.describe('Onboarding public visibility', () => {
     await loginBuyer(page);
     await gotoApp(page, '/products', { waitUntil: 'domcontentloaded' });
     await page.getByPlaceholder(/search artists, merchandise, vibes/i).fill(stamp);
-    await expect(page.getByText(activeTitle)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(pendingTitle)).toHaveCount(0);
-    await expect(page.getByText(inactiveTitle)).toHaveCount(0);
-    await expect(page.getByText(rejectedTitle)).toHaveCount(0);
+
+    const catalogCards = page.getByTestId('product-catalog-card');
+    const catalogCardByTitle = (title: string) => catalogCards.filter({ hasText: title });
+
+    await expect(catalogCardByTitle(activeTitle)).toHaveCount(1);
+    await expect(catalogCardByTitle(activeTitle)).toBeVisible({ timeout: 15000 });
+    await expect(catalogCardByTitle(pendingTitle)).toHaveCount(0);
+    await expect(catalogCardByTitle(inactiveTitle)).toHaveCount(0);
+    await expect(catalogCardByTitle(rejectedTitle)).toHaveCount(0);
 
     await gotoApp(page, `/artists/${artistHandle}`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText(activeTitle)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(pendingTitle)).toHaveCount(0);
-    await expect(page.getByText(inactiveTitle)).toHaveCount(0);
-    await expect(page.getByText(rejectedTitle)).toHaveCount(0);
+
+    const artistCards = page.getByTestId('product-card');
+    const artistCardByTitle = (title: string) => artistCards.filter({ hasText: title });
+
+    await expect(artistCardByTitle(activeTitle)).toHaveCount(1);
+    await expect(artistCardByTitle(activeTitle)).toBeVisible({ timeout: 15000 });
+    await expect(artistCardByTitle(pendingTitle)).toHaveCount(0);
+    await expect(artistCardByTitle(inactiveTitle)).toHaveCount(0);
+    await expect(artistCardByTitle(rejectedTitle)).toHaveCount(0);
 
     await gotoApp(page, `/products/${activeProductId}`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('product-title')).toContainText(activeTitle, { timeout: 15000 });

@@ -1,9 +1,14 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchJson } from '../shared/api/fetchJson';
-import EmptyState from '../shared/components/ux/EmptyState';
-import LoadingSkeleton from '../shared/components/ux/LoadingSkeleton';
-import PublicCardCover from '../features/catalog/components/PublicCardCover';
+import PublicCatalogCard from '../features/catalog/components/PublicCatalogCard';
+import PublicCatalogEmptyState from '../features/catalog/components/PublicCatalogEmptyState';
+import PublicCatalogGrid from '../features/catalog/components/PublicCatalogGrid';
+import PublicCatalogGridSkeleton from '../features/catalog/components/PublicCatalogGridSkeleton';
+import PublicCatalogHeader from '../features/catalog/components/PublicCatalogHeader';
+import PublicCatalogPagination from '../features/catalog/components/PublicCatalogPagination';
+import PublicCatalogToolbar, {
+  PublicCatalogSortOption,
+} from '../features/catalog/components/PublicCatalogToolbar';
 
 type DropRow = {
   id: string;
@@ -13,10 +18,22 @@ type DropRow = {
   coverUrl?: string;
 };
 
+type DropSortKey = 'relevance' | 'newest' | 'title-asc';
+
+const PAGE_SIZE = 12;
+const DROP_SORT_OPTIONS: PublicCatalogSortOption[] = [
+  { value: 'relevance', label: 'Curated relevance' },
+  { value: 'newest', label: 'Newest drops' },
+  { value: 'title-asc', label: 'Title: A to Z' },
+];
+
 export default function DropsPage() {
   const [drops, setDrops] = useState<DropRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [sortKey, setSortKey] = useState<DropSortKey>('relevance');
+  const [page, setPage] = useState(1);
   const mountedRef = useRef(true);
 
   const loadDrops = useCallback(async () => {
@@ -33,7 +50,7 @@ export default function DropsPage() {
             title: row.title,
             handle: row.handle,
             startsAt: row.starts_at,
-            coverUrl: row.coverUrl ?? null,
+            coverUrl: row.coverUrl ?? row.cover_url ?? row.image_url ?? null,
           };
         })
         .filter((item: any): item is DropRow => Boolean(item)) as DropRow[];
@@ -59,65 +76,105 @@ export default function DropsPage() {
     };
   }, [loadDrops]);
 
+  const displayedDrops = useMemo(() => {
+    const normalizedSearch = searchText.trim().toLowerCase();
+
+    const filtered = drops.filter((drop) => {
+      if (!normalizedSearch) return true;
+      return `${drop.title} ${drop.handle ?? ''}`.toLowerCase().includes(normalizedSearch);
+    });
+
+    if (sortKey === 'title-asc') {
+      return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+    }
+    if (sortKey === 'newest') {
+      return [...filtered].sort((a, b) => {
+        const timeA = a.startsAt ? new Date(a.startsAt).getTime() : 0;
+        const timeB = b.startsAt ? new Date(b.startsAt).getTime() : 0;
+        return timeB - timeA;
+      });
+    }
+    return filtered;
+  }, [drops, searchText, sortKey]);
+
+  const pageCount = Math.max(1, Math.ceil(displayedDrops.length / PAGE_SIZE));
+  const pageItems = displayedDrops.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchText, sortKey]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
+
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-white">
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">Drops</h1>
-          <p className="text-sm text-slate-600 dark:text-slate-300">Browse the latest drops from featured artists.</p>
-        </div>
-        {error && (
-          <EmptyState
-            title="Something went wrong"
-            message={error ? `Unable to load drops (${error}).` : 'Unable to load drops.'}
-            actionLabel="Retry"
-            onAction={loadDrops}
-          />
-        )}
-        {loading && <LoadingSkeleton count={3} />}
-        {!loading && !error && drops.length === 0 && (
-          <EmptyState
-            title="No drops yet"
-            message="Try again in a moment."
-            actionLabel="Retry"
-            onAction={loadDrops}
-          />
-        )}
-        <ul className="space-y-3">
-          {drops.map((drop) => (
-            <li
-              key={drop.id}
-              className="rounded-xl bg-slate-50 dark:bg-white/5 ring-1 ring-slate-200 dark:ring-white/10 px-4 py-3 flex items-center justify-between gap-4"
-            >
-              <div className="flex items-center gap-4 min-w-0">
-                <PublicCardCover
-                  title={drop.title}
-                  subtitle={drop.handle}
-                  imageUrl={drop.coverUrl ?? undefined}
-                  kind="drop"
-                  className="h-16 w-24 shrink-0 rounded-lg"
-                />
-                <div className="min-w-0">
-                  <p className="text-base font-semibold truncate text-slate-900 dark:text-white">{drop.title}</p>
-                  {drop.handle && <p className="text-sm text-slate-600 dark:text-slate-400 truncate">/drops/{drop.handle}</p>}
-                </div>
-              </div>
-              {drop.handle ? (
-                <Link
-                  to={`/drops/${drop.handle}`}
-                  className="shrink-0 text-sm font-semibold uppercase tracking-[0.12em] text-indigo-600 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-200"
-                >
-                  View
-                </Link>
-              ) : (
-                <span className="shrink-0 text-sm font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Drop unavailable
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </main>
-    </div>
+    <section className="space-y-8 py-4">
+      <PublicCatalogHeader
+        eyebrow="Releases"
+        title="Drops"
+        description="Browse current and upcoming drops from featured creators."
+      />
+
+      <PublicCatalogToolbar
+        searchValue={searchText}
+        onSearchChange={setSearchText}
+        searchPlaceholder="Search drop title or handle..."
+        resultCount={displayedDrops.length}
+        sortValue={sortKey}
+        onSortChange={(value) => setSortKey(value as DropSortKey)}
+        sortOptions={DROP_SORT_OPTIONS}
+      />
+
+      {loading ? <PublicCatalogGridSkeleton count={8} /> : null}
+
+      {!loading && error ? (
+        <PublicCatalogEmptyState
+          title="Something went wrong"
+          message={error ? `Unable to load drops (${error}).` : 'Unable to load drops.'}
+          actionLabel="Retry"
+          onAction={loadDrops}
+        />
+      ) : null}
+
+      {!loading && !error && drops.length === 0 ? (
+        <PublicCatalogEmptyState
+          title="No drops yet"
+          message="Try again in a moment."
+          actionLabel="Retry"
+          onAction={loadDrops}
+        />
+      ) : null}
+
+      {!loading && !error && drops.length > 0 ? (
+        <>
+          {displayedDrops.length === 0 ? (
+            <PublicCatalogEmptyState
+              title="No drop matches"
+              message="Try a broader search term."
+            />
+          ) : (
+            <>
+              <PublicCatalogGrid>
+                {pageItems.map((drop) => (
+                  <PublicCatalogCard
+                    key={drop.id}
+                    kind="drop"
+                    title={drop.title}
+                    subtitle={drop.handle ? `/drops/${drop.handle}` : 'Featured drop'}
+                    imageUrl={drop.coverUrl ?? undefined}
+                    href={drop.handle ? `/drops/${drop.handle}` : undefined}
+                    ctaLabel="View Drop"
+                    unavailableLabel="Drop unavailable"
+                    testId="drop-catalog-card"
+                  />
+                ))}
+              </PublicCatalogGrid>
+              <PublicCatalogPagination page={page} pageCount={pageCount} onPageChange={setPage} />
+            </>
+          )}
+        </>
+      ) : null}
+    </section>
   );
 }

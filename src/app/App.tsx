@@ -19,7 +19,8 @@ import { API_BASE } from '../shared/api/http';
 import { getMe, getConfig } from '../shared/api/appApi';
 import { ForbiddenPage, NotFoundPage } from '../pages/ErrorPages';
 import { safeErrorMessage } from '../shared/utils/safeError';
-import PublicLayout from '../shared/layout/PublicLayout';
+import PublicLayout from '../layouts/PublicLayout';
+import BareLayout from '../layouts/BareLayout';
 import LandingPage from '../pages/LandingPage';
 import ProductsPage from '../pages/ProductsPage';
 import ArtistPage from '../pages/ArtistPage';
@@ -489,46 +490,25 @@ function AppRoutes() {
     <Suspense fallback={<Loading />}>
       <Routes>
       <Route element={<AppLayout />}>
-        <Route
-          index
-          element={
-            <PublicLayout>
-              <LandingPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="products"
-          element={
-            <PublicLayout>
-              <ProductsPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="products/:id"
-          element={
-            <PublicLayout>
-              <ProductDetailPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="artists"
-          element={
-            <PublicLayout>
-              <ArtistsPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="artists/:handle"
-          element={
-            <PublicLayout>
-              <ArtistPage />
-            </PublicLayout>
-          }
-        />
+        <Route element={<PublicLayout />}>
+          <Route index element={<LandingPage />} />
+          <Route path="products" element={<ProductsPage />} />
+          <Route path="products/:id" element={<ProductDetailPage />} />
+          <Route path="artists" element={<ArtistsPage />} />
+          <Route path="artists/:handle" element={<ArtistPage />} />
+          <Route path="drops" element={<DropsPage />} />
+          <Route path="drops/:handle" element={<DropPage />} />
+          <Route path="apply/artist" element={<ApplyArtistPage />} />
+          <Route
+            path="fan/login"
+            element={loginEntryElement(<FanLoginPage />)}
+          />
+          <Route path="fan/register" element={<FanRegisterPage />} />
+          <Route
+            path="partner/login"
+            element={loginEntryElement(<PartnerLoginPage />)}
+          />
+        </Route>
         <Route
           path="artists/dashboard"
           element={<RedirectPage to="/partner/artist" />}
@@ -541,30 +521,9 @@ function AppRoutes() {
           path="artists/drop/:id"
           element={<RedirectPage to="/partner/artist/drop/:id" />}
         />
-        <Route
-          path="drops"
-          element={
-            <PublicLayout>
-              <DropsPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="drops/:handle"
-          element={
-            <PublicLayout>
-              <DropPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="apply/artist"
-          element={
-            <PublicLayout>
-              <ApplyArtistPage />
-            </PublicLayout>
-          }
-        />
+        <Route element={<BareLayout />}>
+          <Route path="auth/oidc/callback" element={<OidcCallbackPage />} />
+        </Route>
         <Route path="cart" element={<CartPage />} />
         <Route path="forbidden" element={<ForbiddenPage />} />
         <Route path="notfound" element={<NotFoundPage />} />
@@ -575,20 +534,10 @@ function AppRoutes() {
         element={loginEntryElement(<LegacyRedirect to="/fan/login" />)}
       />
       <Route
-        path="/fan/login"
-        element={loginEntryElement(<FanLoginPage />)}
-      />
-      <Route path="/fan/register" element={<FanRegisterPage />} />
-      <Route path="/auth/oidc/callback" element={<OidcCallbackPage />} />
-      <Route
         path="/partner"
         element={<PartnerLayout />}
       >
         <Route index element={<PartnerEntryRedirectPage />} />
-        <Route
-          path="login"
-          element={loginEntryElement(<PartnerLoginPage />)}
-        />
         <Route path="dashboard" element={<PartnerEntryRedirectPage />} />
         <Route
           path="artist"

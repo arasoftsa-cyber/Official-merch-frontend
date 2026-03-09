@@ -6,7 +6,7 @@ type PublicCardCoverProps = {
   subtitle?: string;
   imageUrl?: string;
   imageAlt?: string;
-  kind: 'artist' | 'drop';
+  kind: 'artist' | 'drop' | 'product';
   className?: string;
 };
 
@@ -25,11 +25,14 @@ export default function PublicCardCover({
     setHasImageError(false);
   }, [normalizedImageUrl]);
 
-  const fallbackText = kind === 'drop' ? 'DROP' : getArtistInitials(title);
+  const fallbackText =
+    kind === 'drop' ? 'DROP' : kind === 'product' ? 'PRODUCT' : getArtistInitials(title);
   const gradientClass =
     kind === 'artist'
       ? 'bg-gradient-to-br from-emerald-500/35 via-cyan-500/25 to-slate-700/40'
-      : 'bg-gradient-to-br from-fuchsia-500/35 via-indigo-500/25 to-slate-700/40';
+      : kind === 'drop'
+        ? 'bg-gradient-to-br from-fuchsia-500/35 via-indigo-500/25 to-slate-700/40'
+        : 'bg-gradient-to-br from-amber-500/35 via-rose-500/25 to-slate-700/40';
 
   return (
     <div
