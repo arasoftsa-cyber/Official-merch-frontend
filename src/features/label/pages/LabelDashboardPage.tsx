@@ -4,6 +4,7 @@ import AppShell from '../../../shared/components/layout/AppShell';
 import KpiCard from '../../../shared/ui/legacy/KpiCard';
 import EmptyState from '../../../shared/ui/legacy/EmptyState';
 import { apiFetch } from '../../../shared/api/http';
+import { formatCurrencyFromCents } from '../../../shared/utils/currency';
 
 type ArtistPortfolioRow = {
   artistId: string;
@@ -63,8 +64,7 @@ const normalizeSummary = (payload: any): LabelSummary => {
 };
 
 const formatCurrency = (cents?: number) => {
-  if (typeof cents !== 'number' || !Number.isFinite(cents)) return '-';
-  return `$${(cents / 100).toFixed(2)}`;
+  return formatCurrencyFromCents(cents);
 };
 
 export default function LabelDashboardPage() {

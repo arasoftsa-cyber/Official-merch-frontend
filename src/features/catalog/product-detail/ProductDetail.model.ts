@@ -1,10 +1,16 @@
-﻿export type Variant = {
+import { formatCurrencyFromCents } from '../../../shared/utils/currency';
+
+export type Variant = {
   id: string;
   sku?: string;
   size?: string;
   color?: string;
   priceCents?: number;
   stock?: number;
+  effectiveSellable?: boolean;
+  effectiveIsActive?: boolean;
+  skuIsActive?: boolean;
+  variantIsListed?: boolean;
 };
 
 export type Product = {
@@ -40,7 +46,7 @@ function resolveCents(source: Record<string, any> | null): number | null {
 }
 
 export function formatCurrency(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
+  return formatCurrencyFromCents(cents);
 }
 
 function normalizeProductListingPhotos(
@@ -91,6 +97,12 @@ function normalizeProductListingPhotos(
 function normalizeVariant(raw: any, index: number): Variant {
   const source = asObject(raw) ?? {};
   const rawId = source.id ?? source.variantId ?? source.sku ?? `variant-${index + 1}`;
+  const coerceBoolean = (value: unknown): boolean | undefined => {
+    if (typeof value === 'boolean') return value;
+    if (value === 1 || value === '1' || value === 'true') return true;
+    if (value === 0 || value === '0' || value === 'false') return false;
+    return undefined;
+  };
   return {
     id: String(rawId),
     sku: typeof source.sku === 'string' ? source.sku : undefined,
@@ -98,6 +110,13 @@ function normalizeVariant(raw: any, index: number): Variant {
     color: typeof source.color === 'string' ? source.color : undefined,
     priceCents: resolveCents(source) ?? undefined,
     stock: typeof source.stock === 'number' ? source.stock : undefined,
+    effectiveSellable:
+      coerceBoolean(source.effectiveSellable ?? source.effective_sellable),
+    effectiveIsActive:
+      coerceBoolean(source.effectiveIsActive ?? source.effective_is_active),
+    skuIsActive: coerceBoolean(source.skuIsActive ?? source.sku_is_active),
+    variantIsListed:
+      coerceBoolean(source.variantIsListed ?? source.variant_is_listed),
   };
 }
 
@@ -134,3 +153,5 @@ export function normalizePayload(payload: any, fallbackId: string) {
   const variants = variantsSource.map((variant, index) => normalizeVariant(variant, index));
   return { product, variants };
 }
+
+

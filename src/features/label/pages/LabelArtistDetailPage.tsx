@@ -4,6 +4,7 @@ import AppShell from '../../../shared/components/layout/AppShell';
 import KpiCard from '../../../shared/ui/legacy/KpiCard';
 import EmptyState from '../../../shared/ui/legacy/EmptyState';
 import { apiFetch } from '../../../shared/api/http';
+import { formatCurrencyFromCents } from '../../../shared/utils/currency';
 
 type ArtistOrderItem = {
   productId: string;
@@ -69,7 +70,7 @@ const normalizeSummary = (payload: any): ArtistSummary => ({
     : [],
 });
 
-const formatCurrency = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+const formatCurrency = (cents: number) => formatCurrencyFromCents(cents);
 
 const formatDateTime = (value: string | null) => {
   if (!value) return '-';

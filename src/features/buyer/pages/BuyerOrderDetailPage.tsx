@@ -5,14 +5,15 @@ import { getAccessToken } from '../../../shared/auth/tokenStore';
 import { ConfirmDialog } from '../../../shared/ui/ConfirmDialog';
 import { isUiTest } from '../../../shared/lib/uiTest';
 import { Card } from '../../../shared/ui/Page';
+import { formatCurrencyFromCents } from '../../../shared/utils/currency';
 
 type OrderDetail = Record<string, any>;
 
 const money = (cents?: number | null) =>
-  typeof cents === 'number' ? `ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¹${(cents / 100).toFixed(2)} ` : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â';
+  typeof cents === 'number' ? formatCurrencyFromCents(cents) : '-';
 
 const shortId = (value?: string | null) =>
-  value && value.length > 0 ? value.slice(0, 8) : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â';
+  value && value.length > 0 ? value.slice(0, 8) : '-';
 
 const statusMap: Record<string, string> = {
   placed: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 ring-emerald-500/20',
@@ -144,7 +145,7 @@ export default function BuyerOrderDetailPage() {
         ? Math.round(detail.amount * 100)
         : null;
   const formattedTotal =
-    totalCents !== null ? `ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¹${(totalCents / 100).toFixed(2)}` : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â';
+    totalCents !== null ? formatCurrencyFromCents(totalCents) : '-';
   const paymentStatus = useMemo(() => {
     if (!detail) return 'unpaid';
     if (detail?.payment?.status) return detail.payment.status;
@@ -313,7 +314,7 @@ export default function BuyerOrderDetailPage() {
 
   const formatVariantLabel = (item: any) => {
     const variantId = item?.productVariantId;
-    if (!variantId) return 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â';
+    if (!variantId) return '-';
 
     const mapped =
       typeof variantId === 'string'
@@ -335,7 +336,7 @@ export default function BuyerOrderDetailPage() {
       <div className="space-y-4">
         <p className="text-sm uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Order</p>
         <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Order {id}</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">LoadingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Loading...</p>
       </div>
     );
   }
@@ -498,7 +499,7 @@ export default function BuyerOrderDetailPage() {
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 md:hidden">Qty</span>
-                  <span>{item.quantity ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'}</span>
+                  <span>{item.quantity ?? '-'}</span>
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 md:hidden">Price</span>
@@ -552,3 +553,4 @@ export default function BuyerOrderDetailPage() {
     </div>
   );
 }
+

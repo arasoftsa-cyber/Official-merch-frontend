@@ -8,8 +8,9 @@ import { getMe } from '../shared/api/appApi';
 import { useCart } from '../cart/CartContext';
 import { apiFetch } from '../shared/api/http';
 import { fetchJson } from '../shared/api/fetchJson';
+import { formatCurrencyFromCents } from '../shared/utils/currency';
 
-const formatCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+const formatCents = (cents: number) => formatCurrencyFromCents(cents);
 const cartLineKey = (productId: string, variantId?: string | null) =>
   `${productId}::${variantId ?? ''}`;
 
@@ -278,7 +279,7 @@ export default function CartPage() {
                   <div>
                     <p className="text-lg font-semibold">
                       {item.title}
-                      {formatVariantSummary(item) ? ` Ã¢â‚¬â€ ${formatVariantSummary(item)}` : ''}
+                      {formatVariantSummary(item) ? ` - ${formatVariantSummary(item)}` : ''}
                     </p>
                     <p className="text-sm text-neutral-400">
                       {formatCents(item.priceCents)}

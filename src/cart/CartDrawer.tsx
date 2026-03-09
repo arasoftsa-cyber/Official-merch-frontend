@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CartItem, getCart, removeItem, updateQty, clearCart, subscribeCart } from './cartStore';
+import { formatCurrencyFromAmount } from '../shared/utils/currency';
 
 type CartDrawerProps = {
   open: boolean;
@@ -53,7 +54,7 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                 <div>
                   <p className="text-sm font-semibold text-white">{item.title}</p>
                   <p className="text-xs text-slate-400">
-                    ${item.price.toFixed(2)} Ã— {item.qty}
+                    {formatCurrencyFromAmount(item.price)} x {item.qty}
                   </p>
                 </div>
                 <button
@@ -86,7 +87,7 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
         </div>
         <div className="mt-4 border-t border-white/10 pt-4">
           <p className="om-muted">Subtotal</p>
-          <p className="text-lg font-semibold text-white">${subtotal.toFixed(2)}</p>
+          <p className="text-lg font-semibold text-white">{formatCurrencyFromAmount(subtotal)}</p>
           <div className="mt-4 flex justify-between gap-2">
             <button
               type="button"

@@ -11,10 +11,29 @@ import { Container, Page } from '../shared/ui/Page';
 import { useCart } from '../cart/CartContext';
 import { NotFoundPage } from './ErrorPages';
 import { safeErrorMessage } from '../shared/utils/safeError';
-import { apiFetch } from '../shared/api/http';
 import { resolveMediaUrl } from '../shared/utils/media';
 
-import { formatCurrency, normalizePayload, type Product, type Variant } from '../features/catalog/product-detail/ProductDetail.model';
+import {
+  formatCurrency,
+  normalizePayload,
+  type Product,
+  type Variant,
+} from '../features/catalog/product-detail/ProductDetail.model';
+
+type OptionMeta = {
+  value: string;
+  isSelectable: boolean;
+  hasPurchasable: boolean;
+};
+
+const normalizeOption = (value: unknown) => String(value || '').trim();
+
+const isVariantPurchasable = (variant: Variant | null | undefined): boolean => {
+  if (!variant) return false;
+  if (typeof variant.effectiveSellable === 'boolean') return variant.effectiveSellable;
+  if (typeof variant.stock === 'number') return variant.stock > 0;
+  return true;
+};
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -26,8 +45,6 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [buyNowLoading, setBuyNowLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedVariantId, setSelectedVariantId] = useState<string>('');
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedColor, setSelectedColor] = useState<string>('');
   const [selectionError, setSelectionError] = useState<string | null>(null);
@@ -36,36 +53,110 @@ export default function ProductDetailPage() {
 
   const hasVariants = variants.length > 0;
   const sizeOptions = useMemo(
-    () => Array.from(new Set(variants.map((variant) => variant.size).filter(Boolean))) as string[],
+    () =>
+      Array.from(
+        new Set(
+          variants
+            .map((variant) => normalizeOption(variant.size))
+            .filter((value) => value.length > 0)
+        )
+      ),
     [variants]
   );
   const colorOptions = useMemo(
-    () => Array.from(new Set(variants.map((variant) => variant.color).filter(Boolean))) as string[],
+    () =>
+      Array.from(
+        new Set(
+          variants
+            .map((variant) => normalizeOption(variant.color))
+            .filter((value) => value.length > 0)
+        )
+      ),
     [variants]
   );
 
-  const filteredVariants = useMemo(() => {
-    if (!hasVariants) return [];
-    return variants.filter((variant) => {
-      if (selectedSize && variant.size !== selectedSize) return false;
-      if (selectedColor && variant.color !== selectedColor) return false;
-      return true;
-    });
-  }, [hasVariants, selectedColor, selectedSize, variants]);
+  const findMatchingVariant = useCallback(
+    (size: string, color: string) => {
+      const normalizedSize = normalizeOption(size);
+      const normalizedColor = normalizeOption(color);
+      if (!normalizedSize || !normalizedColor) return null;
+      const matches = variants.filter(
+        (variant) =>
+          normalizeOption(variant.size) === normalizedSize &&
+          normalizeOption(variant.color) === normalizedColor
+      );
+      if (!matches.length) return null;
+      return matches.find((variant) => isVariantPurchasable(variant)) ?? matches[0];
+    },
+    [variants]
+  );
+
+  const buildSizeOptionMeta = useCallback(
+    (activeColor: string): OptionMeta[] =>
+      sizeOptions.map((size) => {
+        const candidates = variants.filter((variant) => {
+          if (normalizeOption(variant.size) !== size) return false;
+          if (!activeColor) return true;
+          return normalizeOption(variant.color) === activeColor;
+        });
+        return {
+          value: size,
+          isSelectable: candidates.length > 0,
+          hasPurchasable: candidates.some((variant) => isVariantPurchasable(variant)),
+        };
+      }),
+    [sizeOptions, variants]
+  );
+
+  const buildColorOptionMeta = useCallback(
+    (activeSize: string): OptionMeta[] =>
+      colorOptions.map((color) => {
+        const candidates = variants.filter((variant) => {
+          if (normalizeOption(variant.color) !== color) return false;
+          if (!activeSize) return true;
+          return normalizeOption(variant.size) === activeSize;
+        });
+        return {
+          value: color,
+          isSelectable: candidates.length > 0,
+          hasPurchasable: candidates.some((variant) => isVariantPurchasable(variant)),
+        };
+      }),
+    [colorOptions, variants]
+  );
+
+  const sizeOptionMeta = useMemo(
+    () => buildSizeOptionMeta(selectedColor),
+    [buildSizeOptionMeta, selectedColor]
+  );
+  const colorOptionMeta = useMemo(
+    () => buildColorOptionMeta(selectedSize),
+    [buildColorOptionMeta, selectedSize]
+  );
+
+  const pickPreferredOption = useCallback((options: OptionMeta[]) => {
+    return (
+      options.find((option) => option.isSelectable && option.hasPurchasable)?.value ??
+      options.find((option) => option.isSelectable)?.value ??
+      ''
+    );
+  }, []);
 
   const selectedVariant = useMemo(() => {
     if (!hasVariants) return null;
-    if (selectedVariantId) {
-      return variants.find((variant) => variant.id === selectedVariantId) ?? null;
-    }
-    if (filteredVariants.length === 1) return filteredVariants[0];
+    const bySelection = findMatchingVariant(selectedSize, selectedColor);
+    if (bySelection) return bySelection;
+    if (variants.length === 1) return variants[0];
     return null;
-  }, [filteredVariants, hasVariants, selectedVariantId, variants]);
+  }, [findMatchingVariant, hasVariants, selectedColor, selectedSize, variants]);
 
-  const hasValidVariantSelection = !hasVariants || Boolean(selectedVariant);
-  const selectedVariantIdentifier = selectedVariant?.id ?? selectedVariant?.sku ?? null;
+  const selectedVariantIdentifier = selectedVariant?.id ?? null;
+  const selectedVariantInStock = isVariantPurchasable(selectedVariant);
   const minimumVariantPriceCents = useMemo(() => {
-    const prices = variants
+    const source = variants.some((variant) => isVariantPurchasable(variant))
+      ? variants.filter((variant) => isVariantPurchasable(variant))
+      : variants;
+    const prices = source
       .map((variant) => variant.priceCents)
       .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
     if (!prices.length) return null;
@@ -78,10 +169,10 @@ export default function ProductDetailPage() {
   const displayPriceLabel = showPriceUnavailable
     ? 'Price unavailable'
     : formatCurrency(
-      typeof displayPriceCents === 'number' && Number.isFinite(displayPriceCents)
-        ? displayPriceCents
-        : 0
-    );
+        typeof displayPriceCents === 'number' && Number.isFinite(displayPriceCents)
+          ? displayPriceCents
+          : 0
+      );
   const photos = useMemo(
     () =>
       (Array.isArray(product?.listing_photos) ? product.listing_photos : [])
@@ -91,39 +182,51 @@ export default function ProductDetailPage() {
   );
 
   const mainImageUrl = photos[activeIdx] || '';
-
-  const selectedVariantLabel = useMemo(() => {
-    if (!selectedVariant) return null;
-    const parts = [selectedVariant.size, selectedVariant.color, selectedVariant.sku].filter(Boolean);
-    if (!parts.length) return null;
-    return `Selected: ${parts.join(' / ')}`;
-  }, [selectedVariant]);
-
   const qtyNum = Number(qty);
   const isLoading = status === 'loading';
   const isError = status === 'error';
   const isNotFound = status === 'not_found';
 
-  const hasStock = Boolean(
-    !hasVariants ||
-    (selectedVariant &&
-      (typeof selectedVariant.stock !== 'number' || selectedVariant.stock > 0))
-  );
-
   const getVariantSelectionError = useCallback(() => {
-    if (!hasVariants || hasValidVariantSelection) return null;
-    return 'Please select a size/color before continuing.';
-  }, [hasValidVariantSelection, hasVariants]);
+    if (!hasVariants) return null;
+    if (!selectedSize || !selectedColor) {
+      return 'Select size and color before continuing.';
+    }
+    if (!selectedVariant) {
+      return 'This size and color combination is unavailable.';
+    }
+    if (!selectedVariantInStock) {
+      return 'This size and color is currently out of stock.';
+    }
+    return null;
+  }, [hasVariants, selectedColor, selectedSize, selectedVariant, selectedVariantInStock]);
+
+  const stockStatusText = useMemo(() => {
+    if (!hasVariants) return 'Ready to ship';
+    if (!selectedSize || !selectedColor) return 'Select size and color';
+    if (!selectedVariant) return 'Combination unavailable';
+    if (!selectedVariantInStock) return 'Out of stock';
+    return 'In stock';
+  }, [hasVariants, selectedColor, selectedSize, selectedVariant, selectedVariantInStock]);
 
   const addToCartDisabledReason = useMemo(() => {
     if (buyNowLoading) return 'pending_action';
     if (isLoading) return 'loading';
-    if (getVariantSelectionError()) return 'missing_variant';
     if (qtyNum < 1) return 'invalid_qty';
-    if (!hasStock) return 'out_of_stock';
+    const selectionErrorMessage = getVariantSelectionError();
+    if (selectionErrorMessage) {
+      if (selectedVariant && !selectedVariantInStock) return 'out_of_stock';
+      return 'missing_variant';
+    }
     return 'ready';
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buyNowLoading, getVariantSelectionError, hasStock, isLoading, qtyNum]);
+  }, [
+    buyNowLoading,
+    getVariantSelectionError,
+    isLoading,
+    qtyNum,
+    selectedVariant,
+    selectedVariantInStock,
+  ]);
 
   const loadProduct = useCallback(async () => {
     if (!id) {
@@ -141,7 +244,6 @@ export default function ProductDetailPage() {
       }
       setProduct(normalized.product);
       setVariants(normalized.variants);
-      setSelectedVariantId('');
       setSelectedSize('');
       setSelectedColor('');
       setSelectionError(null);
@@ -178,6 +280,23 @@ export default function ProductDetailPage() {
     setMainImageLoadError(false);
   }, [activeIdx, photos]);
 
+  useEffect(() => {
+    if (!hasVariants) return;
+    const hasCurrentSelection =
+      Boolean(selectedSize) &&
+      Boolean(selectedColor) &&
+      Boolean(findMatchingVariant(selectedSize, selectedColor));
+    if (hasCurrentSelection) return;
+
+    const defaultVariant =
+      variants.find((variant) => isVariantPurchasable(variant)) ?? variants[0] ?? null;
+    if (!defaultVariant) return;
+    const nextSize = normalizeOption(defaultVariant.size);
+    const nextColor = normalizeOption(defaultVariant.color);
+    if (nextSize !== selectedSize) setSelectedSize(nextSize);
+    if (nextColor !== selectedColor) setSelectedColor(nextColor);
+  }, [findMatchingVariant, hasVariants, selectedColor, selectedSize, variants]);
+
   const { addItem } = useCart();
   const [cartFeedback, setCartFeedback] = useState<string | null>(null);
 
@@ -188,18 +307,18 @@ export default function ProductDetailPage() {
   }, [cartFeedback]);
 
   const addSelectedVariantToCart = useCallback(() => {
-    if (!id) return;
+    if (!id || !selectedVariantIdentifier) return;
     addItem(
       {
         productId: id,
         variantId: selectedVariantIdentifier,
-        title: product?.title ?? selectedVariant?.sku ?? 'Product',
+        title: product?.title ?? 'Product',
         priceCents: displayPriceCents ?? 0,
         imageUrl: undefined,
       },
       qty
     );
-  }, [addItem, displayPriceCents, id, product?.title, qty, selectedVariant?.sku, selectedVariantIdentifier]);
+  }, [addItem, displayPriceCents, id, product?.title, qty, selectedVariantIdentifier]);
 
   const handleAddToCart = () => {
     const variantError = getVariantSelectionError();
@@ -231,70 +350,6 @@ export default function ProductDetailPage() {
     }
   }, [addSelectedVariantToCart, getVariantSelectionError, navigate, toast]);
 
-  const handleCreateOrder = useCallback(async () => {
-    if (!id) return;
-    const variantError = getVariantSelectionError();
-    if (variantError) {
-      setSelectionError(variantError);
-      toast.notify(variantError, 'error');
-      return;
-    }
-    if (!Number.isFinite(qtyNum) || qtyNum < 1) {
-      toast.notify('Please enter a valid quantity.', 'error');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const items = hasVariants
-        ? [
-          {
-            productId: id,
-            productVariantId: selectedVariant?.id ?? selectedVariantIdentifier,
-            quantity: qtyNum,
-          },
-        ]
-        : [
-          {
-            productId: id,
-            quantity: qtyNum,
-          },
-        ];
-      const response = await apiFetch('/api/orders', {
-        method: 'POST',
-        body: { items },
-      });
-
-      const data = response?.data ?? response;
-      const orderId =
-        data?.id ??
-        data?.orderId ??
-        data?.order?.id ??
-        response?.id ??
-        response?.orderId ??
-        response?.order?.id;
-
-      if (!orderId) {
-        throw new Error('Order created but id was missing.');
-      }
-
-      navigate(`/buyer/order/${orderId}`);
-    } catch (err) {
-      toast.notify(safeErrorMessage(err), 'error');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [
-    getVariantSelectionError,
-    hasVariants,
-    id,
-    navigate,
-    qtyNum,
-    selectedVariant?.id,
-    selectedVariantIdentifier,
-    toast,
-  ]);
-
   if (isNotFound) {
     return <NotFoundPage />;
   }
@@ -303,12 +358,16 @@ export default function ProductDetailPage() {
     <Page>
       <Container className="space-y-6">
         <div className="space-y-2">
-          <p className="text-sm uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Product</p>
+          <p className="text-sm uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">
+            Product
+          </p>
           <h1 className="om-title" data-testid="product-title">
             {isLoading ? 'Loading product...' : product?.title?.trim() || `Product ${id ?? ''}`}
           </h1>
           {product?.description && (
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl">{product.description}</p>
+            <p className="max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              {product.description}
+            </p>
           )}
         </div>
 
@@ -323,7 +382,10 @@ export default function ProductDetailPage() {
                   onError={() => setMainImageLoadError(true)}
                 />
               ) : (
-                <div className="h-full w-full bg-gradient-to-b from-slate-200 dark:from-white/20 to-transparent" aria-hidden />
+                <div
+                  className="h-full w-full bg-gradient-to-b from-slate-200 to-transparent dark:from-white/20"
+                  aria-hidden
+                />
               )}
             </div>
             <div className="mt-3 grid grid-cols-4 gap-2">
@@ -333,10 +395,11 @@ export default function ProductDetailPage() {
                     key={`${photoUrl}-${idx}`}
                     type="button"
                     onClick={() => setActiveIdx(idx)}
-                    className={`aspect-square overflow-hidden rounded-lg border ${idx === activeIdx
+                    className={`aspect-square overflow-hidden rounded-lg border ${
+                      idx === activeIdx
                         ? 'border-indigo-500 dark:border-white/60'
                         : 'border-slate-200 dark:border-white/20'
-                      } bg-slate-100 dark:bg-slate-900/40`}
+                    } bg-slate-100 dark:bg-slate-900/40`}
                     aria-label={`View product photo ${idx + 1}`}
                   >
                     <img
@@ -347,112 +410,132 @@ export default function ProductDetailPage() {
                   </button>
                 ))
               ) : (
-                <div className="col-span-4 flex h-16 items-center justify-center rounded-lg border border-slate-200 dark:border-white/20 bg-slate-100 dark:bg-slate-900/40 text-xs uppercase tracking-[0.2em] text-slate-400">
+                <div className="col-span-4 flex h-16 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xs uppercase tracking-[0.2em] text-slate-400 dark:border-white/20 dark:bg-slate-900/40">
                   No photos
                 </div>
               )}
             </div>
           </div>
 
-          <div className="">
-            <div className="om-card p-6 space-y-4">
+          <div className="om-card p-6">
+            <div className="space-y-5">
               {isLoading && <LoadingState message="Loading product information..." />}
               {isError && (
                 <ErrorState message={error ?? 'Failed to load product'} onRetry={loadProduct} />
               )}
 
               {!isLoading && !isError && (
-                <div className="space-y-1">
-                  <p className="om-title text-3xl font-bold text-slate-900 dark:text-white">{displayPriceLabel}</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {selectedVariant?.size && `Size: ${selectedVariant.size}`}
-                    {selectedVariant?.color && ` Ãƒâ€šÃ‚Â· Color: ${selectedVariant.color}`}
-                    {!selectedVariant?.size &&
-                      !selectedVariant?.color &&
-                      selectedVariant?.sku &&
-                      `SKU: ${selectedVariant.sku}`}
+                <div className="space-y-2">
+                  <p className="om-title text-3xl font-bold text-slate-900 dark:text-white">
+                    {displayPriceLabel}
                   </p>
-                  {selectedVariantLabel && <p className="text-xs text-slate-500 dark:text-slate-400">{selectedVariantLabel}</p>}
+                  {hasVariants && (
+                    <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                      Size: {selectedSize || 'Select'} | Color: {selectedColor || 'Select'}
+                    </p>
+                  )}
+                  <p
+                    data-testid="pdp-stock-status"
+                    className={`text-xs font-bold uppercase tracking-[0.22em] ${
+                      stockStatusText === 'In stock'
+                        ? 'text-emerald-500 dark:text-emerald-300'
+                        : stockStatusText === 'Out of stock'
+                          ? 'text-rose-500 dark:text-rose-300'
+                          : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    {stockStatusText}
+                  </p>
                 </div>
               )}
 
               {hasVariants && !isLoading && !isError && (
-                <div className="space-y-3 overflow-visible">
-                  <div className="space-y-1">
-                    <Label htmlFor="variant-select">Variant</Label>
-                    <select
-                      id="variant-select"
-                      value={selectedVariantId}
-                      onChange={(event) => {
-                        const nextId = event.target.value;
-                        setSelectedVariantId(nextId);
-                        const nextVariant = variants.find((variant) => variant.id === nextId);
-                        setSelectedSize(nextVariant?.size ?? '');
-                        setSelectedColor(nextVariant?.color ?? '');
-                        setSelectionError(null);
-                      }}
-                      className="ui-input w-full min-w-[240px] h-10 rounded-md border border-slate-300 dark:border-white/20 bg-white dark:bg-neutral-900 text-slate-900 dark:text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    >
-                      <option value="">Select a variant</option>
-                      {variants.map((variant) => (
-                        <option key={variant.id} value={variant.id}>
-                          {[variant.size, variant.color, variant.sku].filter(Boolean).join(' / ') || 'Variant'}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1.5">
                     <Label htmlFor="variant-size-select">Size</Label>
                     <select
                       id="variant-size-select"
                       data-testid="variant-size"
                       value={selectedSize}
                       onChange={(event) => {
-                        setSelectedSize(event.target.value);
-                        setSelectedVariantId('');
+                        const nextSize = normalizeOption(event.target.value);
+                        setSelectedSize(nextSize);
+                        const nextColorMeta = buildColorOptionMeta(nextSize);
+                        const currentColorState = nextColorMeta.find(
+                          (option) => option.value === selectedColor
+                        );
+                        if (
+                          !selectedColor ||
+                          !currentColorState?.isSelectable
+                        ) {
+                          setSelectedColor(pickPreferredOption(nextColorMeta));
+                        }
                         setSelectionError(null);
                       }}
-                      className="ui-input w-full min-w-[240px] h-10 rounded-md border border-slate-300 dark:border-white/20 bg-white dark:bg-neutral-900 text-slate-900 dark:text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                      disabled={sizeOptions.length === 0}
+                      className="ui-input h-10 w-full min-w-[200px] rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-white/20 dark:bg-neutral-900 dark:text-white"
+                      disabled={sizeOptionMeta.length === 0}
                     >
                       <option value="">
-                        {sizeOptions.length > 0 ? 'Select size' : 'No size options'}
+                        {sizeOptionMeta.length > 0 ? 'Select size' : 'No size options'}
                       </option>
-                      {sizeOptions.map((size) => (
-                        <option key={size} value={size}>
-                          {size}
+                      {sizeOptionMeta.map((size) => (
+                        <option key={size.value} value={size.value} disabled={!size.isSelectable}>
+                          {size.value}
+                          {!size.isSelectable
+                            ? ' (Unavailable)'
+                            : !size.hasPurchasable
+                              ? ' (Out of stock)'
+                              : ''}
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Label htmlFor="variant-color-select">Color</Label>
                     <select
                       id="variant-color-select"
                       data-testid="variant-color"
                       value={selectedColor}
                       onChange={(event) => {
-                        setSelectedColor(event.target.value);
-                        setSelectedVariantId('');
+                        const nextColor = normalizeOption(event.target.value);
+                        setSelectedColor(nextColor);
+                        const nextSizeMeta = buildSizeOptionMeta(nextColor);
+                        const currentSizeState = nextSizeMeta.find(
+                          (option) => option.value === selectedSize
+                        );
+                        if (
+                          !selectedSize ||
+                          !currentSizeState?.isSelectable
+                        ) {
+                          setSelectedSize(pickPreferredOption(nextSizeMeta));
+                        }
                         setSelectionError(null);
                       }}
-                      className="ui-input w-full min-w-[240px] h-10 rounded-md border border-slate-300 dark:border-white/20 bg-white dark:bg-neutral-900 text-slate-900 dark:text-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                      disabled={colorOptions.length === 0}
+                      className="ui-input h-10 w-full min-w-[200px] rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-white/20 dark:bg-neutral-900 dark:text-white"
+                      disabled={colorOptionMeta.length === 0}
                     >
                       <option value="">
-                        {colorOptions.length > 0 ? 'Select color' : 'No color options'}
+                        {colorOptionMeta.length > 0 ? 'Select color' : 'No color options'}
                       </option>
-                      {colorOptions.map((color) => (
-                        <option key={color} value={color}>
-                          {color}
+                      {colorOptionMeta.map((color) => (
+                        <option key={color.value} value={color.value} disabled={!color.isSelectable}>
+                          {color.value}
+                          {!color.isSelectable
+                            ? ' (Unavailable)'
+                            : !color.hasPurchasable
+                              ? ' (Out of stock)'
+                              : ''}
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  {selectionError && <p className="text-sm text-amber-300">{selectionError}</p>}
+                  {selectionError && (
+                    <p className="md:col-span-2 text-sm text-amber-500 dark:text-amber-300">
+                      {selectionError}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -466,29 +549,17 @@ export default function ProductDetailPage() {
                   value={qty}
                   onChange={(event) => {
                     const nextValue = Number(event.target.value);
-                    setQty(Number.isFinite(nextValue) && nextValue > 0 ? Math.floor(nextValue) : 1);
+                    setQty(
+                      Number.isFinite(nextValue) && nextValue > 0
+                        ? Math.floor(nextValue)
+                        : 1
+                    );
                   }}
-                  className="max-w-[120px] text-slate-900 dark:text-white bg-white dark:bg-slate-900/60 border border-slate-300 dark:border-white/20 px-3 py-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                  className="max-w-[120px] rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:border-white/20 dark:bg-slate-900/60 dark:text-white"
                 />
               </div>
 
               <div className="flex flex-col gap-3">
-                <button
-                  data-testid="create-order"
-                  type="button"
-                  onClick={handleCreateOrder}
-                  disabled={
-                    isSubmitting ||
-                    isLoading ||
-                    Boolean(getVariantSelectionError()) ||
-                    qtyNum < 1 ||
-                    !hasStock
-                  }
-                  className="w-full om-btn om-focus bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Creating order...' : 'Create Order'}
-                </button>
-
                 <button
                   type="button"
                   onClick={handleAddToCart}
@@ -496,10 +567,9 @@ export default function ProductDetailPage() {
                     buyNowLoading ||
                     isLoading ||
                     Boolean(getVariantSelectionError()) ||
-                    qtyNum < 1 ||
-                    !hasStock
+                    qtyNum < 1
                   }
-                  className="w-full om-btn om-focus bg-slate-200 dark:bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-900 dark:text-black transition hover:bg-slate-300 dark:hover:bg-white active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="om-btn om-focus w-full bg-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-300 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/90 dark:text-black dark:hover:bg-white"
                 >
                   {buyNowLoading ? 'Processing...' : 'Add to cart'}
                 </button>
@@ -512,22 +582,28 @@ export default function ProductDetailPage() {
                     buyNowLoading ||
                     isLoading ||
                     Boolean(getVariantSelectionError()) ||
-                    qtyNum < 1 ||
-                    !hasStock
+                    qtyNum < 1
                   }
-                  className="w-full om-btn om-focus bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="om-btn om-focus w-full bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {buyNowLoading ? 'Processing...' : 'Buy now'}
                 </button>
 
-                {cartFeedback && <p className="text-sm text-emerald-300">{cartFeedback}</p>}
+                {cartFeedback && <p className="text-sm text-emerald-500 dark:text-emerald-300">{cartFeedback}</p>}
               </div>
 
-              <div className="mt-4 text-xs uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">
-                Secure checkout ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Fast updates in Orders
+              <div className="mt-4 text-xs uppercase tracking-[0.32em] text-slate-500 dark:text-slate-400">
+                Secure checkout | Real-time order updates
               </div>
               {!isLoading && !isError && addToCartDisabledReason === 'missing_variant' && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">Choose a unique variant combination to continue.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Choose a valid size and color combination to continue.
+                </p>
+              )}
+              {!isLoading && !isError && addToCartDisabledReason === 'out_of_stock' && (
+                <p className="text-xs text-rose-500 dark:text-rose-300">
+                  This selection is out of stock right now.
+                </p>
               )}
             </div>
           </div>

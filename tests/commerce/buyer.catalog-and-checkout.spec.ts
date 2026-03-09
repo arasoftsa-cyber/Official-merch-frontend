@@ -54,7 +54,7 @@ const getProductTitleFromDetail = async (page: Page): Promise<string> => {
   }
 };
 
-const openVariantProductDetail = async (page: Page): Promise<{ productName: string; productId: string }> => {
+const openProductDetail = async (page: Page): Promise<{ productName: string; productId: string }> => {
   await gotoApp(page, '/products', { waitUntil: 'domcontentloaded' });
   const cards = getProductCards(page);
   await expect(cards.first()).toBeVisible({ timeout: 15000 });
@@ -66,13 +66,11 @@ const openVariantProductDetail = async (page: Page): Promise<{ productName: stri
   const match = detailUrl.match(/\/products\/([^\/?#]+)/);
   const productId = match?.[1] ?? detailUrl;
   const title = await getProductTitleFromDetail(page);
-  const variantSelect = page.locator('select#variant-select').first();
-  await expect(variantSelect).toBeVisible({ timeout: 10000 });
   return { productName: title, productId };
 };
 
 test.describe('Buyer catalog and checkout', () => {
-  test('buyer can open a product detail', async ({ page }) => {
+  test('buyer can open a product detail with polished shopper CTA set', async ({ page }) => {
     await gotoApp(page, '/products');
     const productCard = getProductCards(page).first();
     await expect(productCard).toBeVisible({ timeout: 15000 });
@@ -81,62 +79,103 @@ test.describe('Buyer catalog and checkout', () => {
     const title = page.getByRole('heading').first();
     await expect(title).toBeVisible({ timeout: 15000 });
     await expect(
-      page.getByText(/price unavailable|₹\s*\d+([.,]\d{2})?|\$\s*\d+([.,]\d{2})?/i).first()
+      page.getByText(/price unavailable|₹\s*\d+([.,]\d{2})?/i).first()
     ).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('select#variant-select')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /create order/i })).toHaveCount(0);
   });
 
-  test('buyer checkout blocks missing variant selection with actionable message', async ({ buyerPage }) => {
-    const orderPosts: string[] = [];
+  test('buyer selects only size/color while variant resolves internally', async ({ buyerPage }) => {
+    const productId = '00000000-0000-4000-8000-000000009999';
+    const selectedVariantId = '00000000-0000-4000-8000-000000000013';
 
-    buyerPage.on('request', (req: any) => {
-      if (req.method() !== 'POST') return;
-      const url = req.url();
-      if (/\/api\/orders(?:\/|$)/i.test(url)) {
-        orderPosts.push(url);
+    await buyerPage.route(/\/api\/products\/[0-9a-f-]+(?:[/?#].*)?$/i, async (route) => {
+      const url = route.request().url();
+      if (!url.includes(`/api/products/${productId}`)) {
+        await route.fallback();
+        return;
       }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json; charset=utf-8',
+        body: JSON.stringify({
+          product: {
+            id: productId,
+            title: 'Mock Shopper Tee',
+            description: 'Mock product for size/color variant resolution',
+            price_cents: 4200,
+          },
+          variants: [
+            {
+              id: '00000000-0000-4000-8000-000000000011',
+              sku: 'MOCK-M-BLK',
+              size: 'M',
+              color: 'Black',
+              stock: 8,
+              price_cents: 4200,
+              effective_sellable: true,
+            },
+            {
+              id: '00000000-0000-4000-8000-000000000012',
+              sku: 'MOCK-L-BLK',
+              size: 'L',
+              color: 'Black',
+              stock: 0,
+              price_cents: 4200,
+              effective_sellable: false,
+            },
+            {
+              id: selectedVariantId,
+              sku: 'MOCK-M-WHT',
+              size: 'M',
+              color: 'White',
+              stock: 6,
+              price_cents: 4300,
+              effective_sellable: true,
+            },
+          ],
+        }),
+      });
     });
 
-    await openVariantProductDetail(buyerPage);
-
-    const variantSelect = buyerPage.locator('select#variant-select').first();
-    await expect(variantSelect).toBeVisible({ timeout: 10000 });
-    await buyerPage.evaluate(() => {
-      const selectEl = document.querySelector('select#variant-select') as HTMLSelectElement | null;
-      const buyNowButton = document.querySelector('[data-testid="product-buy-now"]') as
-        | HTMLButtonElement
-        | null;
-      if (!selectEl) return;
-      const invalidValue = '__invalid_variant__';
-      if (!Array.from(selectEl.options).some((option) => option.value === invalidValue)) {
-        const temp = document.createElement('option');
-        temp.value = invalidValue;
-        temp.textContent = 'Invalid variant';
-        selectEl.appendChild(temp);
-      }
-      selectEl.value = invalidValue;
-      selectEl.dispatchEvent(new Event('input', { bubbles: true }));
-      selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-      if (buyNowButton) {
-        buyNowButton.disabled = false;
-        buyNowButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      }
+    await buyerPage.evaluate(() => localStorage.removeItem('om_cart_v1'));
+    await gotoApp(buyerPage, `/products/${productId}`, {
+      waitUntil: 'domcontentloaded',
+      authRetry: false,
     });
 
-    await expect
-      .poll(
-        async () => {
-          const explicitMessageVisible = await buyerPage
-            .getByText(/please select a size\/color|needs a variant selection/i)
-            .first()
-            .isVisible()
-            .catch(() => false);
-          if (explicitMessageVisible) return true;
-          return buyerPage.getByLabel(/variant/i).first().isVisible().catch(() => false);
-        },
-        { timeout: 15000 }
-      )
-      .toBe(true);
-    await expect(buyerPage).toHaveURL(/\/products\/[^/]+$/, { timeout: 15000 });
-    expect(orderPosts, `Unexpected POST /api/orders calls:\n${orderPosts.join('\n')}`).toHaveLength(0);
+    await expect(buyerPage.locator('select#variant-select')).toHaveCount(0);
+    await expect(buyerPage.getByRole('button', { name: /create order/i })).toHaveCount(0);
+    await expect(buyerPage.locator('select#variant-size-select')).toBeVisible({ timeout: 15000 });
+    await expect(buyerPage.locator('select#variant-color-select')).toBeVisible({ timeout: 15000 });
+
+    await buyerPage.selectOption('select#variant-size-select', 'L');
+    await buyerPage.selectOption('select#variant-color-select', 'Black');
+    await expect(buyerPage.getByTestId('pdp-stock-status')).toContainText(/out of stock/i);
+    await expect(buyerPage.getByTestId('product-buy-now')).toBeDisabled();
+
+    await buyerPage.selectOption('select#variant-size-select', 'M');
+    await buyerPage.selectOption('select#variant-color-select', 'White');
+    await expect(buyerPage.getByTestId('pdp-stock-status')).toContainText(/in stock/i);
+    await expect(buyerPage.getByTestId('product-buy-now')).toBeEnabled();
+
+    await buyerPage.getByRole('button', { name: /^add to cart$/i }).click();
+    const cart = await buyerPage.evaluate(() => {
+      try {
+        return JSON.parse(localStorage.getItem('om_cart_v1') || '[]');
+      } catch {
+        return [];
+      }
+    });
+    const createdLine = Array.isArray(cart)
+      ? cart.find((item: any) => item?.productId === productId)
+      : null;
+    expect(createdLine).toBeTruthy();
+    expect(createdLine?.variantId).toBe(selectedVariantId);
+  });
+
+  test('buyer can still navigate from catalog to product detail', async ({ page }) => {
+    const detail = await openProductDetail(page);
+    expect(detail.productName.length).toBeGreaterThan(0);
   });
 });

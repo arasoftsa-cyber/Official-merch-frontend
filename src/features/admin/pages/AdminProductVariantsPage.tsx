@@ -439,7 +439,7 @@ export default function AdminProductVariantsPage() {
 
                   <label className="space-y-1">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Selling (cents)
+                      Selling (paise)
                     </span>
                     <input
                       data-testid={`admin-variant-selling-price-${index}`}

@@ -663,7 +663,7 @@ export default function AdminSkuMasterPage() {
                 )}
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Supplier Cost (cents)</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Supplier Cost (paise)</span>
                 <input
                   value={draft.supplierCostCents}
                   onChange={(e) =>
@@ -676,7 +676,7 @@ export default function AdminSkuMasterPage() {
                 )}
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">MRP (cents)</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">MRP (paise)</span>
                 <input
                   value={draft.mrpCents}
                   onChange={(e) => setDraft((prev) => ({ ...prev, mrpCents: e.target.value }))}
