@@ -29,6 +29,7 @@ type ProductVariantsResponse = {
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'admin']);
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -123,7 +124,7 @@ export default function CartPage() {
       navigate('/fan/login?returnTo=%2Fcart');
       return;
     }
-    if ((role ?? '').toLowerCase() !== 'buyer') {
+    if (!STOREFRONT_SHOPPER_ROLES.has(String(role ?? '').toLowerCase())) {
       window.location.assign('/forbidden');
       return;
     }

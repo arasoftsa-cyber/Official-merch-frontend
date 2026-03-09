@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { clearTokens, getAccessToken } from '../../shared/auth/tokenStore';
 import { getMe } from '../../shared/api/appApi';
 import { logoutAuth } from '../../shared/api/auth';
@@ -13,6 +13,7 @@ const navItems = [
   { label: 'Drops', to: '/drops' },
   { label: 'Products', to: '/products' },
 ];
+const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'admin']);
 
 function readCartCount(): number {
   if (typeof window === 'undefined' || !window.localStorage) return 0;
@@ -33,7 +34,6 @@ function readCartCount(): number {
 
 export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cartCount, setCartCount] = useState<number>(readCartCount());
   const [loggedIn, setLoggedIn] = useState(Boolean(getAccessToken()));
@@ -93,22 +93,23 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
       sessionStorage.clear();
       setLoggedIn(false);
       setRole(null);
-      navigate('/', { replace: true });
+      // Force a clean app state after logout so protected routes cannot reuse stale auth state.
+      window.location.replace('/');
     }
   };
 
   const isLoggedIn = loggedIn && !roleLoading;
   const userRole = String(role || '').toLowerCase();
   const pathname = String(location.pathname || '').toLowerCase();
+  const inPartnerArea = pathname.startsWith('/partner');
+  const isStorefrontShopper = STOREFRONT_SHOPPER_ROLES.has(userRole);
   const isPartner =
     userRole.includes('admin') ||
     userRole.includes('artist') ||
     userRole.includes('label') ||
     userRole.includes('partner');
-  const isArtistOrLabelRole = userRole === 'artist' || userRole === 'label';
-  const isArtistOrLabelPartnerRoute =
-    pathname.startsWith('/partner/artist') || pathname.startsWith('/partner/label');
-  const showCart = !isArtistOrLabelRole && !isArtistOrLabelPartnerRoute;
+  const showStorefrontActions = isLoggedIn && isStorefrontShopper && !inPartnerArea;
+  const showCart = !inPartnerArea;
   const actionPadding = variant === 'buyer' ? 'px-3 py-1.5' : 'px-3 py-1.5';
   const loginTarget = `/login?returnTo=${encodeURIComponent(
     `${location.pathname}${location.search}`
@@ -155,7 +156,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
                   Partner Dashboard
                 </Link>
               )}
-              {!isPartner && (
+              {showStorefrontActions && (
                 <Link
                   to="/fan"
                   className="hidden rounded-lg border border-white/20 px-3 py-1.5 text-sm text-white hover:bg-white/10 md:inline-flex"
@@ -221,7 +222,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
                     Partner Dashboard
                   </Link>
                 )}
-                {!isPartner && (
+                {showStorefrontActions && (
                   <Link
                     to="/fan"
                     className="inline-flex w-fit rounded-lg border border-white/20 px-3 py-1.5 text-sm text-white hover:bg-white/10"

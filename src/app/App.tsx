@@ -21,16 +21,16 @@ import { ForbiddenPage, NotFoundPage } from '../pages/ErrorPages';
 import { safeErrorMessage } from '../shared/utils/safeError';
 import PublicLayout from '../layouts/PublicLayout';
 import BareLayout from '../layouts/BareLayout';
-import LandingPage from '../pages/LandingPage';
-import ProductsPage from '../pages/ProductsPage';
-import ArtistPage from '../pages/ArtistPage';
-import ArtistsPage from '../pages/ArtistsPage';
-import DropsPage from '../pages/DropsPage';
 import RedirectPage from '../pages/RedirectPage';
 import { CartProvider } from '../cart/CartContext';
 import ThemeToggle from '../shared/components/ThemeToggle';
 
 const PartnerLayout = lazy(() => import('../layouts/PartnerLayout'));
+const LandingPage = lazy(() => import('../pages/LandingPage'));
+const ProductsPage = lazy(() => import('../pages/ProductsPage'));
+const ArtistPage = lazy(() => import('../pages/ArtistPage'));
+const ArtistsPage = lazy(() => import('../pages/ArtistsPage'));
+const DropsPage = lazy(() => import('../pages/DropsPage'));
 const SmokePage = lazy(() => import('../pages/SmokePage'));
 const FanLoginPage = lazy(() => import('../features/auth/pages/fan/FanLoginPage'));
 const FanRegisterPage = lazy(() => import('../features/auth/pages/fan/FanRegisterPage'));
@@ -102,6 +102,7 @@ const LOGIN_PATHS = ['/fan/login', '/partner/login', '/login'];
 const AUTH_BYPASS_PATHS = [...LOGIN_PATHS, '/logout'];
 const LOGIN_CONTEXT_KEY = 'om_login_context';
 const LOGIN_OR_REGISTER_PATH_RE = /^\/(fan|partner)\/(login|register)(?:\/|$)/i;
+const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'admin']);
 
 function isExactPath(pathname: string, candidate: string): boolean {
   return pathname === candidate || pathname === `${candidate}/`;
@@ -141,6 +142,7 @@ function roleAllowsPath(role: string | null, path: string): boolean {
   if (isAuthBypassPath(path)) return true;
   const roleNorm = (role || '').toLowerCase();
   if (!roleNorm) return false;
+  const isStorefrontShopper = STOREFRONT_SHOPPER_ROLES.has(roleNorm);
   if (path.startsWith('/partner/admin')) {
     return roleNorm === 'admin';
   }
@@ -153,11 +155,11 @@ function roleAllowsPath(role: string | null, path: string): boolean {
   if (path.startsWith('/partner')) {
     return roleNorm === 'artist' || roleNorm === 'label' || roleNorm === 'admin';
   }
-  if (path.startsWith('/fan')) return Boolean(roleNorm);
+  if (path.startsWith('/fan')) return isStorefrontShopper;
   if (path.startsWith('/admin')) return roleNorm === 'admin';
   if (path.startsWith('/artist')) return roleNorm === 'artist' || roleNorm === 'admin';
   if (path.startsWith('/label')) return roleNorm === 'label' || roleNorm === 'admin';
-  if (path.startsWith('/buyer')) return roleNorm === 'buyer';
+  if (path.startsWith('/buyer')) return isStorefrontShopper;
   return true;
 }
 
@@ -272,6 +274,7 @@ function useAuthStatus() {
   const [authChecked, setAuthChecked] = useState(false);
   const [hasToken, setHasToken] = useState(() => Boolean(getAccessToken()));
   const refreshAttemptedRef = useRef(false);
+  const validatedTokenRef = useRef<string | null>(null);
 
   const ensureSessionForProtectedRoute = useCallback(async (pathname: string) => {
     const currentPath = getPathnameOnly(pathname || '/');
@@ -326,52 +329,77 @@ function useAuthStatus() {
 
   useEffect(() => {
     let isMounted = true;
-    const currentToken = getAccessToken();
+    const currentPath = getPathnameOnly(location.pathname || '/');
+    const isProtectedPortalPath =
+      currentPath === '/fan' ||
+      currentPath.startsWith('/fan/') ||
+      currentPath === '/partner' ||
+      currentPath.startsWith('/partner/');
+    const currentToken = getAccessToken() || null;
+    if (currentToken) {
+      refreshAttemptedRef.current = false;
+    }
     setHasToken(Boolean(currentToken));
-    setAuthChecked(false);
+    if (currentToken && validatedTokenRef.current !== currentToken) {
+      setAuthChecked(false);
+    }
 
     (async () => {
       const fetchRole = async () => {
         const me = await apiFetch('/auth/whoami');
-        if (!isMounted) return;
         const resolvedRoleRaw =
           me?.role ||
           (Array.isArray(me?.roles) ? me.roles[0] : null) ||
           me?.user?.role ||
           null;
         const resolvedRole = String(resolvedRoleRaw || '').trim().toLowerCase();
-        if (!resolvedRole) {
-          clearTokens();
-          setRole(null);
-          setHasToken(false);
-          return;
-        }
-        setRole(resolvedRole);
-        setHasToken(true);
+        return resolvedRole || null;
       };
 
       try {
         let tokenForRequest = currentToken;
-        if (!tokenForRequest) {
-          tokenForRequest = await ensureSessionForProtectedRoute(location.pathname);
+        if (!tokenForRequest && isProtectedPortalPath) {
+          setAuthChecked(false);
+          tokenForRequest = await ensureSessionForProtectedRoute(currentPath);
         }
         if (!tokenForRequest) {
           if (isMounted) {
             setRole(null);
             setHasToken(false);
+            validatedTokenRef.current = null;
           }
           return;
         }
-        await fetchRole();
+
+        if (validatedTokenRef.current === tokenForRequest) {
+          if (isMounted) setHasToken(true);
+          return;
+        }
+
+        const resolvedRole = await fetchRole();
+        if (!isMounted) return;
+
+        if (!resolvedRole) {
+          clearTokens();
+          setRole(null);
+          setHasToken(false);
+          validatedTokenRef.current = null;
+          return;
+        }
+        setRole(resolvedRole);
+        setHasToken(true);
+        validatedTokenRef.current = tokenForRequest;
       } catch (err: any) {
         const message = typeof err?.message === 'string' ? err.message : '';
         if (message.includes('401') || message.includes('403')) {
           clearTokens();
           setHasToken(false);
           setRole(null);
+          validatedTokenRef.current = null;
         } else if (isMounted) {
           setRole(null);
           setHasToken(false);
+          validatedTokenRef.current = null;
         }
       } finally {
         if (isMounted) {
@@ -422,13 +450,16 @@ function ParamsRedirect({
 function AppRoutes() {
   const { role, authChecked, hasToken } = useAuthStatus();
   const location = useLocation();
-  const effectiveRole = hasToken ? role : null;
+  // Use live token presence as source-of-truth to avoid stale auth state after logout.
+  const hasLiveToken = Boolean(getAccessToken());
+  const isAuthenticated = hasToken && hasLiveToken;
+  const effectiveRole = isAuthenticated ? role : null;
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
-  if (hasToken && !authChecked) {
+  if (isAuthenticated && !authChecked) {
     return <Loading />;
   }
 
@@ -437,11 +468,11 @@ function AppRoutes() {
       return element;
     }
 
-    if (!hasToken && !authChecked) {
+    if (!isAuthenticated && !authChecked) {
       return <Loading />;
     }
 
-    if (!hasToken) {
+    if (!isAuthenticated) {
       const returnTo = encodeURIComponent(location.pathname + location.search + location.hash);
       if (location.pathname.startsWith('/partner')) {
         return <Navigate to={`/partner/login?returnTo=${returnTo}`} replace />;
@@ -457,11 +488,6 @@ function AppRoutes() {
     }
 
     if (effectiveRole && !roleAllowsPath(effectiveRole, location.pathname)) {
-      console.log('[guard] redirecting', {
-        role: effectiveRole,
-        path: location.pathname,
-        reason: 'forbidden',
-      });
       return <Navigate to="/forbidden" replace />;
     }
 
@@ -469,10 +495,10 @@ function AppRoutes() {
   };
 
   const loginEntryElement = (element: React.ReactNode) => {
-    if (hasToken && !authChecked) {
+    if (isAuthenticated && !authChecked) {
       return <Loading />;
     }
-    if (hasToken && authChecked) {
+    if (isAuthenticated && authChecked) {
       const loginContext = localStorage.getItem(LOGIN_CONTEXT_KEY);
       const requested = getRequestedLoginPath(location.search);
       const target = getPostLoginRedirect({

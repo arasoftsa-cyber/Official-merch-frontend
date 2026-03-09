@@ -127,12 +127,12 @@ test.describe('Public catalog unified UX', () => {
     await mockProducts(page);
 
     await page.goto(`${UI_BASE_URL}/artists`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /artists/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Artists', exact: true })).toBeVisible();
 
     await page.goto(`${UI_BASE_URL}/drops`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /drops/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Drops', exact: true })).toBeVisible();
 
     await page.goto(`${UI_BASE_URL}/products`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /merch catalog/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Merch catalog', exact: true })).toBeVisible();
   });
 });
