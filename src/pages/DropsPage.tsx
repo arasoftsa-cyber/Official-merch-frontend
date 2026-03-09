@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchJson } from '../shared/api';
-import EmptyState from '../components/ux/EmptyState';
-import LoadingSkeleton from '../components/ux/LoadingSkeleton';
-import PublicCardCover from '../components/public/PublicCardCover';
+import { fetchJson } from '../shared/api/fetchJson';
+import EmptyState from '../shared/components/ux/EmptyState';
+import LoadingSkeleton from '../shared/components/ux/LoadingSkeleton';
+import PublicCardCover from '../features/catalog/components/PublicCardCover';
 
 type DropRow = {
   id: string;

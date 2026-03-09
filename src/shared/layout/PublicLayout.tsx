@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import BlackHeader from './BlackHeader';
 import BlackFooter from './BlackFooter';
 

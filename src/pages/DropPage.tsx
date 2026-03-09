@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { fetchJson } from '../shared/api';
-import EmptyState from '../components/ux/EmptyState';
-import ErrorBanner from '../components/ux/ErrorBanner';
-import LoadingSkeleton from '../components/ux/LoadingSkeleton';
-import { useToast } from '../components/ux/ToastHost';
-import { trackEvent, trackPageView } from '../shared/telemetry';
+import { fetchJson } from '../shared/api/fetchJson';
+import EmptyState from '../shared/components/ux/EmptyState';
+import ErrorBanner from '../shared/components/ux/ErrorBanner';
+import LoadingSkeleton from '../shared/components/ux/LoadingSkeleton';
+import { useToast } from '../shared/components/ux/ToastHost';
+import { trackEvent, trackPageView } from '../shared/lib/telemetry';
 import { resolveMediaUrl } from '../shared/utils/media';
-import { NotFoundPage } from './Errors';
+import { NotFoundPage } from './ErrorPages';
 
 type DropData = {
   id: string;
@@ -406,7 +406,7 @@ export default function DropPage() {
       <section>
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Drop Products</h2>
-          {productsStatus === 'loading' && <p className="text-sm text-slate-500 dark:text-white/60">Loading products…</p>}
+          {productsStatus === 'loading' && <p className="text-sm text-slate-500 dark:text-white/60">Loading productsÃ¢â‚¬Â¦</p>}
         </div>
         {productsStatus === 'loading' && <LoadingSkeleton count={3} className="mt-4" />}
         {products.length === 0 && productsStatus !== 'loading' && (

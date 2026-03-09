@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clearTokens } from '../shared/auth/tokenStore';
-import { logoutAuth } from '../lib/api/auth';
+import { logoutAuth } from '../shared/api/auth';
 
 export default function LogoutPage() {
   const navigate = useNavigate();

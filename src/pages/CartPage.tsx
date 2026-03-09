@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Card from '../components/ui/Card';
-import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
+import Card from '../shared/ui/legacy/Card';
+import Button from '../shared/ui/legacy/Button';
+import Input from '../shared/ui/legacy/Input';
 import { getAccessToken } from '../shared/auth/tokenStore';
 import { getMe } from '../shared/api/appApi';
 import { useCart } from '../cart/CartContext';
 import { apiFetch } from '../shared/api/http';
-import { fetchJson } from '../shared/api';
+import { fetchJson } from '../shared/api/fetchJson';
 
 const formatCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 const cartLineKey = (productId: string, variantId?: string | null) =>
@@ -277,7 +277,7 @@ export default function CartPage() {
                   <div>
                     <p className="text-lg font-semibold">
                       {item.title}
-                      {formatVariantSummary(item) ? ` — ${formatVariantSummary(item)}` : ''}
+                      {formatVariantSummary(item) ? ` Ã¢â‚¬â€ ${formatVariantSummary(item)}` : ''}
                     </p>
                     <p className="text-sm text-neutral-400">
                       {formatCents(item.priceCents)}

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { APIResponse, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { request as playwrightRequest } from '@playwright/test';
 import {
   ADMIN_EMAIL,
@@ -12,7 +12,7 @@ import {
   LABEL_EMAIL,
   LABEL_PASSWORD,
 } from '../_env';
-import { getApiUrl } from './urls';
+import { getApiUrl, readResponseSnippet } from './api';
 
 const FIXTURES_DIR = path.resolve(__dirname, '..', 'fixtures');
 
@@ -24,9 +24,6 @@ export const MARKETPLACE_IMAGE_PATHS = [
   path.join(FIXTURES_DIR, 'listing-photo-4.png'),
 ];
 
-const readResponseSnippet = async (response: APIResponse) =>
-  (await response.text().catch(() => '<unavailable>')).replace(/\s+/g, ' ').trim().slice(0, 600);
-
 const readRoleFromWhoami = (payload: any) =>
   String(
     payload?.role ??
@@ -36,41 +33,6 @@ const readRoleFromWhoami = (payload: any) =>
   )
     .trim()
     .toLowerCase();
-
-const runSeedRoute = async (
-  apiContext: Awaited<ReturnType<typeof playwrightRequest.newContext>>,
-  routePath: string,
-  seedPayload: Record<string, string>
-) => {
-  const response = await apiContext.post(getApiUrl(routePath), { data: seedPayload });
-  const status = response.status();
-  const snippet = await readResponseSnippet(response);
-
-  if (!response.ok()) {
-    return {
-      ok: false as const,
-      routePath,
-      status,
-      snippet,
-    };
-  }
-
-  const payload = await response.json().catch(() => null);
-  if (payload && payload.ok === false) {
-    return {
-      ok: false as const,
-      routePath,
-      status,
-      snippet: JSON.stringify(payload),
-    };
-  }
-
-  return {
-    ok: true as const,
-    routePath,
-    status,
-  };
-};
 
 const verifyPartnerRole = async (
   email: string,
@@ -194,68 +156,11 @@ export const ensureOnboardingFixtures = () => {
 };
 
 export const ensureOnboardingSmokeSeed = async () => {
-  const seedPayload = {
-    adminEmail: ADMIN_EMAIL,
-    adminPassword: ADMIN_PASSWORD,
-    artistEmail: ARTIST_EMAIL,
-    artistPassword: ARTIST_PASSWORD,
-    buyerEmail: BUYER_EMAIL,
-    buyerPassword: BUYER_PASSWORD,
-    labelEmail: LABEL_EMAIL,
-    labelPassword: LABEL_PASSWORD,
-  };
-
-  const apiContext = await playwrightRequest.newContext({
-    extraHTTPHeaders: { Accept: 'application/json' },
-  });
-
-  try {
-    const loginResponse = await apiContext.post(getApiUrl('/api/auth/partner/login'), {
-      data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
-    });
-    if (!loginResponse.ok()) {
-      const snippet = await readResponseSnippet(loginResponse);
-      throw new Error(
-        `Onboarding smoke setup failed during admin auth (${loginResponse.status()}): ${snippet}`
-      );
-    }
-
-    const seedRoutes = ['/api/dev/seed-ui-smoke', '/api/dev/seed-ui-smoke-product'];
-    const routeErrors: string[] = [];
-    let seeded = false;
-
-    for (let i = 0; i < seedRoutes.length; i += 1) {
-      const routePath = seedRoutes[i];
-      const result = await runSeedRoute(apiContext, routePath, seedPayload);
-
-      if (result.ok) {
-        seeded = true;
-        break;
-      }
-
-      const failure = `${routePath} (${result.status}): ${result.snippet}`;
-      routeErrors.push(failure);
-
-      const is404 = result.status === 404;
-      const hasFallback = i < seedRoutes.length - 1;
-      if (!is404 || !hasFallback) {
-        break;
-      }
-    }
-
-    if (!seeded) {
-      throw new Error(
-        `Onboarding smoke setup failed across supported seed routes: ${routeErrors.join(' | ')}`
-      );
-    }
-
-    await verifyPartnerRole(ADMIN_EMAIL, ADMIN_PASSWORD, 'admin');
-    await verifyPartnerRole(ARTIST_EMAIL, ARTIST_PASSWORD, 'artist');
-    await verifyFanRole(BUYER_EMAIL, BUYER_PASSWORD);
-    await verifyArtistProductsLoad(ARTIST_EMAIL, ARTIST_PASSWORD);
-  } finally {
-    await apiContext.dispose();
-  }
+  await verifyPartnerRole(ADMIN_EMAIL, ADMIN_PASSWORD, 'admin');
+  await verifyPartnerRole(ARTIST_EMAIL, ARTIST_PASSWORD, 'artist');
+  await verifyPartnerRole(LABEL_EMAIL, LABEL_PASSWORD, 'label');
+  await verifyFanRole(BUYER_EMAIL, BUYER_PASSWORD);
+  await verifyArtistProductsLoad(ARTIST_EMAIL, ARTIST_PASSWORD);
 };
 
 export const createPendingMerchRequestViaArtistApi = async (
@@ -291,11 +196,96 @@ export const createPendingMerchRequestViaArtistApi = async (
   return response.json().catch(() => ({}));
 };
 
+export const extractOnboardingProductId = (payload: any): string => {
+  const candidate =
+    payload?.productId ||
+    payload?.product_id ||
+    payload?.id ||
+    payload?.product?.id ||
+    '';
+  return typeof candidate === 'string' ? candidate.trim() : '';
+};
+
+export const rejectOnboardingViaAdminApi = async (
+  page: Page,
+  {
+    productId,
+    rejectionReason,
+  }: {
+    productId: string;
+    rejectionReason: string;
+  }
+) => {
+  const response = await page.request.post(
+    getApiUrl(`/api/admin/products/${encodeURIComponent(productId)}/onboarding/reject`),
+    {
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      data: { rejectionReason },
+    }
+  );
+  if (!response.ok()) {
+    const snippet = await readResponseSnippet(response);
+    throw new Error(`Reject onboarding failed (${response.status()}): ${snippet}`);
+  }
+  return response;
+};
+
+export const approveOnboardingViaAdminApi = async (
+  page: Page,
+  { productId }: { productId: string }
+) => {
+  ensureOnboardingFixtures();
+  const multipart: Record<string, any> = {};
+  MARKETPLACE_IMAGE_PATHS.slice(0, 4).forEach((filePath, index) => {
+    const filePayload = {
+      name: path.basename(filePath),
+      mimeType: 'image/png',
+      buffer: fs.readFileSync(filePath),
+    };
+    multipart[`listing_photo_${index + 1}`] = filePayload;
+    multipart[`listing_photos_${index + 1}`] = filePayload;
+  });
+  const response = await page.request.post(
+    getApiUrl(`/api/admin/products/${encodeURIComponent(productId)}/onboarding/approve`),
+    {
+      headers: { Accept: 'application/json' },
+      multipart,
+    }
+  );
+  if (!response.ok()) {
+    const snippet = await readResponseSnippet(response);
+    throw new Error(`Approve onboarding failed (${response.status()}): ${snippet}`);
+  }
+  return response;
+};
+
 export const uploadMarketplaceImages = async (page: Page, count: number) => {
   ensureOnboardingFixtures();
   const files = MARKETPLACE_IMAGE_PATHS.slice(0, Math.max(0, count));
   if (files.length === 0) {
     throw new Error('uploadMarketplaceImages requires at least one fixture image.');
   }
-  await page.getByTestId('admin-marketplace-images-input').setInputFiles(files);
+  const input = page.getByTestId('admin-marketplace-images-input').first();
+  await input.scrollIntoViewIfNeeded().catch(() => null);
+  await input
+    .evaluate((node) => {
+      let current: HTMLElement | null = node as HTMLElement;
+      while (current) {
+        const style = window.getComputedStyle(current);
+        const scrollable =
+          /(auto|scroll)/.test(style.overflowY || '') &&
+          current.scrollHeight > current.clientHeight + 2;
+        if (scrollable) {
+          const nodeTop = (node as HTMLElement).offsetTop;
+          current.scrollTop = Math.max(0, nodeTop - 120);
+          break;
+        }
+        current = current.parentElement;
+      }
+    })
+    .catch(() => null);
+  await input.setInputFiles(files);
+
+  const approveButton = page.getByTestId('admin-approve-merch').first();
+  await approveButton.scrollIntoViewIfNeeded().catch(() => null);
 };

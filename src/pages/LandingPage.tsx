@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { fetchFeaturedDrops } from '../shared/api/appApi';
 import { apiFetch } from '../shared/api/http';
 import { resolveMediaUrl } from '../shared/utils/media';
-import PublicCardCover from '../components/public/PublicCardCover';
-import HeroBackgroundCarousel from '../components/HeroBackgroundCarousel';
+import PublicCardCover from '../features/catalog/components/PublicCardCover';
+import HeroBackgroundCarousel from '../features/catalog/components/HeroBackgroundCarousel';
 
 type ArtistCard = {
   handle: string;

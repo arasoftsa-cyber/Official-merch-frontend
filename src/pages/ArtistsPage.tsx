@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchJson } from '../shared/api';
+import { fetchJson } from '../shared/api/fetchJson';
 import { resolveMediaUrl } from '../shared/utils/media';
-import EmptyState from '../components/ux/EmptyState';
-import LoadingSkeleton from '../components/ux/LoadingSkeleton';
-import PublicCardCover from '../components/public/PublicCardCover';
+import EmptyState from '../shared/components/ux/EmptyState';
+import LoadingSkeleton from '../shared/components/ux/LoadingSkeleton';
+import PublicCardCover from '../features/catalog/components/PublicCardCover';
 
 type ArtistRow = {
   handle: string;

@@ -10,6 +10,6 @@ export const formatCurrencyFromCents = (value?: number | string | null) => {
       : typeof value === 'string' && value.trim() !== ''
         ? Number(value)
         : NaN;
-  if (!Number.isFinite(cents)) return '—';
+  if (!Number.isFinite(cents)) return 'â€”';
   return currencyFormatter.format(cents / 100);
 };

@@ -9,8 +9,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './app/App';
-import AppErrorBoundary from './components/ux/AppErrorBoundary';
-import { ToastProvider } from './components/ux/ToastHost';
+import AppErrorBoundary from './shared/components/ux/AppErrorBoundary';
+import { ToastProvider } from './shared/components/ux/ToastHost';
 import { API_BASE } from './shared/api/baseUrl';
 
 const root = document.getElementById('root');

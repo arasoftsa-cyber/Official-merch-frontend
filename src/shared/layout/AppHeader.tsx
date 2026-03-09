@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { clearTokens, getAccessToken } from '../../shared/auth/tokenStore';
 import { getMe } from '../../shared/api/appApi';
-import { logoutAuth } from '../../lib/api/auth';
+import { logoutAuth } from '../../shared/api/auth';
 
 type AppHeaderProps = {
   variant?: 'public' | 'buyer';
