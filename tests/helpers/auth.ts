@@ -240,7 +240,6 @@ const submitFanLoginForm = async (page: Page, email: string, password: string) =
 };
 
 const resetAuth = async (page: Page) => {
-  await page.context().clearCookies();
   await page.goto(`${UI_BASE_URL}/`, { waitUntil: 'domcontentloaded' }).catch(() => null);
   await page.evaluate(() => {
     try {

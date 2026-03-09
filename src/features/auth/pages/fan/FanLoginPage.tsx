@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Card from '../../../../shared/ui/legacy/Card';
 import { apiFetch } from '../../../../shared/api/http';
 import PublicLayout from '../../../../shared/layout/PublicLayout';
 import { clearTokens, setAccessToken, setRefreshToken } from '../../../../shared/auth/tokenStore';
+import { buildGoogleOidcStartUrl } from '../../../../shared/auth/oidc';
 
 const FAN_ALLOWED_ROLES = new Set(['buyer', 'fan', 'customer']);
 const ROLE_NOT_ALLOWED_MESSAGE = 'This account is for the Partner Portal. Go to Partner Login';
@@ -41,6 +42,25 @@ export default function FanLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [partnerRedirect, setPartnerRedirect] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const portalError = String(params.get('portalError') || '').trim();
+    const message = String(params.get('message') || '').trim();
+
+    if (!portalError && !message) return;
+
+    if (portalError === 'partner_account') {
+      setError(message || ROLE_NOT_ALLOWED_MESSAGE);
+      setPartnerRedirect('/partner/login');
+      return;
+    }
+
+    if (message) {
+      setError(message);
+    }
+  }, [location.search]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -85,6 +105,13 @@ export default function FanLoginPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleGoogleContinue = () => {
+    if (isGoogleRedirecting) return;
+    setIsGoogleRedirecting(true);
+    const target = buildGoogleOidcStartUrl('fan', safeReturnTo);
+    window.location.assign(target);
   };
 
   return (
@@ -181,12 +208,24 @@ export default function FanLoginPage() {
             <button
               data-testid="fan-login-submit"
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isGoogleRedirecting}
               className="h-14 w-full rounded-2xl bg-slate-900 text-base font-bold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-[#9c9c9c] dark:text-black dark:hover:bg-[#b0b0b0]"
             >
               {isSubmitting ? 'Authenticating...' : 'Sign In'}
             </button>
           </form>
+
+          <div className="mt-6">
+            <button
+              data-testid="fan-login-google"
+              type="button"
+              onClick={handleGoogleContinue}
+              disabled={isSubmitting || isGoogleRedirecting}
+              className="h-14 w-full rounded-2xl border border-slate-300 bg-white text-base font-semibold text-slate-900 transition hover:bg-slate-100 disabled:opacity-50 dark:border-white/20 dark:bg-white/[0.03] dark:text-white dark:hover:bg-white/[0.08]"
+            >
+              {isGoogleRedirecting ? 'Redirecting to Google...' : 'Continue with Google'}
+            </button>
+          </div>
 
           <div className="mt-8 flex flex-col items-center gap-2 text-sm text-slate-500 dark:text-white/40">
             <p>

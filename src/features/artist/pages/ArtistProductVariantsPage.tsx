@@ -86,7 +86,6 @@ export default function ArtistProductVariantsPage() {
       const response = await fetch(`${API_BASE}/api/products/${id}`, {
         method: 'GET',
         headers: buildHeaders(),
-        credentials: 'include',
         signal,
       });
       if (signal?.aborted || !isAlive()) return;
@@ -115,7 +114,6 @@ export default function ArtistProductVariantsPage() {
       const response = await fetch(`${API_BASE}/api/products/${id}/variants`, {
         method: 'GET',
         headers: buildHeaders(),
-        credentials: 'include',
         signal,
       });
       if (signal?.aborted || !isAlive()) return;
@@ -203,7 +201,6 @@ export default function ArtistProductVariantsPage() {
         {
           method: 'DELETE',
           headers: buildHeaders(),
-          credentials: 'include',
         }
       );
       if (!response.ok) {
@@ -302,7 +299,6 @@ export default function ArtistProductVariantsPage() {
       const response = await fetch(`${API_BASE}/api/products/${id}/variants`, {
         method: 'PUT',
         headers: buildHeaders('application/json'),
-        credentials: 'include',
         body: JSON.stringify(payload),
       });
       if (!response.ok) {

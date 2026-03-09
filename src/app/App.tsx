@@ -8,7 +8,13 @@ import {
   useParams,
 } from 'react-router-dom';
 import { apiFetch } from '../shared/api/http';
-import { getAccessToken, setAccessToken, clearTokens } from '../shared/auth/tokenStore';
+import {
+  getAccessToken,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+  clearTokens,
+} from '../shared/auth/tokenStore';
 import { API_BASE } from '../shared/api/http';
 import { getMe, getConfig } from '../shared/api/appApi';
 import { ForbiddenPage, NotFoundPage } from '../pages/ErrorPages';
@@ -28,6 +34,7 @@ const SmokePage = lazy(() => import('../pages/SmokePage'));
 const FanLoginPage = lazy(() => import('../features/auth/pages/fan/FanLoginPage'));
 const FanRegisterPage = lazy(() => import('../features/auth/pages/fan/FanRegisterPage'));
 const PartnerLoginPage = lazy(() => import('../features/auth/pages/partner/PartnerLoginPage'));
+const OidcCallbackPage = lazy(() => import('../features/auth/pages/OidcCallbackPage'));
 const PartnerEntryRedirectPage = lazy(
   () => import('../features/auth/pages/partner/PartnerEntryRedirectPage')
 );
@@ -277,11 +284,13 @@ function useAuthStatus() {
     if (isLoginOrRegisterPath || !isProtectedPortalPath) return null;
     if (refreshAttemptedRef.current) return null;
     refreshAttemptedRef.current = true;
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
 
     try {
       const refreshResponse = await apiFetch('/api/auth/refresh', {
         method: 'POST',
-        body: {},
+        body: { refreshToken },
       });
       const refreshedToken =
         refreshResponse?.accessToken ||
@@ -293,6 +302,14 @@ function useAuthStatus() {
         return null;
       }
       setAccessToken(refreshedToken);
+      const rotatedRefreshToken =
+        refreshResponse?.refreshToken ||
+        refreshResponse?.data?.refreshToken ||
+        refreshResponse?.refresh_token ||
+        null;
+      if (rotatedRefreshToken) {
+        setRefreshToken(rotatedRefreshToken);
+      }
       return refreshedToken;
     } catch (err: any) {
       const status = Number(err?.status || 0);
@@ -562,6 +579,7 @@ function AppRoutes() {
         element={loginEntryElement(<FanLoginPage />)}
       />
       <Route path="/fan/register" element={<FanRegisterPage />} />
+      <Route path="/auth/oidc/callback" element={<OidcCallbackPage />} />
       <Route
         path="/partner"
         element={<PartnerLayout />}

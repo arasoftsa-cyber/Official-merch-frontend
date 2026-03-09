@@ -1,4 +1,10 @@
-import { clearTokens, getAccessToken, setAccessToken } from '../auth/tokenStore';
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+} from '../auth/tokenStore';
 import { validateApiResponse } from '../validation/schemas';
 
 const envBase =
@@ -52,16 +58,30 @@ const getAccessTokenFromPayload = (payload: any): string | null => {
   );
 };
 
+const getRefreshTokenFromPayload = (payload: any): string | null => {
+  return (
+    payload?.refreshToken ||
+    payload?.data?.refreshToken ||
+    payload?.refresh_token ||
+    null
+  );
+};
+
 let refreshInFlight: Promise<string | null> | null = null;
 
 const refreshAccessToken = async (): Promise<string | null> => {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) {
+        return null;
+      }
+
       let payload: any = null;
       try {
         payload = await apiFetchInternal(
           AUTH_REFRESH_ENDPOINT,
-          { method: 'POST', body: {} },
+          { method: 'POST', body: { refreshToken } },
           false
         );
       } catch (err: any) {
@@ -74,6 +94,10 @@ const refreshAccessToken = async (): Promise<string | null> => {
       const token = getAccessTokenFromPayload(payload);
       if (token) {
         setAccessToken(token);
+      }
+      const rotatedRefreshToken = getRefreshTokenFromPayload(payload);
+      if (rotatedRefreshToken) {
+        setRefreshToken(rotatedRefreshToken);
       }
       return token;
     })().finally(() => {
@@ -109,7 +133,6 @@ async function apiFetchInternal(
   }
 
   init.headers = headers;
-  init.credentials = 'include';
   const response = await fetch(url, init);
   const contentType = response.headers.get('content-type') ?? '';
   let payload: any = null;

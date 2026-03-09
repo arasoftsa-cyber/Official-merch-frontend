@@ -5,7 +5,7 @@ import {
   getApiUrl,
   readResponseSnippet,
 } from './api';
-import { ensureOnboardingFixtures } from './onboarding';
+import { ensureOnboardingFixtures, getPartnerAccessToken } from './onboarding';
 export { readResponseSnippet } from './api';
 
 export const prepareOnboardingSuite = async () => {
@@ -21,8 +21,9 @@ export const extractProductId = (payload: any): string => {
 };
 
 const fetchArtists = async (page: Page): Promise<any[]> => {
+  const accessToken = await getPartnerAccessToken('admin');
   const response = await page.request.get(getApiUrl('/api/artists'), {
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
   });
   await assertOkResponse(response, 'Failed to load artists');
   const payload = await response.json().catch(() => null);
@@ -30,10 +31,15 @@ const fetchArtists = async (page: Page): Promise<any[]> => {
 };
 
 const createArtistForOnboarding = async (page: Page) => {
+  const accessToken = await getPartnerAccessToken('admin');
   const suffix = makeStamp('pw-onb-artist').toLowerCase().replace(/[^a-z0-9-]/g, '-');
   const handle = suffix.slice(0, 48);
   const response = await page.request.post(getApiUrl('/api/admin/provisioning/create-artist'), {
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
     data: {
       handle,
       name: `PW Onboarding ${handle}`,
@@ -76,8 +82,13 @@ export const createAdminProductWithStatus = async (
     status: 'pending' | 'inactive' | 'active' | 'rejected';
   }
 ) => {
+  const accessToken = await getPartnerAccessToken('admin');
   const response = await page.request.post(getApiUrl('/api/admin/products'), {
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
     data: {
       artistId,
       title,

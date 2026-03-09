@@ -62,7 +62,6 @@ export default function AdminLeadsPage() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         cache: 'no-store',
-        credentials: 'include',
       }
     );
 
@@ -165,7 +164,6 @@ export default function AdminLeadsPage() {
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          credentials: 'include',
           body: JSON.stringify({
             status: editorStatus,
             adminNote: editorNote,
@@ -223,7 +221,6 @@ export default function AdminLeadsPage() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        credentials: 'include',
         body: JSON.stringify({
           artist_name: artistName,
           email,
