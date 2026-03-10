@@ -8,8 +8,9 @@ import { getMe } from '../shared/api/appApi';
 import { useCart } from '../cart/CartContext';
 import { apiFetch } from '../shared/api/http';
 import { fetchJson } from '../shared/api/fetchJson';
+import { formatCurrencyFromCents } from '../shared/utils/currency';
 
-const formatCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+const formatCents = (cents: number) => formatCurrencyFromCents(cents);
 const cartLineKey = (productId: string, variantId?: string | null) =>
   `${productId}::${variantId ?? ''}`;
 
@@ -29,6 +30,7 @@ type ProductVariantsResponse = {
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'admin']);
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -123,7 +125,7 @@ export default function CartPage() {
       navigate('/fan/login?returnTo=%2Fcart');
       return;
     }
-    if ((role ?? '').toLowerCase() !== 'buyer') {
+    if (!STOREFRONT_SHOPPER_ROLES.has(String(role ?? '').toLowerCase())) {
       window.location.assign('/forbidden');
       return;
     }
@@ -277,7 +279,7 @@ export default function CartPage() {
                   <div>
                     <p className="text-lg font-semibold">
                       {item.title}
-                      {formatVariantSummary(item) ? ` Ã¢â‚¬â€ ${formatVariantSummary(item)}` : ''}
+                      {formatVariantSummary(item) ? ` - ${formatVariantSummary(item)}` : ''}
                     </p>
                     <p className="text-sm text-neutral-400">
                       {formatCents(item.priceCents)}

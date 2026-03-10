@@ -1,9 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchJson } from '../shared/api/fetchJson';
-import EmptyState from '../shared/components/ux/EmptyState';
-import LoadingSkeleton from '../shared/components/ux/LoadingSkeleton';
 import { trackPageView } from '../shared/lib/telemetry';
-import ProductsGrid from '../features/catalog/components/ProductsGrid';
+import PublicCatalogCard from '../features/catalog/components/PublicCatalogCard';
+import PublicCatalogEmptyState from '../features/catalog/components/PublicCatalogEmptyState';
+import PublicCatalogGrid from '../features/catalog/components/PublicCatalogGrid';
+import PublicCatalogGridSkeleton from '../features/catalog/components/PublicCatalogGridSkeleton';
+import PublicCatalogHeader from '../features/catalog/components/PublicCatalogHeader';
+import PublicCatalogPagination from '../features/catalog/components/PublicCatalogPagination';
+import PublicCatalogToolbar, {
+  PublicCatalogSortOption,
+} from '../features/catalog/components/PublicCatalogToolbar';
 
 type ProductDTO = {
   id: string;
@@ -18,6 +24,7 @@ type ProductDTO = {
 };
 
 type RowStatus = 'idle' | 'loading' | 'success' | 'error';
+type ProductSortKey = 'relevance' | 'price-asc' | 'price-desc' | 'newest';
 
 const parsePrice = (value: any): number | undefined => {
   if (typeof value === 'number') return value;
@@ -73,12 +80,16 @@ const chooseArray = (payload: any) =>
   payload?.items ?? payload?.products ?? payload?.data ?? payload?.results ?? [];
 
 const PAGE_SIZE = 12;
+const PRODUCT_SORT_OPTIONS: PublicCatalogSortOption[] = [
+  { value: 'relevance', label: 'Curated relevance' },
+  { value: 'price-asc', label: 'Price: low to high (detail pricing)' },
+  { value: 'price-desc', label: 'Price: high to low (detail pricing)' },
+  { value: 'newest', label: 'Newest products' },
+];
 
 export default function ProductsPage() {
   const [searchText, setSearchText] = useState('');
-  const [sortKey, setSortKey] = useState<'relevance' | 'price-asc' | 'price-desc' | 'newest'>(
-    'relevance'
-  );
+  const [sortKey, setSortKey] = useState<ProductSortKey>('relevance');
   const [page, setPage] = useState(1);
   const [products, setProducts] = useState<ProductDTO[]>([]);
   const [status, setStatus] = useState<RowStatus>('idle');
@@ -109,7 +120,6 @@ export default function ProductsPage() {
 
   const isLoading = status === 'loading';
   const isError = status === 'error';
-  const isEmpty = status === 'success' && products.length === 0;
 
   const displayedProducts = useMemo(() => {
     const normalized = searchText.trim().toLowerCase();
@@ -155,118 +165,89 @@ export default function ProductsPage() {
 
   const pageItems = displayedProducts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const getProductImage = (product: ProductDTO): string | undefined => {
+    const firstListingPhoto = Array.isArray(product.listing_photos)
+      ? product.listing_photos.find((value) => Boolean(String(value).trim()))
+      : undefined;
+    return (
+      (typeof product.card_image_url === 'string' && product.card_image_url.trim()) ||
+      (typeof product.cover_photo_url === 'string' && product.cover_photo_url.trim()) ||
+      (typeof firstListingPhoto === 'string' && firstListingPhoto.trim()) ||
+      undefined
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-neutral-900 dark:text-neutral-100">
-      <div className="mx-auto max-w-6xl px-4 py-10 space-y-8">
-        <header className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.4em] text-neutral-600 dark:text-neutral-400">Catalog</p>
-          <div className="space-y-2">
-            <h1 className="text-4xl font-semibold tracking-tight text-neutral-900 dark:text-white">Merch catalog</h1>
-            <p className="text-base text-neutral-600 dark:text-neutral-300 max-w-3xl">
-              Browse products from featured artists and fresh OfficialMerch releases. Search by
-              title, artist, or keywords to find the right item and open the detail page for full
-              purchase information.
-            </p>
-          </div>
-        </header>
+    <section className="space-y-8 py-4 text-slate-900 dark:text-slate-100">
+      <PublicCatalogHeader
+        eyebrow="Catalog"
+        title="Merch catalog"
+        description="Browse products from featured artists and fresh OfficialMerch releases. Search by title, artist, or keywords to find the right item."
+      />
 
-        <section className="flex flex-col gap-3 rounded-2xl border border-neutral-200 dark:border-white/10 bg-white dark:bg-neutral-900/50 p-4 shadow-lg shadow-black/5 dark:shadow-black/30 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-            <label htmlFor="product-search" className="sr-only">
-              Search catalog
-            </label>
-            <input
-              id="product-search"
-              type="search"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search artists, merchandise, vibes..."
-              className="flex-1 rounded-2xl border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 px-4 py-3 text-sm text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-white/40 focus:border-neutral-300 dark:focus:border-white/30 focus:outline-none"
-            />
-            <div className="text-xs text-neutral-600 dark:text-neutral-400 sm:hidden">
-              Showing {displayedProducts.length} match{displayedProducts.length === 1 ? '' : 'es'}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <label htmlFor="product-sort" className="text-xs uppercase tracking-[0.3em] text-neutral-600 dark:text-neutral-400">
-              Sort by
-            </label>
-            <select
-              id="product-sort"
-              value={sortKey}
-              onChange={(event) => setSortKey(event.target.value as any)}
-              className="rounded-2xl border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5 px-4 py-3 text-sm text-neutral-900 dark:text-white focus:border-neutral-300 dark:focus:border-white/30 focus:outline-none"
-            >
-              <option value="relevance">Curated relevance</option>
-              <option value="price-asc">Price: low to high (detail pricing)</option>
-              <option value="price-desc">Price: high to low (detail pricing)</option>
-              <option value="newest">Newest products</option>
-            </select>
-          </div>
-        </section>
+      <PublicCatalogToolbar
+        searchValue={searchText}
+        onSearchChange={setSearchText}
+        searchPlaceholder="Search artists, merchandise, vibes..."
+        resultCount={displayedProducts.length}
+        sortValue={sortKey}
+        onSortChange={(value) => setSortKey(value as ProductSortKey)}
+        sortOptions={PRODUCT_SORT_OPTIONS}
+      />
 
-        <section className="space-y-6">
-          {isError && (
-            <EmptyState
-              title="Something went wrong"
-              message={
-                error
-                  ? `Unable to load products (${error}).`
-                  : 'Unable to load products at the moment.'
-              }
-              actionLabel="Retry"
-              onAction={loadProducts}
-            />
-          )}
+      <section className="space-y-6">
+        {isError ? (
+          <PublicCatalogEmptyState
+            title="Something went wrong"
+            message={
+              error
+                ? `Unable to load products (${error}).`
+                : 'Unable to load products at the moment.'
+            }
+            actionLabel="Retry"
+            onAction={loadProducts}
+          />
+        ) : null}
 
-          {isLoading && (
-            <div className="rounded-2xl border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-neutral-900/60 p-6 shadow-lg shadow-black/5 dark:shadow-black/40">
-              <LoadingSkeleton count={4} className="gap-5 sm:grid-cols-2 lg:grid-cols-3" />
-            </div>
-          )}
+        {isLoading ? <PublicCatalogGridSkeleton count={8} /> : null}
 
-          {!isLoading && !isError && (
-            <>
-              {displayedProducts.length === 0 ? (
-                <EmptyState
-                  title="No products yet"
-                  message="Try again in a moment."
-                  actionLabel="Retry"
-                  onAction={loadProducts}
-                />
-              ) : (
-                <>
-                  <ProductsGrid
-                    products={pageItems}
-                    emptyMessage="No products available yet."
-                  />
-                  <div className="flex flex-wrap items-center justify-center gap-3 text-xs uppercase tracking-[0.3em] text-neutral-600 dark:text-neutral-400">
-                    <button
-                      type="button"
-                      onClick={() => setPage((current) => Math.max(1, current - 1))}
-                      disabled={page === 1}
-                      className="rounded-full border border-neutral-300 dark:border-white/20 px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    <span>
-                      Page {page} of {pageCount}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
-                      disabled={page === pageCount}
-                      className="rounded-full border border-neutral-300 dark:border-white/20 px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </section>
-      </div>
-    </div>
+        {!isLoading && !isError ? (
+          <>
+            {products.length === 0 ? (
+              <PublicCatalogEmptyState
+                title="No products yet"
+                message="Try again in a moment."
+                actionLabel="Retry"
+                onAction={loadProducts}
+              />
+            ) : displayedProducts.length === 0 ? (
+              <PublicCatalogEmptyState
+                title="No product matches"
+                message="Try a broader search term."
+              />
+            ) : (
+              <>
+                <PublicCatalogGrid>
+                  {pageItems.map((product) => (
+                    <PublicCatalogCard
+                      key={product.id}
+                      kind="product"
+                      title={product.title}
+                      subtitle={product.artist || 'OfficialMerch'}
+                      description={product.description}
+                      imageUrl={getProductImage(product)}
+                      href={`/products/${product.id}`}
+                      ctaLabel="View Product"
+                      testId="product-catalog-card"
+                    />
+                  ))}
+                </PublicCatalogGrid>
+                <PublicCatalogPagination page={page} pageCount={pageCount} onPageChange={setPage} />
+              </>
+            )}
+          </>
+        ) : null}
+      </section>
+    </section>
   );
 }

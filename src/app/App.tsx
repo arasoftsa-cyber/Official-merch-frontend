@@ -8,26 +8,34 @@ import {
   useParams,
 } from 'react-router-dom';
 import { apiFetch } from '../shared/api/http';
-import { getAccessToken, setAccessToken, clearTokens } from '../shared/auth/tokenStore';
+import {
+  getAccessToken,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+  clearTokens,
+} from '../shared/auth/tokenStore';
 import { API_BASE } from '../shared/api/http';
 import { getMe, getConfig } from '../shared/api/appApi';
 import { ForbiddenPage, NotFoundPage } from '../pages/ErrorPages';
 import { safeErrorMessage } from '../shared/utils/safeError';
-import PublicLayout from '../shared/layout/PublicLayout';
-import LandingPage from '../pages/LandingPage';
-import ProductsPage from '../pages/ProductsPage';
-import ArtistPage from '../pages/ArtistPage';
-import ArtistsPage from '../pages/ArtistsPage';
-import DropsPage from '../pages/DropsPage';
+import PublicLayout from '../layouts/PublicLayout';
+import BareLayout from '../layouts/BareLayout';
 import RedirectPage from '../pages/RedirectPage';
 import { CartProvider } from '../cart/CartContext';
 import ThemeToggle from '../shared/components/ThemeToggle';
 
 const PartnerLayout = lazy(() => import('../layouts/PartnerLayout'));
+const LandingPage = lazy(() => import('../pages/LandingPage'));
+const ProductsPage = lazy(() => import('../pages/ProductsPage'));
+const ArtistPage = lazy(() => import('../pages/ArtistPage'));
+const ArtistsPage = lazy(() => import('../pages/ArtistsPage'));
+const DropsPage = lazy(() => import('../pages/DropsPage'));
 const SmokePage = lazy(() => import('../pages/SmokePage'));
 const FanLoginPage = lazy(() => import('../features/auth/pages/fan/FanLoginPage'));
 const FanRegisterPage = lazy(() => import('../features/auth/pages/fan/FanRegisterPage'));
 const PartnerLoginPage = lazy(() => import('../features/auth/pages/partner/PartnerLoginPage'));
+const OidcCallbackPage = lazy(() => import('../features/auth/pages/OidcCallbackPage'));
 const PartnerEntryRedirectPage = lazy(
   () => import('../features/auth/pages/partner/PartnerEntryRedirectPage')
 );
@@ -94,6 +102,7 @@ const LOGIN_PATHS = ['/fan/login', '/partner/login', '/login'];
 const AUTH_BYPASS_PATHS = [...LOGIN_PATHS, '/logout'];
 const LOGIN_CONTEXT_KEY = 'om_login_context';
 const LOGIN_OR_REGISTER_PATH_RE = /^\/(fan|partner)\/(login|register)(?:\/|$)/i;
+const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'admin']);
 
 function isExactPath(pathname: string, candidate: string): boolean {
   return pathname === candidate || pathname === `${candidate}/`;
@@ -133,6 +142,7 @@ function roleAllowsPath(role: string | null, path: string): boolean {
   if (isAuthBypassPath(path)) return true;
   const roleNorm = (role || '').toLowerCase();
   if (!roleNorm) return false;
+  const isStorefrontShopper = STOREFRONT_SHOPPER_ROLES.has(roleNorm);
   if (path.startsWith('/partner/admin')) {
     return roleNorm === 'admin';
   }
@@ -145,11 +155,11 @@ function roleAllowsPath(role: string | null, path: string): boolean {
   if (path.startsWith('/partner')) {
     return roleNorm === 'artist' || roleNorm === 'label' || roleNorm === 'admin';
   }
-  if (path.startsWith('/fan')) return Boolean(roleNorm);
+  if (path.startsWith('/fan')) return isStorefrontShopper;
   if (path.startsWith('/admin')) return roleNorm === 'admin';
   if (path.startsWith('/artist')) return roleNorm === 'artist' || roleNorm === 'admin';
   if (path.startsWith('/label')) return roleNorm === 'label' || roleNorm === 'admin';
-  if (path.startsWith('/buyer')) return roleNorm === 'buyer';
+  if (path.startsWith('/buyer')) return isStorefrontShopper;
   return true;
 }
 
@@ -264,6 +274,7 @@ function useAuthStatus() {
   const [authChecked, setAuthChecked] = useState(false);
   const [hasToken, setHasToken] = useState(() => Boolean(getAccessToken()));
   const refreshAttemptedRef = useRef(false);
+  const validatedTokenRef = useRef<string | null>(null);
 
   const ensureSessionForProtectedRoute = useCallback(async (pathname: string) => {
     const currentPath = getPathnameOnly(pathname || '/');
@@ -277,11 +288,13 @@ function useAuthStatus() {
     if (isLoginOrRegisterPath || !isProtectedPortalPath) return null;
     if (refreshAttemptedRef.current) return null;
     refreshAttemptedRef.current = true;
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
 
     try {
       const refreshResponse = await apiFetch('/api/auth/refresh', {
         method: 'POST',
-        body: {},
+        body: { refreshToken },
       });
       const refreshedToken =
         refreshResponse?.accessToken ||
@@ -293,6 +306,14 @@ function useAuthStatus() {
         return null;
       }
       setAccessToken(refreshedToken);
+      const rotatedRefreshToken =
+        refreshResponse?.refreshToken ||
+        refreshResponse?.data?.refreshToken ||
+        refreshResponse?.refresh_token ||
+        null;
+      if (rotatedRefreshToken) {
+        setRefreshToken(rotatedRefreshToken);
+      }
       return refreshedToken;
     } catch (err: any) {
       const status = Number(err?.status || 0);
@@ -308,52 +329,77 @@ function useAuthStatus() {
 
   useEffect(() => {
     let isMounted = true;
-    const currentToken = getAccessToken();
+    const currentPath = getPathnameOnly(location.pathname || '/');
+    const isProtectedPortalPath =
+      currentPath === '/fan' ||
+      currentPath.startsWith('/fan/') ||
+      currentPath === '/partner' ||
+      currentPath.startsWith('/partner/');
+    const currentToken = getAccessToken() || null;
+    if (currentToken) {
+      refreshAttemptedRef.current = false;
+    }
     setHasToken(Boolean(currentToken));
-    setAuthChecked(false);
+    if (currentToken && validatedTokenRef.current !== currentToken) {
+      setAuthChecked(false);
+    }
 
     (async () => {
       const fetchRole = async () => {
         const me = await apiFetch('/auth/whoami');
-        if (!isMounted) return;
         const resolvedRoleRaw =
           me?.role ||
           (Array.isArray(me?.roles) ? me.roles[0] : null) ||
           me?.user?.role ||
           null;
         const resolvedRole = String(resolvedRoleRaw || '').trim().toLowerCase();
-        if (!resolvedRole) {
-          clearTokens();
-          setRole(null);
-          setHasToken(false);
-          return;
-        }
-        setRole(resolvedRole);
-        setHasToken(true);
+        return resolvedRole || null;
       };
 
       try {
         let tokenForRequest = currentToken;
-        if (!tokenForRequest) {
-          tokenForRequest = await ensureSessionForProtectedRoute(location.pathname);
+        if (!tokenForRequest && isProtectedPortalPath) {
+          setAuthChecked(false);
+          tokenForRequest = await ensureSessionForProtectedRoute(currentPath);
         }
         if (!tokenForRequest) {
           if (isMounted) {
             setRole(null);
             setHasToken(false);
+            validatedTokenRef.current = null;
           }
           return;
         }
-        await fetchRole();
+
+        if (validatedTokenRef.current === tokenForRequest) {
+          if (isMounted) setHasToken(true);
+          return;
+        }
+
+        const resolvedRole = await fetchRole();
+        if (!isMounted) return;
+
+        if (!resolvedRole) {
+          clearTokens();
+          setRole(null);
+          setHasToken(false);
+          validatedTokenRef.current = null;
+          return;
+        }
+        setRole(resolvedRole);
+        setHasToken(true);
+        validatedTokenRef.current = tokenForRequest;
       } catch (err: any) {
         const message = typeof err?.message === 'string' ? err.message : '';
         if (message.includes('401') || message.includes('403')) {
           clearTokens();
           setHasToken(false);
           setRole(null);
+          validatedTokenRef.current = null;
         } else if (isMounted) {
           setRole(null);
           setHasToken(false);
+          validatedTokenRef.current = null;
         }
       } finally {
         if (isMounted) {
@@ -404,13 +450,16 @@ function ParamsRedirect({
 function AppRoutes() {
   const { role, authChecked, hasToken } = useAuthStatus();
   const location = useLocation();
-  const effectiveRole = hasToken ? role : null;
+  // Use live token presence as source-of-truth to avoid stale auth state after logout.
+  const hasLiveToken = Boolean(getAccessToken());
+  const isAuthenticated = hasToken && hasLiveToken;
+  const effectiveRole = isAuthenticated ? role : null;
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
-  if (hasToken && !authChecked) {
+  if (isAuthenticated && !authChecked) {
     return <Loading />;
   }
 
@@ -419,11 +468,11 @@ function AppRoutes() {
       return element;
     }
 
-    if (!hasToken && !authChecked) {
+    if (!isAuthenticated && !authChecked) {
       return <Loading />;
     }
 
-    if (!hasToken) {
+    if (!isAuthenticated) {
       const returnTo = encodeURIComponent(location.pathname + location.search + location.hash);
       if (location.pathname.startsWith('/partner')) {
         return <Navigate to={`/partner/login?returnTo=${returnTo}`} replace />;
@@ -439,11 +488,6 @@ function AppRoutes() {
     }
 
     if (effectiveRole && !roleAllowsPath(effectiveRole, location.pathname)) {
-      console.log('[guard] redirecting', {
-        role: effectiveRole,
-        path: location.pathname,
-        reason: 'forbidden',
-      });
       return <Navigate to="/forbidden" replace />;
     }
 
@@ -451,10 +495,10 @@ function AppRoutes() {
   };
 
   const loginEntryElement = (element: React.ReactNode) => {
-    if (hasToken && !authChecked) {
+    if (isAuthenticated && !authChecked) {
       return <Loading />;
     }
-    if (hasToken && authChecked) {
+    if (isAuthenticated && authChecked) {
       const loginContext = localStorage.getItem(LOGIN_CONTEXT_KEY);
       const requested = getRequestedLoginPath(location.search);
       const target = getPostLoginRedirect({
@@ -472,46 +516,25 @@ function AppRoutes() {
     <Suspense fallback={<Loading />}>
       <Routes>
       <Route element={<AppLayout />}>
-        <Route
-          index
-          element={
-            <PublicLayout>
-              <LandingPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="products"
-          element={
-            <PublicLayout>
-              <ProductsPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="products/:id"
-          element={
-            <PublicLayout>
-              <ProductDetailPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="artists"
-          element={
-            <PublicLayout>
-              <ArtistsPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="artists/:handle"
-          element={
-            <PublicLayout>
-              <ArtistPage />
-            </PublicLayout>
-          }
-        />
+        <Route element={<PublicLayout />}>
+          <Route index element={<LandingPage />} />
+          <Route path="products" element={<ProductsPage />} />
+          <Route path="products/:id" element={<ProductDetailPage />} />
+          <Route path="artists" element={<ArtistsPage />} />
+          <Route path="artists/:handle" element={<ArtistPage />} />
+          <Route path="drops" element={<DropsPage />} />
+          <Route path="drops/:handle" element={<DropPage />} />
+          <Route path="apply/artist" element={<ApplyArtistPage />} />
+          <Route
+            path="fan/login"
+            element={loginEntryElement(<FanLoginPage />)}
+          />
+          <Route path="fan/register" element={<FanRegisterPage />} />
+          <Route
+            path="partner/login"
+            element={loginEntryElement(<PartnerLoginPage />)}
+          />
+        </Route>
         <Route
           path="artists/dashboard"
           element={<RedirectPage to="/partner/artist" />}
@@ -524,30 +547,9 @@ function AppRoutes() {
           path="artists/drop/:id"
           element={<RedirectPage to="/partner/artist/drop/:id" />}
         />
-        <Route
-          path="drops"
-          element={
-            <PublicLayout>
-              <DropsPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="drops/:handle"
-          element={
-            <PublicLayout>
-              <DropPage />
-            </PublicLayout>
-          }
-        />
-        <Route
-          path="apply/artist"
-          element={
-            <PublicLayout>
-              <ApplyArtistPage />
-            </PublicLayout>
-          }
-        />
+        <Route element={<BareLayout />}>
+          <Route path="auth/oidc/callback" element={<OidcCallbackPage />} />
+        </Route>
         <Route path="cart" element={<CartPage />} />
         <Route path="forbidden" element={<ForbiddenPage />} />
         <Route path="notfound" element={<NotFoundPage />} />
@@ -558,19 +560,10 @@ function AppRoutes() {
         element={loginEntryElement(<LegacyRedirect to="/fan/login" />)}
       />
       <Route
-        path="/fan/login"
-        element={loginEntryElement(<FanLoginPage />)}
-      />
-      <Route path="/fan/register" element={<FanRegisterPage />} />
-      <Route
         path="/partner"
         element={<PartnerLayout />}
       >
         <Route index element={<PartnerEntryRedirectPage />} />
-        <Route
-          path="login"
-          element={loginEntryElement(<PartnerLoginPage />)}
-        />
         <Route path="dashboard" element={<PartnerEntryRedirectPage />} />
         <Route
           path="artist"

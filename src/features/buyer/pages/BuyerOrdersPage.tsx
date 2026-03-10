@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAccessToken } from "../../../shared/auth/tokenStore";
 import { Card } from "../../../shared/ui/Page";
+import { formatCurrencyFromCents } from "../../../shared/utils/currency";
 
 type OrderLike = {
   id: string;
@@ -36,9 +37,9 @@ function formatMoney(order: OrderLike) {
     (typeof order.totalCents === "number" && order.totalCents) ||
     (typeof order.total === "number" ? order.total * 100 : null);
   if (cents != null) {
-    return `ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¹${(cents / 100).toFixed(2)}`;
+    return formatCurrencyFromCents(cents);
   }
-  return "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
+  return "-";
 }
 
 function normalizeOrderList(raw: any): OrderLike[] {
@@ -143,7 +144,7 @@ export default function BuyerOrdersPage() {
       {loading && (
         <div className="flex animate-pulse items-center space-x-2 text-slate-500 dark:text-slate-400">
           <div className="h-4 w-4 rounded-full bg-slate-200 dark:bg-white/10" />
-          <span className="text-sm">Loading ordersÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</span>
+          <span className="text-sm">Loading orders...</span>
         </div>
       )}
 
@@ -193,14 +194,14 @@ export default function BuyerOrdersPage() {
               <tbody className="divide-y divide-slate-100 bg-white dark:divide-white/5 dark:bg-transparent">
                 {filteredOrders.map((order) => {
                   const status = normalizeStatus(order.status || order.paymentStatus);
-                  const shortId = (order.id || "").slice(0, 8) || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
+                  const shortId = (order.id || "").slice(0, 8) || "-";
                   const created = order.createdAt
                     ? new Date(order.createdAt).toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
                     })
-                    : "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
+                    : "-";
 
                   return (
                     <tr
@@ -212,7 +213,7 @@ export default function BuyerOrdersPage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                          {status || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
+                          {status || "-"}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-slate-900 dark:text-white">

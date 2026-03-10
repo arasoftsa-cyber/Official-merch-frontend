@@ -9,6 +9,7 @@ export const PRODUCT_CARD_SELECTORS = [
 export const getProductCards = (page: Page) => page.locator(PRODUCT_CARD_SELECTORS.join(', '));
 
 export const cartLinkInHeader = (page: Page) => page.locator('header a[href="/cart"]');
+export const myAccountLinkInHeader = (page: Page) => page.locator('header a[href="/fan"]');
 
 export const partnerLogoutButton = (page: Page) =>
   page.getByRole('button', { name: /logout/i }).first();

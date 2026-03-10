@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { apiFetch } from '../../../shared/api/http';
 import { Container, Page } from '../../../shared/ui/Page';
+import { formatCurrencyFromCents } from '../../../shared/utils/currency';
 
 type ArtistSummary = {
   totalOrders?: number;
@@ -56,12 +57,7 @@ const KNOWN_ARTIST_ORDER_STATUSES = [
 ];
 
 const formatCurrency = (cents?: number) => {
-  if (typeof cents !== 'number' || !Number.isFinite(cents)) return '-';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
+  return formatCurrencyFromCents(cents);
 };
 
 const formatDateTime = (value?: string | null) => {

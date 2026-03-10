@@ -56,7 +56,7 @@ test.describe('Artist status smoke', () => {
       timeout: 15000,
     });
 
-    const firstPrice = artistPage.locator('text=/\\$\\d+(?:\\.\\d{2})?/').first();
+    const firstPrice = artistPage.locator('text=/₹\\s*\\d+(?:[.,]\\d{2})?/').first();
     await expect(firstPrice).toBeVisible({ timeout: 15000 });
 
     await expect
@@ -73,15 +73,15 @@ test.describe('Artist status smoke', () => {
               cur = cur.parentElement;
 
               const t = (cur.textContent || '').replace(/\s+/g, ' ').trim();
-              // Heuristic: row-ish container should contain multiple fields (not just "$19.99")
-              if (t.length >= 10 && /\$/.test(t)) return t;
+              // Heuristic: row-ish container should contain multiple fields (not just "₹19.99")
+              if (t.length >= 10 && /₹/.test(t)) return t;
             }
             // fallback to the price node textContent (worst case)
             return (el.textContent || '').replace(/\s+/g, ' ').trim();
           }, handle);
 
           const cleaned = (rowText || '')
-            .replace(/\$\d+(?:\.\d{2})?/g, '') // remove prices
+            .replace(/₹\s*\d+(?:[.,]\d{2})?/g, '') // remove prices
             .replace(/\s+/g, ' ')
             .trim();
 

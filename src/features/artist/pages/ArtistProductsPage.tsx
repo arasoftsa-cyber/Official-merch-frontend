@@ -261,7 +261,6 @@ export default function ArtistProductsPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        credentials: 'include',
         body: JSON.stringify({ active: nextActive }),
       });
 
@@ -273,7 +272,6 @@ export default function ArtistProductsPage() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          credentials: 'include',
           body: JSON.stringify({ active: nextActive }),
         });
 

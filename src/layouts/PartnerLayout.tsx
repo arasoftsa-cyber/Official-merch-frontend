@@ -1,6 +1,6 @@
-import React from "react"
-import { Outlet } from "react-router-dom"
-import AppHeader from "../shared/layout/AppHeader"
+import React from 'react';
+import { Outlet } from 'react-router-dom';
+import AppHeader from '../shared/layout/AppHeader';
 
 export default function PartnerLayout() {
   return (
@@ -10,5 +10,5 @@ export default function PartnerLayout() {
         <Outlet />
       </main>
     </div>
-  )
+  );
 }

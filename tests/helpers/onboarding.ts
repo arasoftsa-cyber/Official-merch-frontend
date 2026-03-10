@@ -34,6 +34,54 @@ const readRoleFromWhoami = (payload: any) =>
     .trim()
     .toLowerCase();
 
+type PartnerRole = 'admin' | 'artist' | 'label';
+
+const readAccessToken = (payload: any): string =>
+  String(
+    payload?.accessToken ??
+      payload?.token ??
+      payload?.data?.accessToken ??
+      payload?.access_token ??
+      ''
+  ).trim();
+
+const partnerCredentialsFor = (role: PartnerRole) => {
+  if (role === 'admin') {
+    return { email: ADMIN_EMAIL, password: ADMIN_PASSWORD };
+  }
+  if (role === 'artist') {
+    return { email: ARTIST_EMAIL, password: ARTIST_PASSWORD };
+  }
+  return { email: LABEL_EMAIL, password: LABEL_PASSWORD };
+};
+
+export const getPartnerAccessToken = async (role: PartnerRole): Promise<string> => {
+  const context = await playwrightRequest.newContext({
+    extraHTTPHeaders: { Accept: 'application/json' },
+  });
+  try {
+    const { email, password } = partnerCredentialsFor(role);
+    const loginResponse = await context.post(getApiUrl('/api/auth/partner/login'), {
+      data: { email, password },
+    });
+    if (!loginResponse.ok()) {
+      const snippet = await readResponseSnippet(loginResponse);
+      throw new Error(
+        `Onboarding helper could not login ${role} account (${loginResponse.status()}): ${snippet}`
+      );
+    }
+
+    const payload = await loginResponse.json().catch(() => null);
+    const accessToken = readAccessToken(payload);
+    if (!accessToken) {
+      throw new Error(`Onboarding helper missing access token for role ${role}`);
+    }
+    return accessToken;
+  } finally {
+    await context.dispose();
+  }
+};
+
 const verifyPartnerRole = async (
   email: string,
   password: string,
@@ -53,7 +101,15 @@ const verifyPartnerRole = async (
       );
     }
 
-    const whoami = await context.get(getApiUrl('/api/auth/whoami'));
+    const loginPayload = await loginResponse.json().catch(() => null);
+    const accessToken = readAccessToken(loginPayload);
+    if (!accessToken) {
+      throw new Error(`Onboarding smoke setup missing access token for ${expectedRole} account`);
+    }
+
+    const whoami = await context.get(getApiUrl('/api/auth/whoami'), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     if (!whoami.ok()) {
       const snippet = await readResponseSnippet(whoami);
       throw new Error(
@@ -95,7 +151,15 @@ const verifyFanRole = async (email: string, password: string) => {
       );
     }
 
-    const whoami = await context.get(getApiUrl('/api/auth/whoami'));
+    const loginPayload = await loginResponse.json().catch(() => null);
+    const accessToken = readAccessToken(loginPayload);
+    if (!accessToken) {
+      throw new Error('Onboarding smoke setup missing access token for fan/buyer account');
+    }
+
+    const whoami = await context.get(getApiUrl('/api/auth/whoami'), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     if (!whoami.ok()) {
       const snippet = await readResponseSnippet(whoami);
       throw new Error(
@@ -130,7 +194,15 @@ const verifyArtistProductsLoad = async (email: string, password: string) => {
       );
     }
 
-    const productsResponse = await context.get(getApiUrl('/api/artist/products'));
+    const loginPayload = await loginResponse.json().catch(() => null);
+    const accessToken = readAccessToken(loginPayload);
+    if (!accessToken) {
+      throw new Error('Onboarding smoke setup missing access token for artist product verification');
+    }
+
+    const productsResponse = await context.get(getApiUrl('/api/artist/products'), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     if (!productsResponse.ok()) {
       const snippet = await readResponseSnippet(productsResponse);
       throw new Error(
@@ -177,7 +249,9 @@ export const createPendingMerchRequestViaArtistApi = async (
 ) => {
   ensureOnboardingFixtures();
   const imageBuffer = fs.readFileSync(DESIGN_IMAGE_PATH);
+  const accessToken = await getPartnerAccessToken('artist');
   const response = await page.request.post(getApiUrl('/api/artist/products/onboarding'), {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
     multipart: {
       merch_name: merchName,
       merch_story: merchStory,
@@ -216,10 +290,15 @@ export const rejectOnboardingViaAdminApi = async (
     rejectionReason: string;
   }
 ) => {
+  const accessToken = await getPartnerAccessToken('admin');
   const response = await page.request.post(
     getApiUrl(`/api/admin/products/${encodeURIComponent(productId)}/onboarding/reject`),
     {
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
       data: { rejectionReason },
     }
   );
@@ -235,6 +314,7 @@ export const approveOnboardingViaAdminApi = async (
   { productId }: { productId: string }
 ) => {
   ensureOnboardingFixtures();
+  const accessToken = await getPartnerAccessToken('admin');
   const multipart: Record<string, any> = {};
   MARKETPLACE_IMAGE_PATHS.slice(0, 4).forEach((filePath, index) => {
     const filePayload = {
@@ -248,7 +328,7 @@ export const approveOnboardingViaAdminApi = async (
   const response = await page.request.post(
     getApiUrl(`/api/admin/products/${encodeURIComponent(productId)}/onboarding/approve`),
     {
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
       multipart,
     }
   );

@@ -5,7 +5,6 @@ import LoadingSkeleton from '../../../shared/components/ux/LoadingSkeleton';
 import { apiFetch, apiFetchForm } from '../../../shared/api/http';
 
 const ADMIN_DROPS_BASE = '/api/admin/drops';
-const PARTNER_ADMIN_DROPS_BASE = '/api/partner/admin/drops';
 const MAX_HERO_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_HERO_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -14,6 +13,26 @@ type AdminFetchResult<T> = {
   status: number;
   data?: T;
   errText?: string;
+};
+
+const normalizeAdminFetchError = (rawMessage: unknown, statusCode: number) => {
+  const message = String(rawMessage ?? '').trim();
+  if (!message) {
+    return statusCode > 0 ? `HTTP_${statusCode}` : 'Request failed';
+  }
+
+  const looksLikeHtml =
+    /<!doctype html/i.test(message) ||
+    /<html[\s>]/i.test(message) ||
+    /<\/?[a-z][\s\S]*>/i.test(message);
+  const isRouteMiss = /\bcannot\s+(get|post|put|patch|delete)\b/i.test(message);
+  if (looksLikeHtml || isRouteMiss) {
+    return statusCode === 404
+      ? 'Admin drops endpoint is unavailable.'
+      : `Unexpected server response (HTTP_${statusCode || 0})`;
+  }
+
+  return message;
 };
 
 async function adminFetch<T>(
@@ -25,10 +44,11 @@ async function adminFetch<T>(
     const data = await apiFetch(path, init);
     return { ok: true, status: 200, data: data as T };
   } catch (err: any) {
+    const status = Number(err?.status ?? 0);
     return {
       ok: false,
-      status: Number(err?.status ?? 0),
-      errText: String(err?.message ?? 'Request failed'),
+      status,
+      errText: normalizeAdminFetchError(err?.message ?? 'Request failed', status),
     };
   }
 }
@@ -448,7 +468,7 @@ export default function AdminDropsPage() {
       formData.append('file', file);
 
       const payload = await apiFetchForm(
-        `${PARTNER_ADMIN_DROPS_BASE}/${encodeURIComponent(dropId)}/hero-image`,
+        `${ADMIN_DROPS_BASE}/${encodeURIComponent(dropId)}/hero-image`,
         formData,
         { method: 'POST' }
       );

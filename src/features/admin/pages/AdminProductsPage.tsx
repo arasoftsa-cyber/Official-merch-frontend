@@ -112,10 +112,11 @@ export default function AdminProductsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [productsResult, artistsResult, pendingResult] = await Promise.allSettled([
+      const [productsResult, artistsResult, pendingResult, rejectedResult] = await Promise.allSettled([
         apiFetch('/admin/products', { cache: 'no-store' }),
         apiFetch('/artists', { cache: 'no-store' }),
         apiFetch('/admin/products/onboarding?status=pending', { cache: 'no-store' }),
+        apiFetch('/admin/products/onboarding?status=rejected', { cache: 'no-store' }),
       ]);
 
       if (productsResult.status !== 'fulfilled') {
@@ -125,6 +126,7 @@ export default function AdminProductsPage() {
       const productsPayload = productsResult.value;
       const artistsPayload = artistsResult.status === 'fulfilled' ? artistsResult.value : null;
       const pendingPayload = pendingResult.status === 'fulfilled' ? pendingResult.value : null;
+      const rejectedPayload = rejectedResult.status === 'fulfilled' ? rejectedResult.value : null;
 
       const productItems = extractItems(productsPayload, ['items', 'products', 'rows', 'data'])
         .map((item: any) => normalizeProductItem(item))
@@ -137,11 +139,26 @@ export default function AdminProductsPage() {
         .filter(
           (item: PendingMerchRequest | null): item is PendingMerchRequest => Boolean(item)
         );
+      const rejectedItems = extractItems(rejectedPayload, ['items', 'products', 'rows', 'data'])
+        .map((item: any) => normalizePendingRequestItem(item))
+        .filter(
+          (item: PendingMerchRequest | null): item is PendingMerchRequest => Boolean(item)
+        );
 
       setProducts(productItems);
       setArtists(artistItems);
       setPendingRequests(
-        pendingItems.filter((item) => normalizeStatus(item?.status) === 'pending')
+        [...pendingItems, ...rejectedItems]
+          .filter((item) => ['pending', 'rejected'].includes(normalizeStatus(item?.status)))
+          .sort((left, right) => {
+            const leftTs = new Date(
+              String(left.createdAt || left.created_at || 0)
+            ).getTime();
+            const rightTs = new Date(
+              String(right.createdAt || right.created_at || 0)
+            ).getTime();
+            return Number.isFinite(rightTs) ? rightTs - (Number.isFinite(leftTs) ? leftTs : 0) : 0;
+          })
       );
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load admin products');
@@ -527,12 +544,20 @@ export default function AdminProductsPage() {
   const openPendingModal = async (request: PendingMerchRequest) => {
     setIsPendingOpen(true);
     setPendingReviewRequest(request);
+    setPendingRejectionReason(readText(request.rejectionReason || request.rejection_reason));
     resetPendingModalState();
+    setPendingRejectionReason(readText(request.rejectionReason || request.rejection_reason));
     setPendingModalLoading(true);
     try {
       const payload = await apiFetch(`/products/${request.id}`, { cache: 'no-store' });
       const detailProduct = (payload?.product ?? payload) as PendingMerchRequest | null;
       if (detailProduct && typeof detailProduct === 'object') {
+        const resolvedRejectionReason = readText(
+          request.rejectionReason ||
+            request.rejection_reason ||
+            detailProduct.rejectionReason ||
+            detailProduct.rejection_reason
+        );
         setPendingReviewRequest((prev) => ({
           ...(prev || request),
           ...detailProduct,
@@ -541,11 +566,24 @@ export default function AdminProductsPage() {
           artistName: request.artistName || request.artistHandle || detailProduct.artistName,
           artistHandle: request.artistHandle || detailProduct.artistHandle,
           status: request.status || detailProduct.status || 'pending',
+          rejectionReason:
+            request.rejectionReason ||
+            request.rejection_reason ||
+            detailProduct.rejectionReason ||
+            detailProduct.rejection_reason ||
+            null,
+          rejection_reason:
+            request.rejection_reason ||
+            request.rejectionReason ||
+            detailProduct.rejection_reason ||
+            detailProduct.rejectionReason ||
+            null,
           skuTypes: Array.isArray(request.skuTypes) ? request.skuTypes : Array.isArray(request.sku_types) ? request.sku_types : Array.isArray(detailProduct.skuTypes) ? detailProduct.skuTypes : [],
           sku_types: Array.isArray(request.sku_types) ? request.sku_types : Array.isArray(request.skuTypes) ? request.skuTypes : Array.isArray(detailProduct.sku_types) ? detailProduct.sku_types : [],
           designImageUrl:
             resolveMediaUrl(request.designImageUrl || request.design_image_url || detailProduct.designImageUrl || detailProduct.design_image_url || null) || '',
         }));
+        setPendingRejectionReason(resolvedRejectionReason);
       }
     } catch (err: any) {
       setPendingModalError(err?.message ?? 'Failed to load pending merchandise details.');
@@ -682,6 +720,10 @@ export default function AdminProductsPage() {
     artistLabelById[pendingReviewArtistId] ||
     'Unknown Artist';
   const pendingReviewStatus = normalizeStatus(pendingReviewRequest?.status || 'pending') || 'pending';
+  const pendingReviewRejectionReason = readText(
+    pendingReviewRequest?.rejectionReason || pendingReviewRequest?.rejection_reason
+  );
+  const pendingReviewMutable = pendingReviewStatus === 'pending';
   const pendingMarketplaceValidationErrors = validatePendingApprovalFiles(pendingMarketplaceFiles);
   const pendingMarketplaceError =
     readText(pendingFieldErrors.marketplace_images) ||
@@ -690,6 +732,8 @@ export default function AdminProductsPage() {
     ? 'Loading request details...'
     : pendingActionSaving
       ? 'Approval is in progress...'
+      : !pendingReviewMutable
+        ? 'Only pending requests can be approved.'
       : pendingMarketplaceError;
   const pendingApproveDisabled = Boolean(pendingApproveDisabledReason);
   const pendingDesignPreview = resolveMediaUrl(
@@ -906,19 +950,23 @@ export default function AdminProductsPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400">Loading pending requests...</p>
           ) : pendingRequests.length === 0 ? (
             <p className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/20 px-4 py-6 text-center text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              No pending merchandise requests.
+              No pending or rejected merchandise requests.
             </p>
           ) : (
             <div className="space-y-3">
               {pendingRequests.map((request) => {
                 const requestId = String(request.id || request.productId || '').trim();
                 const statusLabel = normalizeStatus(request.status || 'pending') || 'pending';
+                const isRejected = statusLabel === 'rejected';
                 const artistId = String(request.artistId || request.artist_id || '').trim();
                 const artistLabel =
                   readText(request.artistName) ||
                   readText(request.artistHandle) ||
                   artistLabelById[artistId] ||
                   'Unknown Artist';
+                const rejectionReason = readText(
+                  request.rejectionReason || request.rejection_reason
+                );
                 const skuTypes = readPendingSkuTypes(request);
                 const designImage = resolveMediaUrl(
                   request.designImageUrl || request.design_image_url || null
@@ -956,6 +1004,14 @@ export default function AdminProductsPage() {
                         <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">
                           {readText(request.description) || readText(request.merch_story) || '-'}
                         </p>
+                        {isRejected && rejectionReason && (
+                          <p
+                            data-testid="admin-pending-merch-rejection-reason"
+                            className="text-xs text-rose-600 dark:text-rose-300 line-clamp-2"
+                          >
+                            Rejection reason: {rejectionReason}
+                          </p>
+                        )}
                         <div className="flex flex-wrap gap-2">
                           {skuTypes.length > 0 ? (
                             <>
@@ -977,7 +1033,11 @@ export default function AdminProductsPage() {
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-3">
-                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest ring-1 ring-inset bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/20">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest ring-1 ring-inset ${
+                          isRejected
+                            ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20'
+                            : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/20'
+                        }`}>
                           {statusLabel}
                         </span>
                         <button
@@ -1118,6 +1178,14 @@ export default function AdminProductsPage() {
                     >
                       {readText(pendingReviewRequest.description) || readText(pendingReviewRequest.merch_story) || '-'}
                     </p>
+                    {pendingReviewStatus === 'rejected' && pendingReviewRejectionReason && (
+                      <p
+                        data-testid="admin-pending-merch-rejection-reason"
+                        className="rounded-2xl border border-rose-200 dark:border-rose-500/30 bg-rose-50/70 dark:bg-rose-500/10 p-3 text-xs font-medium text-rose-700 dark:text-rose-200 whitespace-pre-wrap"
+                      >
+                        Rejection reason: {pendingReviewRejectionReason}
+                      </p>
+                    )}
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/20 p-4 space-y-2">
@@ -1172,9 +1240,14 @@ export default function AdminProductsPage() {
                       data-testid="admin-rejection-reason"
                       value={pendingRejectionReason}
                       onChange={(event) => setPendingRejectionReason(event.target.value)}
+                      readOnly={!pendingReviewMutable}
                       rows={3}
                       className="block w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 px-4 py-3 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition shadow-inner"
-                      placeholder="Optional note to include when rejecting this request."
+                      placeholder={
+                        pendingReviewMutable
+                          ? 'Optional note to include when rejecting this request.'
+                          : 'Saved rejection reason'
+                      }
                     />
                   </div>
                 </>
@@ -1200,7 +1273,7 @@ export default function AdminProductsPage() {
                 type="button"
                 data-testid="admin-reject-merch"
                 onClick={rejectPendingRequest}
-                disabled={pendingModalLoading || pendingActionSaving}
+                disabled={!pendingReviewMutable || pendingModalLoading || pendingActionSaving}
                 className="rounded-[1.25rem] bg-rose-600 py-3 px-6 text-[10px] font-black uppercase tracking-[0.3em] text-white shadow-xl transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100"
               >
                 {pendingActionSaving ? 'Processing...' : 'Reject'}

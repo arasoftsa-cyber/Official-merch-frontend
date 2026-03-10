@@ -6,6 +6,7 @@ import {
   setRefreshToken,
   clearTokens,
 } from '../../../../shared/auth/tokenStore';
+import { buildGoogleOidcStartUrl } from '../../../../shared/auth/oidc';
 import { Page, Card } from '../../../../shared/ui/Page';
 
 const LOGIN_CONTEXT_KEY = 'om_login_context';
@@ -25,6 +26,7 @@ export default function PartnerLoginPage() {
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
   const portalError = params.get('portalError');
+  const portalMessage = params.get('message');
   const rawReturnTo = params.get('returnTo');
   let decodedReturnTo = rawReturnTo || '';
   if (rawReturnTo) {
@@ -45,6 +47,7 @@ export default function PartnerLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
   const emailRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -111,6 +114,13 @@ export default function PartnerLoginPage() {
     }
   };
 
+  const handleGoogleContinue = () => {
+    if (loading || isGoogleRedirecting) return;
+    setIsGoogleRedirecting(true);
+    const target = buildGoogleOidcStartUrl('partner', safeReturnTo || '/partner/dashboard');
+    window.location.assign(target);
+  };
+
   return (
     <Page className="flex min-h-screen flex-col items-center justify-center bg-white dark:bg-[#0a0a0a] px-4 py-12 text-slate-900 dark:text-white">
       <div className="w-full max-w-[440px]">
@@ -135,7 +145,15 @@ export default function PartnerLoginPage() {
 
           {portalError && (
             <div role="alert" aria-live="polite" className="mb-6 w-full rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-medium text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-400">
-              {portalError === 'partner_account' ? 'Please log in through the partner portal.' : 'This account is a fan account.'}
+              {portalMessage
+                ? portalMessage
+                : portalError === 'partner_account'
+                  ? 'Please log in through the partner portal.'
+                  : portalError === 'partner_unknown_account'
+                    ? 'No approved partner account found for this Google email.'
+                    : portalError === 'partner_not_approved'
+                      ? 'Partner account is not approved yet.'
+                      : 'This account is a fan account.'}
             </div>
           )}
 
@@ -198,14 +216,27 @@ export default function PartnerLoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || isGoogleRedirecting}
               className="h-14 w-full rounded-2xl bg-slate-900 text-base font-bold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-[#9c9c9c] dark:text-black dark:hover:bg-[#b0b0b0]"
             >
               {loading ? 'Authenticating...' : 'Login'}
             </button>
+
+            <button
+              data-testid="partner-login-google"
+              type="button"
+              onClick={handleGoogleContinue}
+              disabled={loading || isGoogleRedirecting}
+              className="h-14 w-full rounded-2xl border border-slate-300 bg-white text-base font-semibold text-slate-900 transition hover:bg-slate-100 disabled:opacity-50 dark:border-white/20 dark:bg-white/[0.03] dark:text-white dark:hover:bg-white/[0.08]"
+            >
+              {isGoogleRedirecting ? 'Redirecting to Google...' : 'Continue with Google'}
+            </button>
           </form>
 
           <div className="mt-8 text-center text-sm text-slate-500 dark:text-white/40">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white/50">
+              For approved partner/admin accounts only
+            </p>
             Fan login?{' '}
             <Link
               to={fanLinkTarget}
@@ -220,4 +251,3 @@ export default function PartnerLoginPage() {
     </Page>
   );
 }
-

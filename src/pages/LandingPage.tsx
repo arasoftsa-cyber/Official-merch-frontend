@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { fetchFeaturedDrops } from '../shared/api/appApi';
 import { apiFetch } from '../shared/api/http';
 import { resolveMediaUrl } from '../shared/utils/media';
-import PublicCardCover from '../features/catalog/components/PublicCardCover';
 import HeroBackgroundCarousel from '../features/catalog/components/HeroBackgroundCarousel';
+import PublicCatalogCard from '../features/catalog/components/PublicCatalogCard';
 
 type ArtistCard = {
   handle: string;
@@ -217,25 +217,16 @@ export default function LandingPage() {
         {artistsRow.status === 'success' && artistsRow.items.length > 0 && (
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {artistsRow.items.map((artist) => (
-              <Link
+              <PublicCatalogCard
                 key={artist.handle}
-                to={`/artists/${artist.handle}`}
-                className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 transition hover:border-slate-300 dark:hover:border-white/30"
-              >
-                <PublicCardCover
-                  title={artist.name}
-                  subtitle={artist.handle}
-                  imageUrl={artist.profilePhotoUrl ?? undefined}
-                  imageAlt={`${artist.name || 'Artist'} profile photo`}
-                  kind="artist"
-                  className="h-32 w-full rounded-none"
-                />
-                <div className="space-y-1 p-4">
-                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{artist.name}</p>
-                  <p className="truncate text-xs text-slate-600 dark:text-slate-400">@{artist.handle}</p>
-                  <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-white/80">View Artist</p>
-                </div>
-              </Link>
+                kind="artist"
+                title={artist.name}
+                subtitle={`@${artist.handle}`}
+                imageUrl={artist.profilePhotoUrl ?? undefined}
+                imageAlt={`${artist.name || 'Artist'} profile photo`}
+                href={`/artists/${artist.handle}`}
+                ctaLabel="View Artist"
+              />
             ))}
           </div>
         )}
@@ -280,36 +271,15 @@ export default function LandingPage() {
         {dropsRow.status === 'success' && dropsRow.items.length > 0 && (
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {dropsRow.items.map((drop) => (
-              drop.handle ? (
-                <Link
-                  key={drop.id}
-                  to={`/drops/${drop.handle}`}
-                  className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 transition hover:border-slate-300 dark:hover:border-white/30"
-                >
-                  <div className="flex h-28 items-center justify-center bg-slate-200 dark:bg-white/10 text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300">
-                    Drop
-                  </div>
-                  <div className="space-y-1 p-4">
-                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{drop.title}</p>
-                    <p className="truncate text-xs text-slate-600 dark:text-slate-400">{drop.artistName || 'Featured Artist'}</p>
-                    <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-white/80">View Drop</p>
-                  </div>
-                </Link>
-              ) : (
-                <div
-                  key={drop.id}
-                  className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 opacity-70"
-                >
-                  <div className="flex h-28 items-center justify-center bg-slate-200 dark:bg-white/10 text-xs font-bold uppercase tracking-[0.2em] text-slate-600 dark:text-slate-300">
-                    Drop
-                  </div>
-                  <div className="space-y-1 p-4">
-                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{drop.title}</p>
-                    <p className="truncate text-xs text-slate-600 dark:text-slate-400">{drop.artistName || 'Featured Artist'}</p>
-                    <p className="pt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-white/60">Drop unavailable</p>
-                  </div>
-                </div>
-              )
+              <PublicCatalogCard
+                key={drop.id}
+                kind="drop"
+                title={drop.title}
+                subtitle={drop.artistName || 'Featured Artist'}
+                href={drop.handle ? `/drops/${drop.handle}` : undefined}
+                ctaLabel="View Drop"
+                unavailableLabel="Drop unavailable"
+              />
             ))}
           </div>
         )}
@@ -317,4 +287,3 @@ export default function LandingPage() {
     </section>
   );
 }
-

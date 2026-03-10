@@ -1,7 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../../shared/api/http';
-import { setAccessToken } from '../../../../shared/auth/tokenStore';
+import { setAccessToken, setRefreshToken } from '../../../../shared/auth/tokenStore';
+import { buildGoogleOidcStartUrl } from '../../../../shared/auth/oidc';
 import { Page, Card } from '../../../../shared/ui/Page';
 
 const FIELD_HELPERS = {
@@ -161,6 +162,7 @@ export default function FanRegisterPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
   const submittingRef = useRef(false);
 
   const fieldErrors: Record<RegisterField, string | null> = {
@@ -180,7 +182,9 @@ export default function FanRegisterPage() {
   const hasValidationErrors = Object.values(fieldErrors).some(Boolean);
   const hasTouchedField = Object.values(touched).some(Boolean);
   const disableSubmit =
-    loading || ((submitAttempted || hasTouchedField) && hasValidationErrors);
+    loading ||
+    isGoogleRedirecting ||
+    ((submitAttempted || hasTouchedField) && hasValidationErrors);
 
   const inputClassName = (isInvalid: boolean) =>
     [
@@ -230,8 +234,12 @@ export default function FanRegisterPage() {
       });
 
       const token = res?.accessToken || res?.token;
+      const refreshToken = res?.refreshToken || res?.data?.refreshToken || res?.refresh_token || null;
       if (token) {
         setAccessToken(token);
+        if (refreshToken) {
+          setRefreshToken(refreshToken);
+        }
         navigate(safeRedirectTarget);
       } else {
         navigate(`/fan/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`);
@@ -242,6 +250,13 @@ export default function FanRegisterPage() {
       setLoading(false);
       submittingRef.current = false;
     }
+  };
+
+  const handleGoogleContinue = () => {
+    if (loading || isGoogleRedirecting) return;
+    setIsGoogleRedirecting(true);
+    const target = buildGoogleOidcStartUrl('fan', safeRedirectTarget);
+    window.location.assign(target);
   };
 
   return (
@@ -476,6 +491,16 @@ export default function FanRegisterPage() {
               className="mt-6 h-14 w-full rounded-2xl bg-slate-900 text-base font-bold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-[#9c9c9c] dark:text-black dark:hover:bg-[#b0b0b0]"
             >
               {loading ? 'Creating account...' : 'Sign Up'}
+            </button>
+
+            <button
+              data-testid="fan-register-google"
+              type="button"
+              onClick={handleGoogleContinue}
+              disabled={loading || isGoogleRedirecting}
+              className="h-14 w-full rounded-2xl border border-slate-300 bg-white text-base font-semibold text-slate-900 transition hover:bg-slate-100 disabled:opacity-50 dark:border-white/20 dark:bg-white/[0.03] dark:text-white dark:hover:bg-white/[0.08]"
+            >
+              {isGoogleRedirecting ? 'Redirecting to Google...' : 'Continue with Google'}
             </button>
           </form>
 
