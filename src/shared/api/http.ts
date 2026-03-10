@@ -5,28 +5,12 @@ import {
   setAccessToken,
   setRefreshToken,
 } from '../auth/tokenStore';
+import { getApiBaseUrl } from './baseUrl';
 import { validateApiResponse } from '../validation/schemas';
-
-const envBase =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
-  (import.meta.env.REACT_APP_API_BASE_URL as string | undefined)?.trim() ||
-  (import.meta.env.VITE_API_URL as string | undefined)?.trim();
-
-const normalizeBase = (value: string): string => {
-  let normalized = value;
-  if (normalized.endsWith('/')) {
-    normalized = normalized.slice(0, -1);
-  }
-  if (normalized.endsWith('/api')) {
-    normalized = normalized.slice(0, normalized.length - 4);
-  }
-  return normalized;
-};
-
-const DEFAULT_API_BASE = "http://localhost:3000";
-export const API_BASE =
-  envBase && envBase.length > 0 ? normalizeBase(envBase) : DEFAULT_API_BASE;
+export const API_BASE = getApiBaseUrl();
 const AUTH_REFRESH_ENDPOINT = '/api/auth/refresh';
+const NETWORK_ERROR_MESSAGE =
+  'Cannot reach the server. Make sure the backend is running and your API base URL is correct.';
 type ApiRequestOptions = RequestInit & { schema?: any };
 const LOGIN_OR_REGISTER_PATH_RE = /^\/(fan|partner)\/(login|register)(?:\/|$)/i;
 
@@ -47,6 +31,15 @@ function isPlainObject(value: any): value is Record<string, unknown> {
     !(value instanceof URLSearchParams)
   );
 }
+
+const isLikelyNetworkError = (err: unknown): boolean => {
+  const message = String((err as any)?.message || err || '').toLowerCase();
+  if (message.includes('failed to fetch')) return true;
+  if (message.includes('networkerror')) return true;
+  if (message.includes('err_connection_refused')) return true;
+  if (message.includes('network request failed')) return true;
+  return false;
+};
 
 const getAccessTokenFromPayload = (payload: any): string | null => {
   return (
@@ -133,7 +126,18 @@ async function apiFetchInternal(
   }
 
   init.headers = headers;
-  const response = await fetch(url, init);
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch (err: any) {
+    if (isLikelyNetworkError(err)) {
+      const networkError = new Error(NETWORK_ERROR_MESSAGE);
+      (networkError as any).status = 0;
+      (networkError as any).code = 'network_error';
+      throw networkError;
+    }
+    throw err;
+  }
   const contentType = response.headers.get('content-type') ?? '';
   let payload: any = null;
 

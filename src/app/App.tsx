@@ -15,6 +15,7 @@ import {
   setRefreshToken,
   clearTokens,
 } from '../shared/auth/tokenStore';
+import { OIDC_CALLBACK_PATH } from '../shared/auth/oidc';
 import { API_BASE } from '../shared/api/http';
 import { getMe, getConfig } from '../shared/api/appApi';
 import { ForbiddenPage, NotFoundPage } from '../pages/ErrorPages';
@@ -103,6 +104,7 @@ const AUTH_BYPASS_PATHS = [...LOGIN_PATHS, '/logout'];
 const LOGIN_CONTEXT_KEY = 'om_login_context';
 const LOGIN_OR_REGISTER_PATH_RE = /^\/(fan|partner)\/(login|register)(?:\/|$)/i;
 const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'admin']);
+const OIDC_CALLBACK_ROUTE_PATH = OIDC_CALLBACK_PATH.replace(/^\/+/, '');
 
 function isExactPath(pathname: string, candidate: string): boolean {
   return pathname === candidate || pathname === `${candidate}/`;
@@ -548,7 +550,7 @@ function AppRoutes() {
           element={<RedirectPage to="/partner/artist/drop/:id" />}
         />
         <Route element={<BareLayout />}>
-          <Route path="auth/oidc/callback" element={<OidcCallbackPage />} />
+          <Route path={OIDC_CALLBACK_ROUTE_PATH} element={<OidcCallbackPage />} />
         </Route>
         <Route path="cart" element={<CartPage />} />
         <Route path="forbidden" element={<ForbiddenPage />} />
