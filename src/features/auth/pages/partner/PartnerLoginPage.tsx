@@ -186,12 +186,21 @@ export default function PartnerLoginPage() {
             </div>
 
             <div className="space-y-2">
-              <label
-                htmlFor="password"
-                className="px-1 text-sm font-medium text-slate-500 dark:text-white/40"
-              >
-                Password
-              </label>
+              <div className="flex items-center justify-between px-1">
+                <label
+                  htmlFor="password"
+                  className="text-sm font-medium text-slate-500 dark:text-white/40"
+                >
+                  Password
+                </label>
+                <Link
+                  data-testid="partner-login-forgot-password"
+                  to={`/forgot-password?portal=partner&returnTo=${encodeURIComponent(redirectHint)}`}
+                  className="text-[10px] font-bold uppercase tracking-widest text-slate-400 transition hover:text-slate-900 dark:text-white/30 dark:hover:text-white"
+                >
+                  Forgot?
+                </Link>
+              </div>
               <div className="relative">
                 <input
                   id="password"

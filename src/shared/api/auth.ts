@@ -42,3 +42,17 @@ export async function logoutAuth(): Promise<AuthResponse> {
     body: { refreshToken },
   });
 }
+
+export async function forgotPassword(email: string): Promise<AuthResponse> {
+  return apiFetch('/auth/password/forgot', {
+    method: 'POST',
+    body: { email },
+  });
+}
+
+export async function resetPassword(token: string, password: string): Promise<AuthResponse> {
+  return apiFetch('/auth/password/reset', {
+    method: 'POST',
+    body: { token, password },
+  });
+}

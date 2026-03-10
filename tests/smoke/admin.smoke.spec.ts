@@ -142,4 +142,96 @@ test.describe('Admin smoke', () => {
 
     await expect(page.getByText(/approved|application approved|success/i)).toBeVisible({ timeout: 20000 });
   });
+
+  test('onboarding request flow supports UI rejection with required comment', async ({ page }) => {
+    const stamp = Date.now();
+    const artistName = `Smoke Reject Artist ${stamp}`;
+    const handle = `smoke-reject-${stamp}`;
+    const handleWithAt = `@${handle}`;
+    const email = `smoke.reject.${stamp}@example.invalid`;
+    const phone = `8888${(stamp % 1000000).toString().padStart(6, '0')}`;
+
+    await gotoApp(page, '/apply/artist', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/apply\/artist/, { timeout: 20000 });
+    await page.getByLabel(/artist name/i).fill(artistName);
+    await page.getByLabel(/handle/i).fill(handleWithAt);
+    await page.getByLabel(/^email/i).fill(email);
+    await page.getByLabel(/^phone/i).fill(phone);
+
+    const basicPlanCard = page
+      .locator('section,div,article')
+      .filter({ hasText: /basic/i })
+      .filter({ hasText: /free/i })
+      .first();
+    const fallbackPlanCard = page
+      .locator('section,div,article')
+      .filter({ has: page.getByRole('button', { name: /enroll/i }) })
+      .first();
+    const cardWithEnroll = (await basicPlanCard.isVisible().catch(() => false))
+      ? basicPlanCard
+      : fallbackPlanCard;
+    await expect(cardWithEnroll).toBeVisible({ timeout: 20000 });
+    await cardWithEnroll.getByRole('button', { name: /enroll/i }).first().click();
+
+    await page.getByRole('button', { name: /request onboarding/i }).click();
+    await expect(page.getByText(/request submitted|submitted|request received|thank you/i)).toBeVisible({
+      timeout: 20000,
+    });
+
+    await loginAdmin(page);
+    await gotoApp(page, '/partner/admin/artist-requests', { waitUntil: 'domcontentloaded' });
+
+    const pendingFilter = page.getByLabel(/filter status/i);
+    if ((await pendingFilter.count().catch(() => 0)) > 0) {
+      await pendingFilter.selectOption('pending').catch(() => null);
+    }
+
+    const escapedHandle = handle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const requestCard = page
+      .locator('div.rounded-2xl.border')
+      .filter({ hasText: new RegExp(`@?${escapedHandle}`, 'i') })
+      .first();
+    await expect(requestCard).toBeVisible({ timeout: 30000 });
+
+    await requestCard.getByRole('button', { name: /review application|review/i }).click();
+    await expect(page.getByRole('heading', { name: /review application/i })).toBeVisible({ timeout: 20000 });
+
+    const rejectAttemptWithoutComment = page
+      .waitForResponse(
+        (r) =>
+          r.request().method() === 'POST' &&
+          /\/api\/admin\/artist-access-requests\/[^/]+\/reject/i.test(r.url()),
+        { timeout: 1200 }
+      )
+      .then(() => true)
+      .catch(() => false);
+
+    await page.getByRole('button', { name: /reject application/i }).click();
+    const rejectWithoutCommentResponse = await rejectAttemptWithoutComment;
+    expect(rejectWithoutCommentResponse).toBe(false);
+    await expect(page.getByText(/rejection comment is required/i)).toBeVisible({ timeout: 10000 });
+
+    const rejectionReason = `Rejected by smoke ${Date.now()} due to missing launch assets.`;
+    await page
+      .getByPlaceholder(/if rejecting, please explain why/i)
+      .fill(rejectionReason);
+
+    const rejectRespPromise = page.waitForResponse(
+      (r) =>
+        r.request().method() === 'POST' &&
+        /\/api\/admin\/artist-access-requests\/[^/]+\/reject/i.test(r.url()),
+      { timeout: 30000 }
+    );
+    await page.getByRole('button', { name: /reject application/i }).click();
+    const resp = await rejectRespPromise;
+    if (!resp.ok()) {
+      const body = await resp.text().catch(() => '<unavailable>');
+      console.error('[reject] response body', body);
+      throw new Error(`Reject failed: ${resp.status()} ${body}`);
+    }
+
+    await expect(page.getByText(/rejected successfully|application rejected|success/i)).toBeVisible({
+      timeout: 20000,
+    });
+  });
 });

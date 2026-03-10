@@ -5,6 +5,8 @@ const PUBLIC_ROUTES_WITH_CHROME = [
   '/fan/login',
   '/fan/register',
   '/partner/login',
+  '/forgot-password?portal=fan',
+  '/reset-password?token=smoke-token',
   '/artists',
   '/products',
   '/drops',

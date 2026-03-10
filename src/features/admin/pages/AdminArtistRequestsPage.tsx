@@ -684,7 +684,7 @@ export default function AdminArtistRequestsPage() {
                       <div>
                         <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Message For Fans</h4>
                         <div className="rounded-xl bg-slate-50 dark:bg-black/20 p-4 border border-slate-100 dark:border-white/5">
-                          <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 italic">"{reviewRequest.messageForFans || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â'}"</p>
+                          <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 italic">"{reviewRequest.messageForFans || 'No message provided.'}"</p>
                         </div>
                       </div>
                     </section>

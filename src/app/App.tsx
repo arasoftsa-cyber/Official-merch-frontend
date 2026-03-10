@@ -36,6 +36,8 @@ const SmokePage = lazy(() => import('../pages/SmokePage'));
 const FanLoginPage = lazy(() => import('../features/auth/pages/fan/FanLoginPage'));
 const FanRegisterPage = lazy(() => import('../features/auth/pages/fan/FanRegisterPage'));
 const PartnerLoginPage = lazy(() => import('../features/auth/pages/partner/PartnerLoginPage'));
+const ForgotPasswordPage = lazy(() => import('../features/auth/pages/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('../features/auth/pages/ResetPasswordPage'));
 const OidcCallbackPage = lazy(() => import('../features/auth/pages/OidcCallbackPage'));
 const PartnerEntryRedirectPage = lazy(
   () => import('../features/auth/pages/partner/PartnerEntryRedirectPage')
@@ -536,6 +538,8 @@ function AppRoutes() {
             path="partner/login"
             element={loginEntryElement(<PartnerLoginPage />)}
           />
+          <Route path="forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="reset-password" element={<ResetPasswordPage />} />
         </Route>
         <Route
           path="artists/dashboard"
