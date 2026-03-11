@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { apiFetch, apiFetchForm } from '../../../shared/api/http';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { resolveMediaUrl } from '../../../shared/utils/media';
 import { formatOnboardingSkuTypeLabel } from '../../../shared/utils/onboardingSkuTypes';
+import AdminProductsCatalogTable from '../components/products/AdminProductsCatalogTable';
+import AdminProductsErrorBanner from '../components/products/AdminProductsErrorBanner';
+import AdminProductsHeader from '../components/products/AdminProductsHeader';
+import AdminProductsTabs from '../components/products/AdminProductsTabs';
+import AdminPendingMerchList from '../components/products/AdminPendingMerchList';
+import { useAdminProductsPage } from '../products/useAdminProductsPage';
 
 import type {
-  Artist,
   FieldErrors,
   PendingMerchRequest,
   Product,
@@ -18,7 +22,6 @@ import {
   MIN_MARKETPLACE_IMAGES,
   MAX_MARKETPLACE_IMAGES,
   MARKETPLACE_IMAGE_ACCEPT,
-  extractItems,
   extractListingPhotoUrls,
   firstText,
   hasSnapshotChanges,
@@ -29,9 +32,6 @@ import {
   mapEditSaveErrorMessage,
   mapPendingApproveErrorMessage,
   mapPendingRejectErrorMessage,
-  normalizeArtistItem,
-  normalizePendingRequestItem,
-  normalizeProductItem,
   normalizeStatus,
   readPendingSkuTypes,
   readText,
@@ -42,11 +42,18 @@ export default function AdminProductsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ProductsTab>('catalog');
-  const [products, setProducts] = useState<Product[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<PendingMerchRequest[]>([]);
-  const [artists, setArtists] = useState<Artist[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    products,
+    pendingRequests,
+    artists,
+    loading,
+    error,
+    reload,
+    loadProductDetail,
+    saveProductEdits,
+    approvePendingMerchRequest,
+    rejectPendingMerchRequest,
+  } = useAdminProductsPage();
   const [saving, setSaving] = useState(false);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -107,69 +114,6 @@ export default function AdminProductsPage() {
       { replace: true }
     );
   };
-
-  const load = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [productsResult, artistsResult, pendingResult, rejectedResult] = await Promise.allSettled([
-        apiFetch('/admin/products', { cache: 'no-store' }),
-        apiFetch('/artists', { cache: 'no-store' }),
-        apiFetch('/admin/products/onboarding?status=pending', { cache: 'no-store' }),
-        apiFetch('/admin/products/onboarding?status=rejected', { cache: 'no-store' }),
-      ]);
-
-      if (productsResult.status !== 'fulfilled') {
-        throw productsResult.reason;
-      }
-
-      const productsPayload = productsResult.value;
-      const artistsPayload = artistsResult.status === 'fulfilled' ? artistsResult.value : null;
-      const pendingPayload = pendingResult.status === 'fulfilled' ? pendingResult.value : null;
-      const rejectedPayload = rejectedResult.status === 'fulfilled' ? rejectedResult.value : null;
-
-      const productItems = extractItems(productsPayload, ['items', 'products', 'rows', 'data'])
-        .map((item: any) => normalizeProductItem(item))
-        .filter((item: Product | null): item is Product => Boolean(item));
-      const artistItems = extractItems(artistsPayload, ['artists', 'items', 'data'])
-        .map((item: any) => normalizeArtistItem(item))
-        .filter((item: Artist | null): item is Artist => Boolean(item));
-      const pendingItems = extractItems(pendingPayload, ['items', 'products', 'rows', 'data'])
-        .map((item: any) => normalizePendingRequestItem(item))
-        .filter(
-          (item: PendingMerchRequest | null): item is PendingMerchRequest => Boolean(item)
-        );
-      const rejectedItems = extractItems(rejectedPayload, ['items', 'products', 'rows', 'data'])
-        .map((item: any) => normalizePendingRequestItem(item))
-        .filter(
-          (item: PendingMerchRequest | null): item is PendingMerchRequest => Boolean(item)
-        );
-
-      setProducts(productItems);
-      setArtists(artistItems);
-      setPendingRequests(
-        [...pendingItems, ...rejectedItems]
-          .filter((item) => ['pending', 'rejected'].includes(normalizeStatus(item?.status)))
-          .sort((left, right) => {
-            const leftTs = new Date(
-              String(left.createdAt || left.created_at || 0)
-            ).getTime();
-            const rightTs = new Date(
-              String(right.createdAt || right.created_at || 0)
-            ).getTime();
-            return Number.isFinite(rightTs) ? rightTs - (Number.isFinite(leftTs) ? leftTs : 0) : 0;
-          })
-      );
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to load admin products');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
 
   useEffect(() => {
     if (editReplacementPhotos.length === 0) {
@@ -370,8 +314,7 @@ export default function AdminProductsPage() {
     }
     applyEditProductToForm(seedProduct || placeholderProduct);
     try {
-      const payload = await apiFetch(`/products/${normalizedId}`);
-      const detailProduct = (payload?.product ?? payload) as Product | null;
+      const detailProduct = await loadProductDetail(normalizedId);
       if (detailProduct && typeof detailProduct === 'object' && !editInteractionRef.current) {
         applyEditProductToForm({
           ...(seedProduct || placeholderProduct),
@@ -484,37 +427,25 @@ export default function AdminProductsPage() {
     setEditError(null);
 
     try {
-      if (shouldPatchProduct) {
-        await apiFetch(`/admin/products/${editingProduct.id}`, {
-          method: 'PATCH',
-          body: {
-            title: editTitle.trim(),
-            description: editDescription.trim(),
-            merch_story: editDescription.trim(),
-            isActive: editActive,
-          },
-        });
-      }
-
-      if (shouldUploadPhotos) {
-        const fd = new FormData();
-        editReplacementPhotos.forEach((file) => {
-          fd.append('photos', file);
-        });
-        const photoUpdate = await apiFetchForm(`/admin/products/${editingProduct.id}/photos`, fd, {
-          method: 'PUT',
-        });
-        const latestUrls = Array.isArray(photoUpdate?.listingPhotoUrls)
-          ? photoUpdate.listingPhotoUrls
-            .map((entry: any) => resolveMediaUrl(typeof entry === 'string' ? entry : null))
-            .filter((entry: string | null): entry is string => Boolean(entry))
-          : [];
-        setEditListingPhotoUrls(latestUrls.slice(0, 4));
+      const { latestListingPhotoUrls } = await saveProductEdits({
+        productId: editingProduct.id,
+        shouldPatchProduct,
+        patchBody: {
+          title: editTitle.trim(),
+          description: editDescription.trim(),
+          merch_story: editDescription.trim(),
+          isActive: editActive,
+        },
+        shouldUploadPhotos,
+        photos: editReplacementPhotos,
+      });
+      if (latestListingPhotoUrls.length > 0) {
+        setEditListingPhotoUrls(latestListingPhotoUrls.slice(0, 4));
         setEditReplacementPhotos([]);
       }
 
       closeEditModal();
-      await load();
+      await reload();
     } catch (err: any) {
       setEditError(mapEditSaveErrorMessage(err));
     } finally {
@@ -549,8 +480,7 @@ export default function AdminProductsPage() {
     setPendingRejectionReason(readText(request.rejectionReason || request.rejection_reason));
     setPendingModalLoading(true);
     try {
-      const payload = await apiFetch(`/products/${request.id}`, { cache: 'no-store' });
-      const detailProduct = (payload?.product ?? payload) as PendingMerchRequest | null;
+      const detailProduct = (await loadProductDetail(request.id)) as PendingMerchRequest | null;
       if (detailProduct && typeof detailProduct === 'object') {
         const resolvedRejectionReason = readText(
           request.rejectionReason ||
@@ -662,15 +592,9 @@ export default function AdminProductsPage() {
     setPendingModalError(null);
     setPendingModalSuccess(null);
     try {
-      const fd = new FormData();
-      pendingMarketplaceFiles.forEach((file) => {
-        fd.append('listing_photos', file);
-      });
-      await apiFetchForm(`/admin/products/${pendingReviewRequest.id}/onboarding/approve`, fd, {
-        method: 'POST',
-      });
+      await approvePendingMerchRequest(pendingReviewRequest.id, pendingMarketplaceFiles);
       setPendingModalSuccess('Merch request approved successfully.');
-      await load();
+      await reload();
       closePendingModal();
     } catch (err: any) {
       setPendingModalError(mapPendingApproveErrorMessage(err));
@@ -685,14 +609,12 @@ export default function AdminProductsPage() {
     setPendingModalError(null);
     setPendingModalSuccess(null);
     try {
-      await apiFetch(`/admin/products/${pendingReviewRequest.id}/onboarding/reject`, {
-        method: 'POST',
-        body: {
-          rejection_reason: readText(pendingRejectionReason) || null,
-        },
-      });
+      await rejectPendingMerchRequest(
+        pendingReviewRequest.id,
+        readText(pendingRejectionReason) || null
+      );
       setPendingModalSuccess('Merch request rejected.');
-      await load();
+      await reload();
       closePendingModal();
     } catch (err: any) {
       setPendingModalError(mapPendingRejectErrorMessage(err));
@@ -744,318 +666,33 @@ export default function AdminProductsPage() {
 
   return (
     <main className="space-y-8 min-h-screen pb-20">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-100 dark:border-white/5">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-600 dark:text-indigo-400">Inventory Management</p>
-          </div>
-          <h1 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">Products</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <Link
-            to="/partner/admin/inventory-skus"
-            className="group relative inline-flex items-center justify-center rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-6 py-4 text-xs font-black uppercase tracking-[0.2em] text-slate-700 dark:text-slate-200 transition-all hover:scale-[1.02] hover:border-slate-900 dark:hover:border-white/20 hover:text-slate-900 dark:hover:text-white"
-          >
-            SKU Master
-          </Link>
-          <Link
-            to="/partner/admin/products/new"
-            className="group relative inline-flex items-center justify-center rounded-2xl bg-slate-900 dark:bg-white px-8 py-4 text-xs font-black uppercase tracking-[0.2em] text-white dark:text-slate-950 shadow-2xl shadow-slate-900/20 dark:shadow-white/10 transition-all hover:scale-[1.02] active:scale-95 overflow-hidden"
-          >
-            <span className="relative z-10 flex items-center gap-2">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
-              </svg>
-              Create Product
-            </span>
-          </Link>
-          <Link
-            className="group flex items-center gap-2 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-900 dark:hover:border-white/20 transition-all shadow-sm"
-            to="/partner/admin"
-          >
-            <svg className="h-4 w-4 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Dashboard
-          </Link>
-        </div>
-      </div>
+      <AdminProductsHeader />
 
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => setActiveTab('catalog')}
-          className={`rounded-xl border px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
-            activeTab === 'catalog'
-              ? 'border-slate-900 dark:border-white bg-slate-900 dark:bg-white text-white dark:text-slate-950'
-              : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          Catalog Products
-        </button>
-        <button
-          type="button"
-          data-testid="admin-pending-merch-tab"
-          onClick={() => setActiveTab('pending')}
-          className={`rounded-xl border px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
-            activeTab === 'pending'
-              ? 'border-slate-900 dark:border-white bg-slate-900 dark:bg-white text-white dark:text-slate-950'
-              : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          Pending Merch ({pendingQueueCount})
-        </button>
-      </div>
+      <AdminProductsTabs
+        activeTab={activeTab}
+        pendingQueueCount={pendingQueueCount}
+        onTabChange={setActiveTab}
+      />
 
-      {error && (
-        <div className="rounded-2xl bg-rose-50 dark:bg-rose-500/10 p-4 border border-rose-100 dark:border-rose-500/20">
-          <p className="text-sm font-bold text-rose-600 dark:text-rose-400 flex items-center gap-2">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            {error}
-          </p>
-        </div>
-      )}
+      {error && <AdminProductsErrorBanner error={error} />}
 
       {activeTab === 'catalog' && (
-        <div
-          data-testid="admin-products-list"
-          className="overflow-hidden rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 shadow-2xl shadow-slate-200/50 dark:shadow-none"
-        >
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 text-left text-[10px] font-black uppercase tracking-[0.25em] text-slate-400 dark:text-slate-500">
-              <th className="px-8 py-5">Product Info</th>
-              <th className="px-8 py-5">Artist</th>
-              <th className="px-8 py-5">Performance</th>
-              <th className="px-8 py-5">Status</th>
-              <th className="px-8 py-5 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {!loading && products.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-8 py-12 text-center">
-                  <div className="flex flex-col items-center gap-2 text-slate-400">
-                    <svg className="h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4a2 2 0 012-2m16 0h-4m-8 0H4" />
-                    </svg>
-                    <p className="text-sm font-bold uppercase tracking-widest">No products found</p>
-                  </div>
-                </td>
-              </tr>
-            )}
-            {products.map((product) => {
-              const active = Boolean(product.isActive ?? product.is_active);
-              const statusLabel =
-                typeof product.status === 'string' && product.status.trim().length > 0
-                  ? product.status.toLowerCase()
-                  : active
-                    ? 'active'
-                    : 'inactive';
-              const rowProductId = String(product.productId || product.id || '').trim();
-              const artistId = product.artistId || product.artist_id || '';
-              const thumbnail = extractListingPhotoUrls(product)[0] || '';
-
-              return (
-                <tr
-                  key={rowProductId || product.id}
-                  data-testid="admin-product-row"
-                  data-product-id={rowProductId}
-                  className="group border-b border-slate-50 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors"
-                >
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-4">
-                      {thumbnail ? (
-                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-200 dark:border-white/10 shadow-sm transition-transform group-hover:scale-105">
-                          <img
-                            data-testid="admin-product-row-thumbnail"
-                            src={thumbnail}
-                            alt={product.title ?? 'Product'}
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div
-                          data-testid="admin-product-row-thumbnail-empty"
-                          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-white/5 text-slate-400"
-                        >
-                          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                      )}
-                      <div>
-                        <p className="font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                          {product.title ?? 'Untitled Product'}
-                        </p>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">ID: {product.id.slice(0, 8)}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5">
-                    <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                      {artistLabelById[artistId] || 'Unknown Artist'}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-900 dark:text-white uppercase">
-                        {(String(product.merchType || product.merch_type || 'Other')).replace('_', ' ')}
-                      </span>
-                      <span className="text-[10px] text-slate-400 uppercase tracking-tighter">Category</span>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest ring-1 ring-inset ${active
-                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/20'
-                        : 'bg-slate-50 dark:bg-white/5 text-slate-400 dark:text-slate-500 ring-slate-200 dark:ring-white/10'
-                      }`}>
-                      {statusLabel}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex justify-end items-center gap-2">
-                      <button
-                        type="button"
-                        data-testid="admin-product-row-edit"
-                        onClick={() => openEditModal(product)}
-                        className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-950 transition-all shadow-sm"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/partner/admin/products/${rowProductId}/variants`)}
-                        className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-950 transition-all shadow-sm"
-                      >
-                        Variants
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        </div>
+        <AdminProductsCatalogTable
+          loading={loading}
+          products={products}
+          artistLabelById={artistLabelById}
+          onEditProduct={openEditModal}
+          onOpenVariants={(productId) => navigate(`/partner/admin/products/${productId}/variants`)}
+        />
       )}
 
       {activeTab === 'pending' && (
-        <div className="rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-6 space-y-4 shadow-2xl shadow-slate-200/50 dark:shadow-none">
-          {loading ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">Loading pending requests...</p>
-          ) : pendingRequests.length === 0 ? (
-            <p className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/20 px-4 py-6 text-center text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              No pending or rejected merchandise requests.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {pendingRequests.map((request) => {
-                const requestId = String(request.id || request.productId || '').trim();
-                const statusLabel = normalizeStatus(request.status || 'pending') || 'pending';
-                const isRejected = statusLabel === 'rejected';
-                const artistId = String(request.artistId || request.artist_id || '').trim();
-                const artistLabel =
-                  readText(request.artistName) ||
-                  readText(request.artistHandle) ||
-                  artistLabelById[artistId] ||
-                  'Unknown Artist';
-                const rejectionReason = readText(
-                  request.rejectionReason || request.rejection_reason
-                );
-                const skuTypes = readPendingSkuTypes(request);
-                const designImage = resolveMediaUrl(
-                  request.designImageUrl || request.design_image_url || null
-                );
-                return (
-                  <article
-                    key={requestId || `${request.title || 'pending'}-${request.createdAt || request.created_at || ''}`}
-                    data-testid="admin-pending-merch-row"
-                    className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 p-4"
-                  >
-                    <div className="grid gap-4 md:grid-cols-[160px_1fr_auto]">
-                      <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/20 overflow-hidden h-32">
-                        {designImage ? (
-                          <img
-                            src={designImage}
-                            alt={request.title || 'Design preview'}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            No design
-                          </div>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-sm font-black text-slate-900 dark:text-white">
-                          {request.title || request.name || 'Untitled merch'}
-                        </p>
-                        <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                          Artist: {artistLabel}
-                        </p>
-                        <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                          Submitted: {resolvePendingSubmittedAt(request)}
-                        </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">
-                          {readText(request.description) || readText(request.merch_story) || '-'}
-                        </p>
-                        {isRejected && rejectionReason && (
-                          <p
-                            data-testid="admin-pending-merch-rejection-reason"
-                            className="text-xs text-rose-600 dark:text-rose-300 line-clamp-2"
-                          >
-                            Rejection reason: {rejectionReason}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap gap-2">
-                          {skuTypes.length > 0 ? (
-                            <>
-                              <span className="sr-only">
-                                {skuTypes.map((entry) => formatOnboardingSkuTypeLabel(entry)).join(', ')}
-                              </span>
-                              {skuTypes.map((skuType, index) => (
-                                <span
-                                  key={`${requestId}-${skuType}-${index}`}
-                                  className="rounded-full border border-slate-200 dark:border-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300"
-                                >
-                                  {formatOnboardingSkuTypeLabel(skuType)}
-                                </span>
-                              ))}
-                            </>
-                          ) : (
-                            <span className="text-[10px] uppercase tracking-widest text-slate-400">No SKU types</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-3">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest ring-1 ring-inset ${
-                          isRejected
-                            ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20'
-                            : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/20'
-                        }`}>
-                          {statusLabel}
-                        </span>
-                        <button
-                          type="button"
-                          data-testid="admin-pending-merch-open"
-                          onClick={() => openPendingModal(request)}
-                          className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 hover:bg-slate-900 dark:hover:bg-white hover:text-white dark:hover:text-slate-950 transition-all shadow-sm"
-                        >
-                          View Details
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <AdminPendingMerchList
+          loading={loading}
+          pendingRequests={pendingRequests}
+          artistLabelById={artistLabelById}
+          onOpenPendingModal={openPendingModal}
+        />
       )}
 
       {isPendingOpen && pendingReviewRequest && (
