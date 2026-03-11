@@ -48,7 +48,7 @@ const extractBuyer = (order: OrderRecord) =>
   order.buyerEmail ?? order.email ?? order.buyerId ?? order.userId ?? 'buyer';
 
 const selectCreated = (order: OrderRecord) =>
-  order.createdAt ?? order.created ?? order.created_at ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â';
+  order.createdAt ?? order.created ?? order.created_at ?? '-';
 
 const columns: TableColumn<OrderRecord>[] = [
   {

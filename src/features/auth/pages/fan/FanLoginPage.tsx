@@ -173,7 +173,8 @@ export default function FanLoginPage() {
                 Password
               </label>
               <Link
-                to="/forgot-password"
+                data-testid="fan-login-forgot-password"
+                to={`/forgot-password?portal=fan&returnTo=${encodeURIComponent(safeReturnTo)}`}
                 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 transition hover:text-slate-900 dark:text-white/30 dark:hover:text-white"
               >
                 Forgot?

@@ -8,6 +8,7 @@ import React, {
 import type { CartItem } from './cartTypes';
 
 const STORAGE_KEY = 'om_cart_v1';
+const CART_UPDATED_EVENT = 'om:cart-updated';
 
 const normalizeVariantId = (value?: string | null) => value ?? '';
 
@@ -35,6 +36,7 @@ export function CartProvider({ children }: React.PropsWithChildren<{}>) {
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
   }, [items]);
 
   const cartCount = useMemo(

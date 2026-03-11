@@ -1,13 +1,17 @@
 export function requireEnv(key: string): string {
   const value = process.env[key];
   if (!value || !value.trim()) {
-    throw new Error(`Missing ${key} in .env.ui.local`);
+    throw new Error(`Missing ${key} in Playwright env (.env.ui.local, .env, or CI env vars)`);
   }
   return value.trim();
 }
 
 export const UI_BASE_URL = requireEnv('UI_BASE_URL');
-export const VITE_API_BASE_URL = requireEnv('VITE_API_BASE_URL');
+export const VITE_API_BASE_URL =
+  process.env.VITE_API_BASE_URL?.trim() ||
+  process.env.VITE_API_BASE_DEV?.trim() ||
+  process.env.VITE_API_BASE_PROD?.trim() ||
+  requireEnv('VITE_API_BASE_URL');
 export const BUYER_EMAIL = requireEnv('BUYER_EMAIL');
 export const BUYER_PASSWORD = requireEnv('BUYER_PASSWORD');
 export const ADMIN_EMAIL = requireEnv('ADMIN_EMAIL');

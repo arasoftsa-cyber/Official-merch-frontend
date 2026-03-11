@@ -7,6 +7,7 @@ export type CartItem = {
 };
 
 const STORAGE_KEY = 'om_cart_v1';
+const CART_UPDATED_EVENT = 'om:cart-updated';
 
 let cart: CartItem[] = [];
 const listeners: Array<() => void> = [];
@@ -24,6 +25,9 @@ const loadCart = () => {
 
 const persist = () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CART_UPDATED_EVENT));
+  }
   listeners.slice().forEach((fn) => fn());
 };
 

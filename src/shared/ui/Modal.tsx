@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+﻿import React, { useEffect, useId, useRef } from 'react';
 
 type ModalProps = {
   open: boolean;
@@ -8,19 +8,79 @@ type ModalProps = {
   footer?: React.ReactNode;
 };
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+const getFocusableElements = (root: HTMLElement | null): HTMLElement[] => {
+  if (!root) return [];
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (node) => !node.hasAttribute('disabled') && node.tabIndex !== -1 && node.offsetParent !== null
+  );
+};
+
 export function Modal({ open, title, children, onClose, footer }: ModalProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const titleId = title ? 'modal-title' : undefined;
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const generatedId = useId();
+  const titleId = title ? `${generatedId}-title` : undefined;
 
   useEffect(() => {
     if (!open) return;
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const panel = panelRef.current;
+    const focusable = getFocusableElements(panel);
+    if (focusable.length > 0) {
+      focusable[0].focus();
+    } else {
+      panel?.focus();
+    }
+
     const handler = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
         onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const currentPanel = panelRef.current;
+      if (!currentPanel) return;
+      const nodes = getFocusableElements(currentPanel);
+      if (nodes.length === 0) {
+        event.preventDefault();
+        currentPanel.focus();
+        return;
+      }
+
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (event.shiftKey) {
+        if (!active || active === first || !currentPanel.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+        return;
+      }
+
+      if (!active || active === last || !currentPanel.contains(active)) {
+        event.preventDefault();
+        first.focus();
       }
     };
+
     document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    return () => {
+      document.removeEventListener('keydown', handler);
+      const previous = previouslyFocusedRef.current;
+      if (previous && typeof previous.focus === 'function') {
+        previous.focus();
+      }
+      previouslyFocusedRef.current = null;
+    };
   }, [open, onClose]);
 
   if (!open) return null;
@@ -44,6 +104,7 @@ export function Modal({ open, title, children, onClose, footer }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         className="relative z-10 mx-4 w-full max-w-lg rounded-2xl bg-slate-950 ring-1 ring-white/10 shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
@@ -58,7 +119,7 @@ export function Modal({ open, title, children, onClose, footer }: ModalProps) {
             onClick={onClose}
             className="rounded-full bg-white/10 px-3 py-1 text-sm font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/60"
           >
-            Ã—
+            ×
           </button>
         </div>
         <div className="px-5 py-6 text-sm text-slate-100">{children}</div>
@@ -69,3 +130,4 @@ export function Modal({ open, title, children, onClose, footer }: ModalProps) {
     </div>
   );
 }
+

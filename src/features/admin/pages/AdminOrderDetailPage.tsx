@@ -144,6 +144,7 @@ export default function AdminOrderDetailPage() {
                 <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">Order Status</p>
                 <div className="mt-2">
                   <span
+                    data-testid="admin-order-status"
                     className={`inline-flex rounded-full px-4 py-1 text-[10px] font-black uppercase tracking-widest ${statusPillClass(
                       orderStatus || 'unknown'
                     )}`}
@@ -167,7 +168,7 @@ export default function AdminOrderDetailPage() {
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">Payment Gateway</p>
                 <p className="mt-2 text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight">
-                  {paymentStatus || '-'} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {paymentProvider}
+                  {paymentStatus || '-'} - {paymentProvider}
                 </p>
               </div>
             </div>
@@ -212,6 +213,7 @@ export default function AdminOrderDetailPage() {
 
           <footer className="flex flex-wrap items-center gap-4 py-4">
             <button
+              data-testid="admin-order-fulfill"
               type="button"
               onClick={async () => {
                 if (!resolvedOrderId) return;
@@ -234,6 +236,7 @@ export default function AdminOrderDetailPage() {
               {fulfillBusy ? 'Processing...' : 'Mark as Fulfilled'}
             </button>
             <button
+              data-testid="admin-order-refund"
               type="button"
               onClick={async () => {
                 if (!resolvedOrderId) return;

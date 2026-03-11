@@ -1,10 +1,5 @@
 import './index.css';
 
-const bootElem = document.getElementById('root');
-if (bootElem) {
-  bootElem.innerHTML = "<div style='padding:16px;font-family:monospace'>BOOT PROBE: main.tsx executed</div>";
-}
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
@@ -13,17 +8,17 @@ import AppErrorBoundary from './shared/components/ux/AppErrorBoundary';
 import { ToastProvider } from './shared/components/ux/ToastHost';
 import { API_BASE } from './shared/api/baseUrl';
 
+const isDev = Boolean(import.meta.env.DEV);
 const root = document.getElementById('root');
 if (!root) {
   throw new Error('Root element not found');
 }
 
-if (import.meta.env.DEV) {
+if (isDev) {
   // eslint-disable-next-line no-console
   console.log(`[api] resolved base URL: ${API_BASE}`);
 }
 
-const sanitize = (value: string) => value.replace(/</g, '&lt;');
 const isAbort = (err: unknown): boolean => {
   if (!err || typeof err !== 'object') return false;
   const maybe = err as any;
@@ -35,39 +30,61 @@ const isAbort = (err: unknown): boolean => {
   return msg.toLowerCase().includes('aborted') && msg.toLowerCase().includes('signal');
 };
 const writeCrash = (headline: string, message: string) => {
-  const rootEl = document.getElementById('root');
-  if (!rootEl) return;
-  let overlay = document.getElementById('crash-overlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'crash-overlay';
-    overlay.style.cssText =
-      'position:fixed;top:0;left:0;width:100%;height:100%;padding:16px;background:#fff;z-index:9999;overflow:auto;font-family:monospace;';
-    rootEl.appendChild(overlay);
-  } else if (!overlay.parentElement) {
-    rootEl.appendChild(overlay);
-  }
-  overlay.innerHTML = `<pre style="white-space:pre-wrap;">${headline}\n\n${sanitize(message)}</pre>`;
-};
-
-window.addEventListener('error', (event) => {
-  const msg =
-    (event as any)?.error?.stack ||
-    (typeof event?.message === 'string' ? event.message : null) ||
-    JSON.stringify(event);
-  writeCrash('FRONTEND CRASH', msg ?? 'Unknown error');
-});
-window.addEventListener('unhandledrejection', (event) => {
-  const reason = (event as any)?.reason;
-  if (isAbort(reason)) {
-    event.preventDefault();
+  if (!isDev) {
+    // eslint-disable-next-line no-console
+    console.error(headline, message);
     return;
   }
-  const msg =
-    reason?.stack || reason?.message || JSON.stringify(reason) ||
-    'Unknown rejection';
-  writeCrash('FRONTEND CRASH (unhandledrejection)', msg);
-});
+
+  const rootEl = document.getElementById('root');
+  if (!rootEl) return;
+
+  while (rootEl.firstChild) {
+    rootEl.removeChild(rootEl.firstChild);
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText =
+    'padding:16px;min-height:100vh;background:#fff;color:#111;font-family:system-ui,sans-serif;';
+
+  const title = document.createElement('h1');
+  title.textContent = 'Something went wrong';
+  title.style.cssText = 'margin:0 0 8px 0;font-size:20px;';
+  wrapper.appendChild(title);
+
+  const subtitle = document.createElement('p');
+  subtitle.textContent = 'Please reload the page or try again shortly.';
+  subtitle.style.cssText = 'margin:0;';
+  wrapper.appendChild(subtitle);
+
+  const pre = document.createElement('pre');
+  pre.textContent = `${headline}\n\n${message || 'Unknown error'}`;
+  pre.style.cssText = 'white-space:pre-wrap;margin-top:16px;font-size:12px;';
+  wrapper.appendChild(pre);
+
+  rootEl.appendChild(wrapper);
+};
+
+if (isDev) {
+  window.addEventListener('error', (event) => {
+    const msg =
+      (event as any)?.error?.stack ||
+      (typeof event?.message === 'string' ? event.message : null) ||
+      JSON.stringify(event);
+    writeCrash('FRONTEND CRASH', msg ?? 'Unknown error');
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = (event as any)?.reason;
+    if (isAbort(reason)) {
+      event.preventDefault();
+      return;
+    }
+    const msg =
+      reason?.stack || reason?.message || JSON.stringify(reason) ||
+      'Unknown rejection';
+    writeCrash('FRONTEND CRASH (unhandledrejection)', msg);
+  });
+}
 
 try {
   ReactDOM.createRoot(root).render(

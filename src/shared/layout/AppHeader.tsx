@@ -14,6 +14,7 @@ const navItems = [
   { label: 'Products', to: '/products' },
 ];
 const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'admin']);
+const CART_UPDATED_EVENT = 'om:cart-updated';
 
 function readCartCount(): number {
   if (typeof window === 'undefined' || !window.localStorage) return 0;
@@ -44,11 +45,12 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
     const syncCount = () => setCartCount(readCartCount());
     syncCount();
     const onStorage = () => syncCount();
+    const onCartUpdated = () => syncCount();
     window.addEventListener('storage', onStorage);
-    const intervalId = window.setInterval(syncCount, 1000);
+    window.addEventListener(CART_UPDATED_EVENT, onCartUpdated);
     return () => {
       window.removeEventListener('storage', onStorage);
-      window.clearInterval(intervalId);
+      window.removeEventListener(CART_UPDATED_EVENT, onCartUpdated);
     };
   }, []);
 
