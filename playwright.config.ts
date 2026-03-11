@@ -7,8 +7,9 @@ const envUiLocalPath = path.resolve(repoRoot, '.env.ui.local');
 const envPath = path.resolve(repoRoot, '.env');
 const hasEnvUiLocal = fs.existsSync(envUiLocalPath);
 const hasEnv = fs.existsSync(envPath);
+const isCi = Boolean(process.env.CI);
 
-if (!hasEnvUiLocal) {
+if (!hasEnvUiLocal && !hasEnv && !isCi) {
   throw new Error(
     `Playwright env file not found: ${envUiLocalPath}. Checked fallback: ${envPath}`
   );
@@ -17,10 +18,8 @@ if (!hasEnvUiLocal) {
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const dotenv = require('dotenv');
-  dotenv.config({ path: envUiLocalPath });
-  if (hasEnv) {
-    dotenv.config({ path: envPath, override: false });
-  }
+  if (hasEnvUiLocal) dotenv.config({ path: envUiLocalPath });
+  if (hasEnv) dotenv.config({ path: envPath, override: false });
 } catch (error: any) {
   throw new Error(
     `Failed to load dotenv for Playwright config. envUiLocalPath=${envUiLocalPath} envPath=${envPath} message=${error?.message ?? 'unknown'}`
@@ -37,7 +36,7 @@ const configuredWorkers = Number(process.env.PW_WORKERS || '');
 const resolvedWorkers =
   Number.isFinite(configuredWorkers) && configuredWorkers > 0
     ? configuredWorkers
-    : process.env.CI
+    : isCi
       ? 1
       : 2;
 
@@ -49,7 +48,7 @@ export default defineConfig({
   retries: 0,
   use: {
     baseURL: UI_BASE_URL,
-    headless: false,
+    headless: isCi ? true : false,
   },
   // Multi-browser projects intentionally disabled for local dev simplicity
 });
