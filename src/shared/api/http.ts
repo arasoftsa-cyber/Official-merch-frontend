@@ -5,9 +5,9 @@ import {
   setAccessToken,
   setRefreshToken,
 } from '../auth/tokenStore';
-import { getApiBaseUrl } from './baseUrl';
+import API_BASE_CONFIG from '@/config/apiBase';
 import { validateApiResponse } from '../validation/schemas';
-export const API_BASE = getApiBaseUrl();
+export const API_BASE = String(API_BASE_CONFIG || '').trim().replace(/\/+$/, '');
 const AUTH_REFRESH_ENDPOINT = '/api/auth/refresh';
 const NETWORK_ERROR_MESSAGE =
   'Cannot reach the server. Make sure the backend is running and your API base URL is correct.';
