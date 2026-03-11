@@ -121,6 +121,34 @@ test.describe('Public catalog unified UX', () => {
     await expect(sortSelect).toHaveValue('newest');
   });
 
+  test('/products renders empty-state for successful empty response', async ({ page }) => {
+    await page.route(/\/api\/products(?:[/?#]|$)/i, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [] }),
+      });
+    });
+
+    await page.goto(`${UI_BASE_URL}/products`, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByText('No products yet')).toBeVisible();
+    await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
+  });
+
+  test('/products renders error-state when API request fails', async ({ page }) => {
+    await page.route(/\/api\/products(?:[/?#]|$)/i, async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'internal_server_error', message: 'Internal Server Error' }),
+      });
+    });
+
+    await page.goto(`${UI_BASE_URL}/products`, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByText('Something went wrong')).toBeVisible();
+    await expect(page.getByText('No products yet')).toHaveCount(0);
+  });
+
   test('public catalog pages load with shared structure', async ({ page }) => {
     await mockArtists(page, 4);
     await mockDrops(page, 4);
