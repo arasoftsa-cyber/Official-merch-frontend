@@ -10,7 +10,13 @@ export default {
     host: "0.0.0.0",
     port: 5173,
     strictPort: true,
-    allowedHosts: ['officialmerch.tech', 'www.officialmerch.tech'],
+    allowedHosts: [
+      "localhost",
+      "127.0.0.1",
+      "::1",
+      "officialmerch.tech",
+      "www.officialmerch.tech",
+    ],
     proxy: {
       "/api": {
         target: "http://localhost:3000",
