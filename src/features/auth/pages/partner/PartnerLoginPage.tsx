@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../../shared/api/http';
 import {
@@ -8,39 +8,27 @@ import {
 } from '../../../../shared/auth/tokenStore';
 import { buildGoogleOidcStartUrl } from '../../../../shared/auth/oidc';
 import { Page, Card } from '../../../../shared/ui/Page';
-
-const LOGIN_CONTEXT_KEY = 'om_login_context';
-const PARTNER_ALLOWED_ROLES = new Set(['artist', 'label', 'admin']);
-
-function resolveRole(payload: any): string {
-  const role =
-    payload?.role ||
-    (Array.isArray(payload?.roles) ? payload.roles[0] : null) ||
-    payload?.user?.role ||
-    null;
-  return String(role || '').toLowerCase();
-}
+import {
+  isPartnerRole,
+  parseAuthErrorFromSearch,
+  resolvePortalIssue,
+  resolvePostLoginRedirect,
+  resolveRoleFromAuthPayload,
+  toSafeReturnTo,
+} from '../../../../shared/auth/routingPolicy';
 
 export default function PartnerLoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
-  const portalError = params.get('portalError');
-  const portalMessage = params.get('message');
   const rawReturnTo = params.get('returnTo');
-  let decodedReturnTo = rawReturnTo || '';
-  if (rawReturnTo) {
-    try {
-      decodedReturnTo = decodeURIComponent(rawReturnTo);
-    } catch {
-      decodedReturnTo = rawReturnTo;
-    }
-  }
-  const safeReturnTo =
-    decodedReturnTo.startsWith('/') && !decodedReturnTo.startsWith('//')
-      ? decodedReturnTo
-      : null;
-  const redirectHint = safeReturnTo || '/partner/admin';
+  const safeReturnTo = toSafeReturnTo(rawReturnTo, { portal: 'partner', fallbackRoute: '/partner' });
+  const portalIssue = resolvePortalIssue({
+    ...parseAuthErrorFromSearch(location.search),
+    currentPortal: 'partner',
+    returnTo: safeReturnTo,
+  });
+  const redirectHint = safeReturnTo;
   const fanLinkTarget = `/fan/login?returnTo=${encodeURIComponent(redirectHint)}`;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -50,15 +38,10 @@ export default function PartnerLoginPage() {
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
   const emailRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    localStorage.setItem(LOGIN_CONTEXT_KEY, 'partner');
-  }, []);
-
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setLoading(true);
-    localStorage.setItem(LOGIN_CONTEXT_KEY, 'partner');
     try {
       const loginResponse = await apiFetch('/auth/partner/login', {
         method: 'POST',
@@ -87,28 +70,42 @@ export default function PartnerLoginPage() {
       }
 
       const me = await apiFetch('/auth/whoami');
-      const role = resolveRole(me);
-      if (!PARTNER_ALLOWED_ROLES.has(role)) {
+      const role = resolveRoleFromAuthPayload(me);
+      if (!isPartnerRole(role)) {
         clearTokens();
-        localStorage.removeItem(LOGIN_CONTEXT_KEY);
-        navigate('/fan/login?portalError=fan_account', { replace: true });
+        const issue = resolvePortalIssue({
+          code: 'auth_portal_mismatch_partner_to_fan',
+          currentPortal: 'partner',
+          returnTo: safeReturnTo,
+        });
+        if (issue.redirectTo) {
+          navigate(issue.redirectTo, { replace: true });
+          return;
+        }
+        setError(issue.message || 'Login failed');
         return;
       }
 
-      localStorage.removeItem(LOGIN_CONTEXT_KEY);
-      if (role === 'artist' || role === 'label' || role === 'admin') {
-        navigate('/partner/dashboard', { replace: true });
-      } else {
-        navigate('/', { replace: true });
-      }
+      const target = resolvePostLoginRedirect({
+        returnTo: rawReturnTo,
+        portal: 'partner',
+        role,
+        fallbackRoute: '/',
+      });
+      navigate(target, { replace: true });
     } catch (err: any) {
-      if (err?.message === 'fan_account' || err?.message === 'portal_fan_account') {
+      const issue = resolvePortalIssue({
+        code: err?.payload?.error || err?.message,
+        message: err?.payload?.message,
+        currentPortal: 'partner',
+        returnTo: safeReturnTo,
+      });
+      if (issue.redirectTo) {
         clearTokens();
-        localStorage.removeItem(LOGIN_CONTEXT_KEY);
-        navigate('/fan/login?portalError=fan_account', { replace: true });
+        navigate(issue.redirectTo, { replace: true });
         return;
       }
-      setError(err?.message ?? 'Login failed');
+      setError(issue.message || err?.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -117,7 +114,7 @@ export default function PartnerLoginPage() {
   const handleGoogleContinue = () => {
     if (loading || isGoogleRedirecting) return;
     setIsGoogleRedirecting(true);
-    const target = buildGoogleOidcStartUrl('partner', safeReturnTo || '/partner/dashboard');
+    const target = buildGoogleOidcStartUrl('partner', safeReturnTo);
     window.location.assign(target);
   };
 
@@ -143,17 +140,9 @@ export default function PartnerLoginPage() {
             </p>
           </div>
 
-          {portalError && (
+          {portalIssue.message && (
             <div role="alert" aria-live="polite" className="mb-6 w-full rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-medium text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/5 dark:text-amber-400">
-              {portalMessage
-                ? portalMessage
-                : portalError === 'partner_account'
-                  ? 'Please log in through the partner portal.'
-                  : portalError === 'partner_unknown_account'
-                    ? 'No approved partner account found for this Google email.'
-                    : portalError === 'partner_not_approved'
-                      ? 'Partner account is not approved yet.'
-                      : 'This account is a fan account.'}
+              {portalIssue.message}
             </div>
           )}
 

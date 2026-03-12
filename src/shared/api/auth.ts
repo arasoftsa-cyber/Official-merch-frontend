@@ -27,14 +27,6 @@ export async function registerBuyer({
   });
 }
 
-export async function refreshAuth(): Promise<AuthResponse> {
-  const refreshToken = getRefreshToken();
-  return apiFetch('/auth/refresh', {
-    method: 'POST',
-    body: { refreshToken },
-  });
-}
-
 export async function logoutAuth(): Promise<AuthResponse> {
   const refreshToken = getRefreshToken();
   return apiFetch('/auth/logout', {

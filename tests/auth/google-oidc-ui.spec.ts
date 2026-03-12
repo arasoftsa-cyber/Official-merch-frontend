@@ -2,6 +2,52 @@ import { test, expect } from '@playwright/test';
 import { UI_BASE_URL } from '../_env';
 
 test.describe('Google OIDC entry points', () => {
+  test('fan google start request sends canonical portal and sanitized returnTo', async ({
+    page,
+  }) => {
+    let startRequestUrl = '';
+    await page.route('**/api/auth/oidc/google/start*', async (route) => {
+      startRequestUrl = route.request().url();
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/plain',
+        body: 'ok',
+      });
+    });
+
+    await page.goto(`${UI_BASE_URL}/fan/login?returnTo=${encodeURIComponent('https://evil.example')}`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.getByTestId('fan-login-google').click();
+
+    await expect.poll(() => startRequestUrl).not.toBe('');
+    const url = new URL(startRequestUrl);
+    expect(url.searchParams.get('portal')).toBe('fan');
+    expect(url.searchParams.get('returnTo')).toBe('/fan');
+  });
+
+  test('partner google start request sends explicit partner portal', async ({ page }) => {
+    let startRequestUrl = '';
+    await page.route('**/api/auth/oidc/google/start*', async (route) => {
+      startRequestUrl = route.request().url();
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/plain',
+        body: 'ok',
+      });
+    });
+
+    await page.goto(`${UI_BASE_URL}/partner/login?returnTo=%2Fpartner%2Fartist`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.getByTestId('partner-login-google').click();
+
+    await expect.poll(() => startRequestUrl).not.toBe('');
+    const url = new URL(startRequestUrl);
+    expect(url.searchParams.get('portal')).toBe('partner');
+    expect(url.searchParams.get('returnTo')).toBe('/partner/artist');
+  });
+
   test('fan login renders Google button', async ({ page }) => {
     await page.goto(`${UI_BASE_URL}/fan/login?returnTo=%2Ffan`, {
       waitUntil: 'domcontentloaded',
@@ -30,7 +76,7 @@ test.describe('Google OIDC entry points', () => {
 
   test('blocked cross-portal Google case shows readable fan guidance', async ({ page }) => {
     await page.goto(
-      `${UI_BASE_URL}/fan/login?portalError=partner_account&message=${encodeURIComponent(
+      `${UI_BASE_URL}/fan/login?error=auth_portal_mismatch_fan_to_partner&message=${encodeURIComponent(
         'This account belongs to the Partner Portal. Use partner login.'
       )}`,
       { waitUntil: 'domcontentloaded' }
@@ -40,5 +86,24 @@ test.describe('Google OIDC entry points', () => {
     await expect(alert).toBeVisible();
     await expect(alert).toContainText(/partner portal/i);
     await expect(page.getByTestId('fan-login-partner-link')).toBeVisible();
+  });
+
+  test('oidc callback failure maps to deterministic login target', async ({ page }) => {
+    await page.goto(
+      `${UI_BASE_URL}/auth/oidc/callback?portal=fan&returnTo=%2Ffan%2Forders&error=auth_portal_mismatch_fan_to_partner&message=${encodeURIComponent(
+        'This account belongs to the Partner Portal. Use partner login.'
+      )}`,
+      { waitUntil: 'domcontentloaded' }
+    );
+
+    const alert = page.getByTestId('oidc-callback-error');
+    const backToLogin = page.getByRole('link', { name: /back to login/i });
+
+    await expect(alert).toBeVisible();
+    await expect(alert).toContainText(/partner portal/i);
+    await expect(backToLogin).toHaveAttribute(
+      'href',
+      '/partner/login?returnTo=%2Ffan%2Forders'
+    );
   });
 });

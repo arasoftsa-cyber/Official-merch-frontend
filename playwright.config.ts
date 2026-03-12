@@ -48,7 +48,7 @@ try {
 
 // Load required test env exports only after dotenv has populated process.env.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { UI_BASE_URL, VITE_API_BASE_URL } = require('./tests/_env');
+const { UI_BASE_URL, API_BASE_URL } = require('./tests/_env');
 
 if (profile !== 'local') {
   throw new Error(
@@ -56,9 +56,9 @@ if (profile !== 'local') {
   );
 }
 assertLocalUrl('UI_BASE_URL', UI_BASE_URL);
-assertLocalUrl('VITE_API_BASE_URL', VITE_API_BASE_URL);
+assertLocalUrl('API_BASE_URL', API_BASE_URL);
 
-console.log(`[playwright] baseURL=${UI_BASE_URL} apiBaseURL=${VITE_API_BASE_URL}`);
+console.log(`[playwright] baseURL=${UI_BASE_URL} apiBaseURL=${API_BASE_URL}`);
 
 const configuredWorkers = Number(process.env.PW_WORKERS || '');
 const resolvedWorkers =

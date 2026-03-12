@@ -24,7 +24,7 @@ test.describe('Public route chrome', () => {
 
   test('/auth/oidc/callback does not show public footer', async ({ page }) => {
     await page.goto(
-      `${UI_BASE_URL}/auth/oidc/callback?portalError=test&message=${encodeURIComponent('OIDC callback test')}`,
+      `${UI_BASE_URL}/auth/oidc/callback?portal=fan&error=auth_oidc_failed&message=${encodeURIComponent('OIDC callback test')}`,
       { waitUntil: 'domcontentloaded' }
     );
 

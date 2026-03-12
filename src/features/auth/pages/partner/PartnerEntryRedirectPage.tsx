@@ -2,15 +2,10 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMe } from '../../../../shared/api/appApi';
 import { getAccessToken } from '../../../../shared/auth/tokenStore';
-
-function resolveRole(payload: any): string {
-  const role =
-    payload?.role ||
-    (Array.isArray(payload?.roles) ? payload.roles[0] : null) ||
-    payload?.user?.role ||
-    null;
-  return String(role || '').toLowerCase();
-}
+import {
+  resolvePartnerEntryRedirect,
+  resolveRoleFromAuthPayload,
+} from '../../../../shared/auth/routingPolicy';
 
 export default function PartnerEntryRedirectPage() {
   const navigate = useNavigate();
@@ -28,21 +23,9 @@ export default function PartnerEntryRedirectPage() {
       try {
         const me = await getMe();
         if (!active) return;
-        const role = resolveRole(me);
-
-        if (role === 'admin') {
-          navigate('/partner/admin', { replace: true });
-          return;
-        }
-        if (role === 'artist') {
-          navigate('/partner/artist', { replace: true });
-          return;
-        }
-        if (role === 'label') {
-          navigate('/partner/label', { replace: true });
-          return;
-        }
-        navigate('/', { replace: true });
+        const role = resolveRoleFromAuthPayload(me);
+        const target = resolvePartnerEntryRedirect(role, '/');
+        navigate(target, { replace: true });
       } catch {
         if (!active) return;
         navigate('/', { replace: true });
