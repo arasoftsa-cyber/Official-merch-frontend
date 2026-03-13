@@ -1,7 +1,7 @@
 import { test, expect } from '../helpers/session';
 import type { Page } from '@playwright/test';
 import { gotoApp } from '../helpers/auth';
-import { getProductCards } from '../helpers/assertions';
+import { cartLinkInHeader, getProductCards } from '../helpers/assertions';
 
 const PRICE_OR_UNAVAILABLE_RE = /price unavailable|\b\S*[0-9]+(?:[.,][0-9]{2})?\b/i;
 
@@ -71,20 +71,106 @@ const openProductDetail = async (page: Page): Promise<{ productName: string; pro
   return { productName: title, productId };
 };
 
+const setupBuyerOrderDetailMocks = async (page: Page, orderId: string) => {
+  const state = {
+    id: orderId,
+    status: 'placed',
+    totalCents: 2999,
+    payment: { status: 'paid' },
+    items: [],
+    createdAt: '2026-03-01T08:00:00.000Z',
+  };
+
+  const calls = {
+    detail: 0,
+    events: 0,
+    cancel: 0,
+  };
+
+  await page.route(/\/api\/orders\/[^?#]+(?:[?#].*)?$/i, async (route) => {
+    const method = route.request().method().toUpperCase();
+    const url = new URL(route.request().url());
+    const path = url.pathname.toLowerCase();
+    const base = `/api/orders/${orderId}`.toLowerCase();
+
+    if (path === `${base}/events`) {
+      if (method !== 'GET') {
+        await route.fulfill({
+          status: 405,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'method_not_allowed' }),
+        });
+        return;
+      }
+      calls.events += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+      return;
+    }
+
+    if (path === `${base}/cancel`) {
+      if (method !== 'POST') {
+        await route.fulfill({
+          status: 405,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'method_not_allowed' }),
+        });
+        return;
+      }
+      calls.cancel += 1;
+      state.status = 'cancelled';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, status: 'cancelled' }),
+      });
+      return;
+    }
+
+    if (path === base && method === 'GET') {
+      calls.detail += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(state),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+
+  return calls;
+};
+
 test.describe('Buyer catalog and checkout', () => {
-  test('buyer can open a product detail with polished shopper CTA set', async ({ page }) => {
-    await gotoApp(page, '/products');
-    const productCard = getProductCards(page).first();
-    await expect(productCard).toBeVisible({ timeout: 15000 });
-    await productCard.click();
-    await expect(page).toHaveURL(/\/products\//);
-    const title = page.getByRole('heading').first();
-    await expect(title).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(PRICE_OR_UNAVAILABLE_RE).first()).toBeVisible({
+  test('buyer can browse the storefront, open a product, add it to cart, and reach the cart summary', async ({
+    buyerPage,
+  }) => {
+    const { productName } = await openProductDetail(buyerPage);
+
+    await expect(buyerPage.getByText(PRICE_OR_UNAVAILABLE_RE).first()).toBeVisible({
       timeout: 15000,
     });
-    await expect(page.locator('select#variant-select')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /create order/i })).toHaveCount(0);
+    await expect(buyerPage.locator('select#variant-select')).toHaveCount(0);
+    await expect(buyerPage.getByRole('button', { name: /create order/i })).toHaveCount(0);
+
+    await buyerPage.getByRole('button', { name: /^add to cart$/i }).click();
+    await expect(cartLinkInHeader(buyerPage).first()).toContainText('1', { timeout: 10000 });
+    await cartLinkInHeader(buyerPage).first().click();
+
+    await expect(buyerPage).toHaveURL(/\/cart(?:[/?#]|$)/i, { timeout: 15000 });
+    await expect(buyerPage.getByRole('heading', { name: /^cart$/i })).toBeVisible({ timeout: 15000 });
+    const escapedProductName = productName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    await expect(buyerPage.getByText(new RegExp(escapedProductName, 'i')).first()).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(buyerPage.getByRole('button', { name: /^checkout$/i })).toBeVisible({
+      timeout: 15000,
+    });
   });
 
   test('buyer selects only size/color while variant resolves internally', async ({ buyerPage }) => {
@@ -176,8 +262,32 @@ test.describe('Buyer catalog and checkout', () => {
     expect(createdLine?.variantId).toBe(selectedVariantId);
   });
 
-  test('buyer can still navigate from catalog to product detail', async ({ page }) => {
-    const detail = await openProductDetail(page);
-    expect(detail.productName.length).toBeGreaterThan(0);
+  test('buyer can cancel an order from order detail and see the updated state', async ({
+    buyerPage,
+  }) => {
+    const orderId = 'order-buyer-actions-1';
+    const calls = await setupBuyerOrderDetailMocks(buyerPage, orderId);
+
+    await gotoApp(buyerPage, `/fan/orders/${orderId}`, {
+      waitUntil: 'domcontentloaded',
+    });
+
+    await expect(buyerPage.getByTestId('order-status')).toContainText(/placed/i, {
+      timeout: 15000,
+    });
+
+    await buyerPage.getByTestId('order-cancel').click();
+
+    const confirmButton = buyerPage.getByRole('button', { name: /^confirm$/i }).first();
+    if (await confirmButton.isVisible().catch(() => false)) {
+      await confirmButton.click();
+    }
+
+    await expect.poll(() => calls.cancel, { timeout: 10000 }).toBe(1);
+    await expect(buyerPage.getByText(/order cancelled/i).first()).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(buyerPage.getByTestId('order-status')).toContainText(/cancelled/i);
+    await expect(calls.detail).toBeGreaterThanOrEqual(2);
   });
 });
