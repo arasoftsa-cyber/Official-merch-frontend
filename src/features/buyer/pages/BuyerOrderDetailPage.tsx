@@ -5,7 +5,10 @@ import { getAccessToken } from '../../../shared/auth/tokenStore';
 import { ConfirmDialog } from '../../../shared/ui/ConfirmDialog';
 import { isUiTest } from '../../../shared/lib/uiTest';
 import { Card } from '../../../shared/ui/Page';
-import { formatCurrencyFromCents } from '../../../shared/utils/currency';
+import {
+  formatCurrencyFromCents,
+  formatDateTime as formatDateTimeValue,
+} from '../../../shared/utils/formatting';
 
 type OrderDetail = Record<string, any>;
 
@@ -233,9 +236,7 @@ export default function BuyerOrderDetailPage() {
 
   const formatEventTimestamp = (value?: string | null) => {
     if (!value) return 'Unknown time';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return value;
-    return parsed.toLocaleString();
+    return formatDateTimeValue(value);
   };
 
   useEffect(() => {

@@ -4,7 +4,10 @@ import AppShell from '../../../shared/components/layout/AppShell';
 import KpiCard from '../../../shared/ui/legacy/KpiCard';
 import EmptyState from '../../../shared/ui/legacy/EmptyState';
 import { apiFetch } from '../../../shared/api/http';
-import { formatCurrencyFromCents } from '../../../shared/utils/currency';
+import {
+  formatCurrencyFromCents,
+  formatDateTime as formatDateTimeValue,
+} from '../../../shared/utils/formatting';
 
 type ArtistOrderItem = {
   productId: string;
@@ -74,9 +77,7 @@ const formatCurrency = (cents: number) => formatCurrencyFromCents(cents);
 
 const formatDateTime = (value: string | null) => {
   if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  return formatDateTimeValue(value);
 };
 
 export default function LabelArtistDetailPage() {

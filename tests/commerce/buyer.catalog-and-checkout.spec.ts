@@ -3,6 +3,8 @@ import type { Page } from '@playwright/test';
 import { gotoApp } from '../helpers/auth';
 import { getProductCards } from '../helpers/assertions';
 
+const PRICE_OR_UNAVAILABLE_RE = /price unavailable|\b\S*[0-9]+(?:[.,][0-9]{2})?\b/i;
+
 const getProductTitleFromDetail = async (page: Page): Promise<string> => {
   const waitForDetailApi = async () => {
     await page
@@ -78,9 +80,9 @@ test.describe('Buyer catalog and checkout', () => {
     await expect(page).toHaveURL(/\/products\//);
     const title = page.getByRole('heading').first();
     await expect(title).toBeVisible({ timeout: 15000 });
-    await expect(
-      page.getByText(/price unavailable|₹\s*\d+([.,]\d{2})?/i).first()
-    ).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(PRICE_OR_UNAVAILABLE_RE).first()).toBeVisible({
+      timeout: 15000,
+    });
     await expect(page.locator('select#variant-select')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /create order/i })).toHaveCount(0);
   });

@@ -112,7 +112,11 @@ export const createAdminProductWithStatus = async (
 
 export const gotoArtistProducts = async (page: Page) => {
   await gotoApp(page, '/partner/artist/products', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: /artist products/i })).toBeVisible({ timeout: 20000 });
+  await expect(page).toHaveURL(/\/partner\/artist\/products(?:[/?#]|$)/i, { timeout: 20000 });
+  await expect(
+    page.locator('h1').filter({ hasText: /artist products/i }).first()
+  ).toBeVisible({ timeout: 20000 });
+  await expect(page.getByRole('combobox').first()).toBeVisible({ timeout: 20000 });
 };
 
 export const artistRowByTitle = (page: Page, title: string) =>

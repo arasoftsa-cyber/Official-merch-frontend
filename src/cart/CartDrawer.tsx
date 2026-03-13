@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CartItem, getCart, removeItem, updateQty, clearCart, subscribeCart } from './cartStore';
-import { formatCurrencyFromAmount } from '../shared/utils/currency';
+import { formatCurrencyFromAmount } from '../shared/utils/formatting';
 
 type CartDrawerProps = {
   open: boolean;

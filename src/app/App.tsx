@@ -17,6 +17,7 @@ import { getMe, getConfig } from '../shared/api/appApi';
 import { safeErrorMessage } from '../shared/utils/safeError';
 import { CartProvider } from '../cart/CartContext';
 import ThemeToggle from '../shared/components/ThemeToggle';
+import FormattingConfigProvider from '../shared/formatting/FormattingConfigProvider';
 import { PublicRoutes } from './routes/publicRoutes';
 import { AuthRoutes } from './routes/authRoutes';
 import { PartnerRoutes } from './routes/partnerRoutes';
@@ -274,9 +275,11 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <CartProvider>
-      <AppRoutes />
-      <ThemeToggle />
-    </CartProvider>
+    <FormattingConfigProvider>
+      <CartProvider>
+        <AppRoutes />
+        <ThemeToggle />
+      </CartProvider>
+    </FormattingConfigProvider>
   );
 }

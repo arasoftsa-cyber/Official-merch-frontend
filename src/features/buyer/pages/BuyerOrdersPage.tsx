@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAccessToken } from "../../../shared/auth/tokenStore";
 import { Card } from "../../../shared/ui/Page";
-import { formatCurrencyFromCents } from "../../../shared/utils/currency";
+import {
+  formatCurrencyFromCents,
+  formatDate,
+} from "../../../shared/utils/formatting";
 
 type OrderLike = {
   id: string;
@@ -196,11 +199,11 @@ export default function BuyerOrdersPage() {
                   const status = normalizeStatus(order.status || order.paymentStatus);
                   const shortId = (order.id || "").slice(0, 8) || "-";
                   const created = order.createdAt
-                    ? new Date(order.createdAt).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })
+                    ? formatDate(order.createdAt, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
                     : "-";
 
                   return (

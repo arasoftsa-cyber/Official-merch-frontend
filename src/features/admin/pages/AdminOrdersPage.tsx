@@ -4,7 +4,7 @@ import DataTable, { TableColumn } from '../../../shared/ui/legacy/DataTable';
 import { getAccessToken } from '../../../shared/auth/tokenStore';
 import { apiFetch } from '../../../shared/api/http';
 import { Container, Page } from '../../../shared/ui/Page';
-import { formatCurrencyFromCents } from '../../../shared/utils/currency';
+import { formatCurrencyFromCents } from '../../../shared/utils/formatting';
 import ErrorBanner from '../../../shared/components/ux/ErrorBanner';
 import LoadingSkeleton from '../../../shared/components/ux/LoadingSkeleton';
 

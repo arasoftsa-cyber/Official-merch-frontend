@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import {
   createRefreshFlow,
   shouldRetryAfter401,
@@ -12,6 +11,7 @@ import {
   setAccessToken,
   setRefreshToken,
 } from '../../src/shared/auth/tokenStore';
+import { resolveFrontendPathFromTest } from '../helpers/repoPaths';
 
 test.describe('auth refresh flow', () => {
   test.beforeEach(() => {
@@ -120,7 +120,7 @@ test.describe('auth refresh flow', () => {
   });
 
   test('App.tsx no longer contains refresh orchestration', () => {
-    const appPath = resolve(process.cwd(), 'src/app/App.tsx');
+    const appPath = resolveFrontendPathFromTest(test.info().file, 'src', 'app', 'App.tsx');
     const source = readFileSync(appPath, 'utf8');
     expect(source.includes('/api/auth/refresh')).toBe(false);
     expect(source.includes('ensureSessionForProtectedRoute')).toBe(false);

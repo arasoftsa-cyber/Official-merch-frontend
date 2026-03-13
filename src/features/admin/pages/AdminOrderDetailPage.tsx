@@ -6,7 +6,10 @@ import {
   refundAdminOrder,
 } from '../../../shared/api/adminOrdersApi';
 import { safeErrorMessage } from '../../../shared/utils/safeError';
-import { formatCurrencyFromCents } from '../../../shared/utils/currency';
+import {
+  formatCurrencyFromCents,
+  formatDateTime as formatDateTimeValue,
+} from '../../../shared/utils/formatting';
 
 type OrderItem = {
   id?: string;
@@ -41,9 +44,7 @@ const statusPillClass = (status: string) => {
 
 const formatLocalDateTime = (value?: string | null) => {
   if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
+  return formatDateTimeValue(value);
 };
 
 export default function AdminOrderDetailPage() {

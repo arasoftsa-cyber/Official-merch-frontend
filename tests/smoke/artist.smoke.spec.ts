@@ -1,6 +1,8 @@
 import { test, expect } from '../helpers/session';
 import { gotoApp } from '../helpers/auth';
 
+const PRICE_TEXT_RE = /\b\S*[0-9]+(?:[.,][0-9]{2})?\b/;
+
 test.describe('Artist status smoke', () => {
   test('artist dashboard recent order row drills into order detail', async ({ artistPage }) => {
     await gotoApp(artistPage, '/partner/artist', { waitUntil: 'domcontentloaded' });
@@ -10,7 +12,9 @@ test.describe('Artist status smoke', () => {
       timeout: 15000,
     });
 
-    const recentOrdersSection = artistPage.locator('section:has(h2:has-text("Recent Orders"))').first();
+    const recentOrdersSection = artistPage
+      .locator('section:has(h2:has-text("Recent Orders"))')
+      .first();
     await expect(recentOrdersSection).toBeVisible({ timeout: 15000 });
 
     await expect
@@ -56,7 +60,7 @@ test.describe('Artist status smoke', () => {
       timeout: 15000,
     });
 
-    const firstPrice = artistPage.locator('text=/₹\\s*\\d+(?:[.,]\\d{2})?/').first();
+    const firstPrice = artistPage.getByText(PRICE_TEXT_RE).first();
     await expect(firstPrice).toBeVisible({ timeout: 15000 });
 
     await expect
@@ -66,27 +70,24 @@ test.describe('Artist status smoke', () => {
           if (!handle) return false;
 
           const rowText = await artistPage.evaluate((el) => {
-            // climb up a few levels to capture the full row-ish container
             let cur = el;
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < 6; i += 1) {
               if (!cur || !cur.parentElement) break;
               cur = cur.parentElement;
 
-              const t = (cur.textContent || '').replace(/\s+/g, ' ').trim();
-              // Heuristic: row-ish container should contain multiple fields (not just "₹19.99")
-              if (t.length >= 10 && /₹/.test(t)) return t;
+              const text = (cur.textContent || '').replace(/\s+/g, ' ').trim();
+              if (text.length >= 10 && /\b\S*[0-9]+(?:[.,][0-9]{2})?\b/.test(text)) {
+                return text;
+              }
             }
-            // fallback to the price node textContent (worst case)
             return (el.textContent || '').replace(/\s+/g, ' ').trim();
           }, handle);
 
           const cleaned = (rowText || '')
-            .replace(/₹\s*\d+(?:[.,]\d{2})?/g, '') // remove prices
+            .replace(/\b\S*[0-9]+(?:[.,][0-9]{2})?\b/g, '')
             .replace(/\s+/g, ' ')
             .trim();
 
-          // Need some meaningful text remaining (product name / variant etc.)
-          // Use a conservative threshold: at least 5 chars and at least 1 letter.
           return cleaned.length >= 5 && /[A-Za-z]/.test(cleaned);
         },
         { timeout: 15000 }

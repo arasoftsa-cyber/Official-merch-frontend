@@ -8,7 +8,7 @@ import { getMe } from '../shared/api/appApi';
 import { useCart } from '../cart/CartContext';
 import { apiFetch } from '../shared/api/http';
 import { fetchJson } from '../shared/api/fetchJson';
-import { formatCurrencyFromCents } from '../shared/utils/currency';
+import { formatCurrencyFromCents } from '../shared/utils/formatting';
 
 const formatCents = (cents: number) => formatCurrencyFromCents(cents);
 const cartLineKey = (productId: string, variantId?: string | null) =>

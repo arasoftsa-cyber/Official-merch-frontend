@@ -1,4 +1,5 @@
 import { resolveMediaUrl } from '../../../shared/utils/media';
+import { formatDateTime } from '../../../shared/utils/formatting';
 
 export type Artist = {
   id: string;
@@ -148,9 +149,7 @@ export const readPendingSkuTypes = (request: PendingMerchRequest): string[] => {
 export const resolvePendingSubmittedAt = (request: PendingMerchRequest): string => {
   const raw = request?.createdAt ?? request?.created_at ?? null;
   if (!raw) return '-';
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return String(raw);
-  return date.toLocaleString('en-US', { hour12: false });
+  return formatDateTime(raw, { hour12: false });
 };
 
 export const mapEditSaveErrorMessage = (err: any): string => {
@@ -290,4 +289,3 @@ export const normalizePendingRequestItem = (item: any): PendingMerchRequest | nu
     status,
   };
 };
-

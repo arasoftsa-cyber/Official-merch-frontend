@@ -4,7 +4,7 @@ import AppShell from '../../../shared/components/layout/AppShell';
 import KpiCard from '../../../shared/ui/legacy/KpiCard';
 import EmptyState from '../../../shared/ui/legacy/EmptyState';
 import { apiFetch } from '../../../shared/api/http';
-import { formatCurrencyFromCents } from '../../../shared/utils/currency';
+import { formatCurrencyFromCents } from '../../../shared/utils/formatting';
 
 type ArtistPortfolioRow = {
   artistId: string;

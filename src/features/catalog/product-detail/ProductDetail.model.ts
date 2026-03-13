@@ -1,4 +1,4 @@
-import { formatCurrencyFromCents } from '../../../shared/utils/currency';
+import { formatCurrencyFromCents } from '../../../shared/utils/formatting';
 
 export type Variant = {
   id: string;

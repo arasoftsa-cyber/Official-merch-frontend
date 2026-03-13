@@ -7,12 +7,11 @@ import AdminDropsCreateForm from '../components/drops/AdminDropsCreateForm';
 import AdminDropsList from '../components/drops/AdminDropsList';
 import { useAdminDropEditor } from '../drops/useAdminDropEditor';
 import { useAdminDropsPage } from '../drops/useAdminDropsPage';
+import { formatDateTime as formatDateTimeValue } from '../../../shared/utils/formatting';
 
 const formatDateTime = (value?: string | null) => {
   if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
+  return formatDateTimeValue(value);
 };
 
 export default function AdminDropsPage() {

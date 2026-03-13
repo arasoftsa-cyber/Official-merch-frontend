@@ -2,6 +2,7 @@ import {
   formatOnboardingSkuTypeLabel,
   type OnboardingSkuType,
 } from '../../../shared/utils/onboardingSkuTypes';
+import { formatDateTime } from '../../../shared/utils/formatting';
 
 export type ProductStatus = 'pending' | 'inactive' | 'active' | 'rejected';
 export type StatusFilter = 'all' | ProductStatus;
@@ -65,10 +66,7 @@ export const formatUpdatedDate = (product: any) => {
     product?.createdAt ??
     null;
   if (!raw) return '-';
-  const date = new Date(raw);
-  return Number.isNaN(date.getTime())
-    ? String(raw)
-    : date.toLocaleString('en-US', { hour12: false });
+  return formatDateTime(raw, { hour12: false });
 };
 
 export const getProductId = (product: any) => product?.id ?? product?.productId ?? null;

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { API_BASE } from '../../../shared/api/http';
 import { getAccessToken } from '../../../shared/auth/tokenStore';
 import { Container, Page } from '../../../shared/ui/Page';
+import { formatDateTime as formatDateTimeValue } from '../../../shared/utils/formatting';
 
 const STATUS_OPTIONS = ['new', 'contacted', 'converted', 'ignored'] as const;
 type LeadStatus = (typeof STATUS_OPTIONS)[number];
@@ -26,7 +27,7 @@ const formatDate = (value?: string | null) => {
   if (!value) return 'Ã¢â‚¬â€';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString();
+  return formatDateTimeValue(value);
 };
 
 const statusChipClass = (status: LeadStatus) => {
