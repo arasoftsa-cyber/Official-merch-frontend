@@ -6,7 +6,7 @@ import { useToast } from '../../../shared/components/ux/ToastHost';
 import DashboardShell from '../../../shared/components/layout/AppShell';
 import KpiCard from '../../../shared/ui/legacy/KpiCard';
 import DataTable, { TableColumn } from '../../../shared/ui/legacy/DataTable';
-import { formatCurrencyFromCents } from '../../../shared/utils/currency';
+import { formatCurrencyFromCents } from '../../../shared/utils/formatting';
 import { Link, useNavigate } from 'react-router-dom';
 
 type DashboardSummary = {

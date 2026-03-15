@@ -1,4 +1,10 @@
 import { API_BASE } from '../api/http';
+import {
+  getPortalLoginRoute,
+  resolvePortalIssue,
+  resolvePostLoginRedirect,
+  resolveRoleFromAuthPayload,
+} from './routingPolicy';
 
 export type OidcPortal = 'fan' | 'partner';
 const DEFAULT_OIDC_CALLBACK_PATH = '/auth/oidc/callback';
@@ -79,6 +85,8 @@ export const OIDC_CALLBACK_PATH = normalizeCallbackPath(
   (import.meta.env.VITE_OIDC_CALLBACK_PATH as string | undefined)?.trim()
 );
 
+const OIDC_DUPLICATE_EXCHANGE_CODES = new Set(['oidc_callback_replay_or_duplicate']);
+
 export const toSafeReturnTo = (value: string | null | undefined, portal: OidcPortal): string => {
   const fallback = DEFAULT_RETURN_TO[portal];
   const raw = String(value || '').trim();
@@ -96,15 +104,108 @@ export const toSafeReturnTo = (value: string | null | undefined, portal: OidcPor
   return fallback;
 };
 
+export const normalizeOidcPortal = (value: string | null | undefined): OidcPortal =>
+  String(value || '').trim().toLowerCase() === 'partner' ? 'partner' : 'fan';
+
+export const buildGoogleOidcStartRequest = (
+  portalInput: OidcPortal,
+  returnTo: string | null | undefined
+): {
+  portal: OidcPortal;
+  returnTo: string;
+  appOrigin: string | null;
+  startUrl: string;
+} => {
+  const portal = normalizeOidcPortal(portalInput);
+  const safeReturnTo = toSafeReturnTo(returnTo, portal);
+  const params = new URLSearchParams();
+  params.set('portal', portal);
+  params.set('returnTo', safeReturnTo);
+  if (PUBLIC_APP_ORIGIN) {
+    params.set('appOrigin', PUBLIC_APP_ORIGIN);
+  }
+  return {
+    portal,
+    returnTo: safeReturnTo,
+    appOrigin: PUBLIC_APP_ORIGIN || null,
+    startUrl: `${API_BASE}/api/auth/oidc/google/start?${params.toString()}`,
+  };
+};
+
 export const buildGoogleOidcStartUrl = (
   portal: OidcPortal,
   returnTo: string | null | undefined
 ): string => {
-  const params = new URLSearchParams();
-  params.set('portal', portal);
-  params.set('returnTo', toSafeReturnTo(returnTo, portal));
-  if (PUBLIC_APP_ORIGIN) {
-    params.set('appOrigin', PUBLIC_APP_ORIGIN);
-  }
-  return `${API_BASE}/api/auth/oidc/google/start?${params.toString()}`;
+  return buildGoogleOidcStartRequest(portal, returnTo).startUrl;
+};
+
+export type ParsedOidcCallbackParams = {
+  portal: OidcPortal;
+  returnTo: string;
+  code: string;
+  errorCode: string;
+  errorMessage: string;
+  hasError: boolean;
+  loginTarget: string;
+};
+
+export const parseOidcCallbackParams = (
+  search: string | null | undefined
+): ParsedOidcCallbackParams => {
+  const params = new URLSearchParams(String(search || ''));
+  const portal = normalizeOidcPortal(params.get('portal'));
+  const returnTo = toSafeReturnTo(params.get('returnTo'), portal);
+  const errorCode = String(params.get('error') || '').trim();
+  const errorMessage = String(params.get('message') || '').trim();
+  const issue = resolvePortalIssue({
+    code: errorCode,
+    message: errorMessage,
+    currentPortal: portal,
+    returnTo,
+  });
+  const fallbackLoginTarget = `${getPortalLoginRoute(portal)}?returnTo=${encodeURIComponent(returnTo)}`;
+
+  return {
+    portal,
+    returnTo,
+    code: String(params.get('code') || '').trim(),
+    errorCode,
+    errorMessage: String(issue.message || errorMessage || '').trim(),
+    hasError: Boolean(errorCode || issue.message),
+    loginTarget: issue.redirectTo || fallbackLoginTarget,
+  };
+};
+
+export const resolveOidcSuccessRedirect = ({
+  portal,
+  returnTo,
+  payload,
+}: {
+  portal: OidcPortal;
+  returnTo: string;
+  payload: any;
+}): string => {
+  const role = resolveRoleFromAuthPayload(payload);
+  return resolvePostLoginRedirect({
+    portal,
+    returnTo,
+    role,
+    fallbackRoute: portal === 'partner' ? '/partner' : '/fan',
+  });
+};
+
+export const extractOidcTokens = (payload: any): { accessToken: string; refreshToken: string } => {
+  const accessToken =
+    payload?.accessToken || payload?.token || payload?.data?.accessToken || payload?.access_token || '';
+  const refreshToken =
+    payload?.refreshToken || payload?.data?.refreshToken || payload?.refresh_token || '';
+  return {
+    accessToken: String(accessToken || '').trim(),
+    refreshToken: String(refreshToken || '').trim(),
+  };
+};
+
+export const isOidcDuplicateExchangeError = (value: string | null | undefined): boolean => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return OIDC_DUPLICATE_EXCHANGE_CODES.has(normalized);
 };

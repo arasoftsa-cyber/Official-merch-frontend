@@ -8,7 +8,7 @@ import { getMe } from '../shared/api/appApi';
 import { useCart } from '../cart/CartContext';
 import { apiFetch } from '../shared/api/http';
 import { fetchJson } from '../shared/api/fetchJson';
-import { formatCurrencyFromCents } from '../shared/utils/currency';
+import { formatCurrencyFromCents } from '../shared/utils/formatting';
 
 const formatCents = (cents: number) => formatCurrencyFromCents(cents);
 const cartLineKey = (productId: string, variantId?: string | null) =>
@@ -210,7 +210,7 @@ export default function CartPage() {
         throw new Error('Order id missing from response');
       }
       clearCart();
-      navigate(`/buyer/order/${orderId}`);
+      navigate(`/fan/orders/${orderId}`);
     } catch (err: any) {
       const detail = String(err?.message ?? '').trim();
       setErrorMessage(

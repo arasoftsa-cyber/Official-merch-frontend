@@ -3,25 +3,55 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../shared/api/http';
 import {
   clearTokens,
-  getAccessToken,
   setAccessToken,
   setRefreshToken,
 } from '../../../shared/auth/tokenStore';
-import { toSafeReturnTo } from '../../../shared/auth/oidc';
+import {
+  extractOidcTokens,
+  isOidcDuplicateExchangeError,
+  parseOidcCallbackParams,
+  resolveOidcSuccessRedirect,
+} from '../../../shared/auth/oidc';
 import { Page, Card } from '../../../shared/ui/Page';
-
-type Portal = 'fan' | 'partner';
-
-const parsePortal = (value: string | null): Portal => (value === 'partner' ? 'partner' : 'fan');
 
 const exchangedCodes = new Set<string>();
 const exchangeRequests = new Map<string, Promise<any>>();
+const SESSION_STORAGE_EXCHANGED_PREFIX = 'oidc:exchanged:';
+
+const buildSessionStorageKey = (code: string) =>
+  `${SESSION_STORAGE_EXCHANGED_PREFIX}${String(code || '').trim()}`;
+
+const markExchangeCodeHandled = (code: string) => {
+  const normalizedCode = String(code || '').trim();
+  if (!normalizedCode) return;
+  exchangedCodes.add(normalizedCode);
+  try {
+    window.sessionStorage?.setItem(buildSessionStorageKey(normalizedCode), '1');
+  } catch {
+    // Ignore browser storage restrictions.
+  }
+};
+
+const hasExchangeCodeBeenHandled = (code: string): boolean => {
+  const normalizedCode = String(code || '').trim();
+  if (!normalizedCode) return true;
+  if (exchangedCodes.has(normalizedCode)) return true;
+  try {
+    if (window.sessionStorage?.getItem(buildSessionStorageKey(normalizedCode)) === '1') {
+      exchangedCodes.add(normalizedCode);
+      return true;
+    }
+  } catch {
+    // Ignore browser storage restrictions.
+  }
+  return false;
+};
 
 const exchangeCodeOnce = (code: string): Promise<any | null> => {
   const normalizedCode = String(code || '').trim();
   if (!normalizedCode) return Promise.resolve(null);
 
-  if (exchangedCodes.has(normalizedCode)) {
+  if (hasExchangeCodeBeenHandled(normalizedCode)) {
     return Promise.resolve(null);
   }
 
@@ -33,7 +63,7 @@ const exchangeCodeOnce = (code: string): Promise<any | null> => {
     body: { code: normalizedCode },
   })
     .then((payload: any) => {
-      exchangedCodes.add(normalizedCode);
+      markExchangeCodeHandled(normalizedCode);
       return payload;
     })
     .finally(() => {
@@ -49,25 +79,19 @@ export default function OidcCallbackPage() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
-  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const portal = parsePortal(params.get('portal'));
-  const returnTo = toSafeReturnTo(params.get('returnTo'), portal);
-  const code = String(params.get('code') || '').trim();
-  const portalError = String(params.get('portalError') || '').trim();
-  const portalMessage = String(params.get('message') || '').trim();
-  const loginTarget = `${portal === 'partner' ? '/partner/login' : '/fan/login'}?returnTo=${encodeURIComponent(returnTo)}`;
+  const callback = useMemo(() => parseOidcCallbackParams(location.search), [location.search]);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (portalError) {
-      setError(portalMessage || 'Google sign-in failed.');
+    if (callback.hasError) {
+      setError(callback.errorMessage || 'Google sign-in failed.');
       return () => {
         cancelled = true;
       };
     }
 
-    if (!code) {
+    if (!callback.code) {
       setError('Missing Google sign-in code.');
       return () => {
         cancelled = true;
@@ -76,10 +100,15 @@ export default function OidcCallbackPage() {
 
     (async () => {
       try {
-        const payload: any = await exchangeCodeOnce(code);
+        const payload: any = await exchangeCodeOnce(callback.code);
         if (payload === null) {
-          if (!cancelled && getAccessToken()) {
-            navigate(returnTo, { replace: true });
+          if (!cancelled && hasExchangeCodeBeenHandled(callback.code)) {
+            const target = resolveOidcSuccessRedirect({
+              portal: callback.portal,
+              returnTo: callback.returnTo,
+              payload: null,
+            });
+            navigate(target, { replace: true });
             return;
           }
           throw new Error('OIDC callback code already processed.');
@@ -87,17 +116,7 @@ export default function OidcCallbackPage() {
 
         if (cancelled) return;
 
-        const accessToken =
-          payload?.accessToken ||
-          payload?.token ||
-          payload?.data?.accessToken ||
-          payload?.access_token ||
-          '';
-        const refreshToken =
-          payload?.refreshToken ||
-          payload?.data?.refreshToken ||
-          payload?.refresh_token ||
-          '';
+        const { accessToken, refreshToken } = extractOidcTokens(payload);
 
         if (!accessToken) {
           throw new Error('Google login response did not include an access token.');
@@ -109,12 +128,22 @@ export default function OidcCallbackPage() {
         }
 
         if (cancelled) return;
-        navigate(returnTo, { replace: true });
+        const target = resolveOidcSuccessRedirect({
+          portal: callback.portal,
+          returnTo: callback.returnTo,
+          payload,
+        });
+        navigate(target, { replace: true });
       } catch (err: any) {
         const errCode = String(err?.payload?.error || '').trim().toLowerCase();
-        if (errCode === 'invalid_exchange_code' && getAccessToken()) {
+        if (isOidcDuplicateExchangeError(errCode) && hasExchangeCodeBeenHandled(callback.code)) {
           if (!cancelled) {
-            navigate(returnTo, { replace: true });
+            const target = resolveOidcSuccessRedirect({
+              portal: callback.portal,
+              returnTo: callback.returnTo,
+              payload: null,
+            });
+            navigate(target, { replace: true });
           }
           return;
         }
@@ -127,7 +156,7 @@ export default function OidcCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [code, navigate, portalError, portalMessage, returnTo]);
+  }, [callback, navigate]);
 
   return (
     <Page className="flex min-h-screen flex-col items-center justify-center bg-white dark:bg-[#0a0a0a] px-4 py-12 text-slate-900 dark:text-white">
@@ -152,7 +181,7 @@ export default function OidcCallbackPage() {
                 {error}
               </div>
               <Link
-                to={loginTarget}
+                to={callback.loginTarget}
                 className="mt-5 inline-block text-sm font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
               >
                 Back to login

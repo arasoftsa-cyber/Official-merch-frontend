@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAccessToken } from "../../../shared/auth/tokenStore";
 import { Card } from "../../../shared/ui/Page";
-import { formatCurrencyFromCents } from "../../../shared/utils/currency";
+import {
+  formatCurrencyFromCents,
+  formatDate,
+} from "../../../shared/utils/formatting";
 
 type OrderLike = {
   id: string;
@@ -196,11 +199,11 @@ export default function BuyerOrdersPage() {
                   const status = normalizeStatus(order.status || order.paymentStatus);
                   const shortId = (order.id || "").slice(0, 8) || "-";
                   const created = order.createdAt
-                    ? new Date(order.createdAt).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })
+                    ? formatDate(order.createdAt, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
                     : "-";
 
                   return (
@@ -226,7 +229,7 @@ export default function BuyerOrdersPage() {
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() => navigate(`/buyer/orders/${order.id}`)}
+                            onClick={() => navigate(`/fan/orders/${order.id}`)}
                             className="rounded-full border border-slate-200 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 transition hover:border-slate-900 hover:bg-slate-900 hover:text-white dark:border-white/20 dark:text-slate-300 dark:hover:border-white dark:hover:bg-white dark:hover:text-black"
                           >
                             View
@@ -234,7 +237,7 @@ export default function BuyerOrdersPage() {
                           {isUnpaidStatus(status) && (
                             <button
                               type="button"
-                              onClick={() => navigate(`/buyer/orders/${order.id}`)}
+                              onClick={() => navigate(`/fan/orders/${order.id}`)}
                               className="rounded-full bg-indigo-600 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white transition hover:bg-indigo-500"
                             >
                               Pay

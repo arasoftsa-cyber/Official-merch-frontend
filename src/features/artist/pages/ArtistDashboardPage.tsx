@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { apiFetch } from '../../../shared/api/http';
 import { Container, Page } from '../../../shared/ui/Page';
-import { formatCurrencyFromCents } from '../../../shared/utils/currency';
+import {
+  formatCurrencyFromCents,
+  formatDateTime as formatDateTimeValue,
+} from '../../../shared/utils/formatting';
 
 type ArtistSummary = {
   totalOrders?: number;
@@ -62,9 +65,7 @@ const formatCurrency = (cents?: number) => {
 
 const formatDateTime = (value?: string | null) => {
   if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  return formatDateTimeValue(value);
 };
 
 const normalizeOrderList = (payload: any): ArtistOrder[] => {
@@ -225,7 +226,7 @@ export function ArtistDashboardPage() {
                         </td>
                         <td className="px-4 py-3">{order?.status ?? '-'}</td>
                         <td className="px-4 py-3">{formatCurrency(order?.totalCents)}</td>
-                        <td className="px-4 py-3">{order?.createdAt ?? '-'}</td>
+                        <td className="px-4 py-3">{formatDateTime(order?.createdAt)}</td>
                       </tr>
                     );
                   })}

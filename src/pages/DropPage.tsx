@@ -406,7 +406,7 @@ export default function DropPage() {
       <section>
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Drop Products</h2>
-          {productsStatus === 'loading' && <p className="text-sm text-slate-500 dark:text-white/60">Loading productsÃ¢â‚¬Â¦</p>}
+          {productsStatus === 'loading' && <p className="text-sm text-slate-500 dark:text-white/60">Loading products...</p>}
         </div>
         {productsStatus === 'loading' && <LoadingSkeleton count={3} className="mt-4" />}
         {products.length === 0 && productsStatus !== 'loading' && (

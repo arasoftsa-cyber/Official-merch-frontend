@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ArtistRequest } from '../../artistRequests/types';
 import AdminArtistRequestStatusChip from './AdminArtistRequestStatusChip';
+import { formatDate } from '../../../../shared/utils/formatting';
 
 type AdminArtistRequestsListProps = {
   requests: ArtistRequest[];
@@ -81,7 +82,11 @@ export default function AdminArtistRequestsList({
                 <div className="flex flex-col items-end">
                   <AdminArtistRequestStatusChip status={request.status} />
                   <span className="mt-2 text-[10px] font-medium text-slate-400 dark:text-slate-500">
-                    {new Date(request.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {formatDate(request.createdAt, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
                   </span>
                 </div>
                 <button

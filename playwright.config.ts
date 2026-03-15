@@ -21,44 +21,58 @@ const assertLocalUrl = (label: string, value: string) => {
 
 const repoRoot = __dirname;
 const envUiLocalPath = path.resolve(repoRoot, '.env.ui.local');
+const envProductionPath = path.resolve(repoRoot, '.env.production');
 const envPath = path.resolve(repoRoot, '.env');
-const hasEnvUiLocal = fs.existsSync(envUiLocalPath);
-const hasEnv = fs.existsSync(envPath);
 const isCi = Boolean(process.env.CI);
 const profile = String(process.env.PLAYWRIGHT_PROFILE || 'local')
   .trim()
   .toLowerCase();
+const isLocalProfile = profile === 'local';
+const isConfigContractsProfile = profile === 'prod-config' || profile === 'production';
 
-if (!hasEnvUiLocal && !hasEnv && !isCi) {
+if (!isLocalProfile && !isConfigContractsProfile) {
   throw new Error(
-    `Playwright env file not found: ${envUiLocalPath}. Checked fallback: ${envPath}`
+    `[playwright] Unsupported PLAYWRIGHT_PROFILE="${profile}". Use "local", "prod-config", or "production".`
   );
+}
+
+const envFiles = isLocalProfile
+  ? [envUiLocalPath, envPath]
+  : [envProductionPath, envPath];
+const loadedEnvPaths = envFiles.filter((envFile) => fs.existsSync(envFile));
+
+if (loadedEnvPaths.length === 0 && !isCi) {
+  const expectedPaths = envFiles.join(', ');
+  throw new Error(`Playwright env file not found. Checked: ${expectedPaths}`);
 }
 
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const dotenv = require('dotenv');
-  if (hasEnvUiLocal) dotenv.config({ path: envUiLocalPath });
-  if (hasEnv) dotenv.config({ path: envPath, override: false });
+  for (const envFile of loadedEnvPaths) {
+    dotenv.config({ path: envFile, override: false });
+  }
 } catch (error: any) {
   throw new Error(
-    `Failed to load dotenv for Playwright config. envUiLocalPath=${envUiLocalPath} envPath=${envPath} message=${error?.message ?? 'unknown'}`
+    `Failed to load dotenv for Playwright config. envFiles=${loadedEnvPaths.join(', ')} message=${error?.message ?? 'unknown'}`
   );
 }
 
-// Load required test env exports only after dotenv has populated process.env.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { UI_BASE_URL, VITE_API_BASE_URL } = require('./tests/_env');
+let UI_BASE_URL: string | undefined;
+let API_BASE_URL: string | undefined;
 
-if (profile !== 'local') {
-  throw new Error(
-    `[playwright] Unsupported PLAYWRIGHT_PROFILE="${profile}" for playwright.config.ts. Use "local".`
-  );
+if (isLocalProfile) {
+  // Load required test env exports only after dotenv has populated process.env.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const localEnv = require('./tests/_env');
+  UI_BASE_URL = localEnv.UI_BASE_URL;
+  API_BASE_URL = localEnv.API_BASE_URL;
+  assertLocalUrl('UI_BASE_URL', UI_BASE_URL);
+  assertLocalUrl('API_BASE_URL', API_BASE_URL);
+  console.log(`[playwright] baseURL=${UI_BASE_URL} apiBaseURL=${API_BASE_URL}`);
+} else {
+  console.log(`[playwright] profile=${profile} project=config-contracts`);
 }
-assertLocalUrl('UI_BASE_URL', UI_BASE_URL);
-assertLocalUrl('VITE_API_BASE_URL', VITE_API_BASE_URL);
-
-console.log(`[playwright] baseURL=${UI_BASE_URL} apiBaseURL=${VITE_API_BASE_URL}`);
 
 const configuredWorkers = Number(process.env.PW_WORKERS || '');
 const resolvedWorkers =
@@ -68,15 +82,44 @@ const resolvedWorkers =
       ? 1
       : 2;
 
+const defaultUse = {
+  baseURL: UI_BASE_URL,
+  headless: isCi ? true : !isLocalProfile,
+};
+
+const localProjects = [
+  {
+    name: 'default',
+    testIgnore: ['tests/config/**/*.spec.ts', 'tests/contract-smoke/**/*.spec.ts', 'tests/smoke/**/*.spec.ts'],
+  },
+  {
+    name: 'smoke',
+    testMatch: ['tests/smoke/**/*.spec.ts'],
+    workers: 1,
+  },
+  {
+    name: 'contract-smoke',
+    testMatch: ['tests/contract-smoke/**/*.spec.ts'],
+    workers: 1,
+  },
+  {
+    name: 'config-contracts',
+    testMatch: ['tests/config/**/*.spec.ts'],
+    timeout: 30_000,
+    workers: 1,
+    use: {
+      headless: true,
+    },
+  },
+];
+
 export default defineConfig({
   testDir: './tests',
   globalSetup: require.resolve('./tests/global-setup'),
   timeout: 60_000,
   workers: resolvedWorkers,
   retries: 0,
-  use: {
-    baseURL: UI_BASE_URL,
-    headless: isCi ? true : false,
-  },
+  projects: isLocalProfile ? localProjects : localProjects.filter((project) => project.name === 'config-contracts'),
+  use: defaultUse,
   // Multi-browser projects intentionally disabled for local dev simplicity
 });

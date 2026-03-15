@@ -1,11 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { gotoApp, loginAdmin, loginBuyer } from '../helpers/auth';
+import { gotoApp, loginAdmin, loginArtist, loginBuyer } from '../helpers/auth';
 import {
   createAdminProductWithStatus,
   ensureArtistIdentityForAdmin,
   makeStamp,
+  gotoArtistProducts,
 } from '../helpers/onboarding-flow';
 import { prepareOnboardingSuite } from '../helpers/onboarding-flow';
+import {
+  createPendingMerchRequestViaArtistApi,
+  extractOnboardingProductId,
+  rejectOnboardingViaAdminApi,
+} from '../helpers/onboarding';
 
 test.describe('Onboarding public visibility', () => {
   test.beforeAll(async () => {
@@ -77,6 +83,36 @@ test.describe('Onboarding public visibility', () => {
         timeout: 15000,
       });
     }
+  });
+
+  test('artist sees rejection reason on rejected merch while public storefront remains unaffected', async ({
+    page,
+  }) => {
+    const merchName = makeStamp('pw-onb-reject');
+    const rejectionReason = `Rejected by smoke ${Date.now()} - missing fit for launch.`;
+
+    const created = await createPendingMerchRequestViaArtistApi(page, {
+      merchName,
+      merchStory: `Rejection path story for ${merchName}.`,
+      skuTypes: ['hoodie'],
+    });
+    const productId = extractOnboardingProductId(created);
+    expect(productId.length).toBeGreaterThan(0);
+
+    await loginAdmin(page);
+    await rejectOnboardingViaAdminApi(page, { productId, rejectionReason });
+
+    await loginArtist(page);
+    await gotoArtistProducts(page);
+    const row = page.getByTestId('artist-product-row').filter({ hasText: merchName }).first();
+    await expect(row).toBeVisible({ timeout: 20000 });
+    await expect(row.getByTestId('artist-product-status')).toContainText(/rejected/i);
+    await expect(row.getByTestId('artist-merch-rejection-reason')).toContainText(rejectionReason);
+
+    await loginBuyer(page);
+    await gotoApp(page, '/products', { waitUntil: 'domcontentloaded' });
+    await page.getByPlaceholder(/search artists, merchandise, vibes/i).fill(merchName);
+    await expect(page.getByTestId('product-catalog-card').filter({ hasText: merchName })).toHaveCount(0);
   });
 });
 

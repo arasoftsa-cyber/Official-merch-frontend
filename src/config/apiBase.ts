@@ -12,6 +12,7 @@ const runtimeHostname =
 
 export default resolveApiBase({
   mode: importMetaEnv.MODE,
+  backendBaseUrl: importMetaEnv.VITE_BACKEND_BASE_URL,
   apiBaseProd: importMetaEnv.VITE_API_BASE_PROD,
   apiBaseProdCompat: importMetaEnv.VITE_PROD_API_BASE_URL,
   apiBaseDev: importMetaEnv.VITE_API_BASE_DEV,

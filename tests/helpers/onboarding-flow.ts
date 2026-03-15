@@ -112,11 +112,63 @@ export const createAdminProductWithStatus = async (
 
 export const gotoArtistProducts = async (page: Page) => {
   await gotoApp(page, '/partner/artist/products', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: /artist products/i })).toBeVisible({ timeout: 20000 });
+  if (!/\/partner\/artist\/products(?:[/?#]|$)/i.test(page.url())) {
+    await gotoApp(page, '/partner/artist/products', {
+      waitUntil: 'domcontentloaded',
+      authRetry: false,
+    });
+  }
+  await expect(page).toHaveURL(/\/partner\/artist\/products(?:[/?#]|$)/i, { timeout: 20000 });
+  await expect(
+    page.locator('h1').filter({ hasText: /artist products/i }).first()
+  ).toBeVisible({ timeout: 20000 });
+  await expect(page.getByRole('combobox').first()).toBeVisible({ timeout: 20000 });
 };
 
 export const artistRowByTitle = (page: Page, title: string) =>
   page.getByTestId('artist-product-row').filter({ hasText: title }).first();
+
+export const submitArtistMerchRequest = async (
+  page: Page,
+  {
+    merchName,
+    merchStory,
+    skuTestIds,
+  }: {
+    merchName: string;
+    merchStory: string;
+    skuTestIds: string[];
+  }
+) => {
+  await page.getByTestId('artist-new-merch-button').click();
+  await expect(page.getByTestId('artist-new-merch-form')).toBeVisible({ timeout: 10000 });
+  await page.getByTestId('artist-merch-name').fill(merchName);
+  await page.getByTestId('artist-merch-story').fill(merchStory);
+  for (const skuTestId of skuTestIds) {
+    await page.getByTestId(skuTestId).check();
+  }
+};
+
+export const expectArtistMerchReadonlyRow = async (
+  page: Page,
+  {
+    merchName,
+    skuLabelPattern,
+  }: {
+    merchName: string;
+    skuLabelPattern: RegExp;
+  }
+) => {
+  const row = artistRowByTitle(page, merchName);
+  await expect(row).toBeVisible({ timeout: 20000 });
+  await expect(row.getByTestId('artist-product-status')).toContainText(/pending|inactive|active/i);
+  await expect(row.getByTestId('artist-merch-readonly-name')).toContainText(merchName);
+  await expect(row.getByTestId('artist-merch-readonly-story')).toBeVisible();
+  await expect(row.getByTestId('artist-merch-readonly-design-image')).toContainText(/uploaded/i);
+  await expect(row.getByTestId('artist-merch-readonly-skus')).toContainText(skuLabelPattern);
+  await expect(row.locator('input, textarea, select')).toHaveCount(0);
+  return row;
+};
 
 export const pendingMerchReview = (page: Page) => ({
   name: page.getByTestId('admin-pending-merch-name'),
@@ -207,57 +259,4 @@ export const openPendingMerchModalByTitle = async (page: Page, title: string) =>
   }
 
   throw new Error(`Unable to open pending merch modal for title: ${title}`);
-};
-
-export const openFirstPendingMerchModal = async (page: Page) => {
-  const pendingTabByTestId = page.getByTestId('admin-pending-merch-tab').first();
-  const pendingTabByRole = page.getByRole('button', { name: /pending merch/i }).first();
-  const openPendingTab = async () => {
-    const tab =
-      (await pendingTabByTestId.count().catch(() => 0)) > 0
-        ? pendingTabByTestId
-        : pendingTabByRole;
-    if ((await tab.count().catch(() => 0)) === 0) return;
-    if (!(await tab.isVisible().catch(() => false))) return;
-    const tabAriaSelected = (await tab.getAttribute('aria-selected').catch(() => null)) || '';
-    if (tabAriaSelected !== 'true') {
-      await tab.click().catch(() => null);
-    }
-  };
-
-  let rowsFound = false;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    await gotoApp(page, '/partner/admin/products', { waitUntil: 'domcontentloaded' });
-    await openPendingTab();
-
-    rowsFound = await expect
-      .poll(async () => page.getByTestId('admin-pending-merch-row').count(), {
-        timeout: 25000,
-      })
-      .toBeGreaterThan(0)
-      .then(() => true)
-      .catch(() => false);
-
-    if (rowsFound) break;
-    await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => null);
-  }
-
-  if (!rowsFound) {
-    throw new Error('Pending merch queue did not render any rows.');
-  }
-
-  const row = page.getByTestId('admin-pending-merch-row').first();
-  await row.scrollIntoViewIfNeeded().catch(() => null);
-  await expect(row).toBeVisible({ timeout: 10000 });
-  await expect
-    .poll(async () => {
-      const openButton = row.getByTestId('admin-pending-merch-open').first();
-      if (await openButton.isVisible().catch(() => false)) {
-        await openButton.click().catch(() => null);
-      } else {
-        await row.click().catch(() => null);
-      }
-      return page.getByTestId('admin-pending-merch-name').isVisible().catch(() => false);
-    }, { timeout: 30000 })
-    .toBe(true);
 };

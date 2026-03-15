@@ -120,7 +120,7 @@ export default function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+              placeholder="********"
               className="mt-2 w-full rounded-2xl border border-slate-300 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-white px-4 py-3 pr-16 outline-none transition focus:ring-2 focus:ring-indigo-400/40 dark:focus:ring-white/20 placeholder:text-slate-400"
             />
             <button

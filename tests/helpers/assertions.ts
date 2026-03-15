@@ -1,9 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 
 export const PRODUCT_CARD_SELECTORS = [
-  'article[role="button"]',
-  '[data-testid*="product"]',
-  '[data-testid*="card"]',
+  '[data-testid="product-catalog-card"]',
 ];
 
 export const getProductCards = (page: Page) => page.locator(PRODUCT_CARD_SELECTORS.join(', '));

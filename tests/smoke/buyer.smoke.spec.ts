@@ -1,7 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { BUYER_EMAIL, BUYER_PASSWORD } from '../_env';
-import { gotoApp, loginBuyer } from '../helpers/auth';
-import { getProductCards } from '../helpers/assertions';
+import { gotoApp } from '../helpers/auth';
 
 const DROP_CARD_SELECTOR =
   '[data-testid="drop-card"], a[href^="/drops/"], [data-testid="drop-list"] a';
@@ -261,14 +259,6 @@ test.describe('Buyer smoke', () => {
       `Public UI called deprecated drop id alias:\n${legacyDropAliasRequests.join('\n')}`
     ).toHaveLength(0);
     page.off('request', requestListener);
-  });
-
-  test('buyer can login and reach products', async ({ page }) => {
-    test.skip(!BUYER_EMAIL || !BUYER_PASSWORD, 'Missing buyer credentials');
-    await loginBuyer(page);
-    await gotoApp(page, '/products');
-    const productCard = getProductCards(page).first();
-    await expect(productCard).toBeVisible({ timeout: 15000 });
   });
 
   test('public drop quiz lead submission works end-to-end', async ({ page }) => {

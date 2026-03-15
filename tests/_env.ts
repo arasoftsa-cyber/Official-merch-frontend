@@ -1,3 +1,5 @@
+import { resolveApiBase } from '../src/config/apiBaseResolver';
+
 export function requireEnv(key: string): string {
   const value = process.env[key];
   if (!value || !value.trim()) {
@@ -7,11 +9,29 @@ export function requireEnv(key: string): string {
 }
 
 export const UI_BASE_URL = requireEnv('UI_BASE_URL');
-export const VITE_API_BASE_URL =
-  process.env.VITE_API_BASE_URL?.trim() ||
-  process.env.VITE_API_BASE_DEV?.trim() ||
-  process.env.VITE_API_BASE_PROD?.trim() ||
-  requireEnv('VITE_API_BASE_URL');
+const playwrightProfile = String(process.env.PLAYWRIGHT_PROFILE || '').trim().toLowerCase();
+const apiResolutionMode =
+  playwrightProfile === 'local' ? 'development' : process.env.NODE_ENV || 'test';
+const uiHostname = (() => {
+  try {
+    return new URL(UI_BASE_URL).hostname;
+  } catch {
+    return '';
+  }
+})();
+
+export const API_BASE_URL = resolveApiBase({
+  mode: apiResolutionMode,
+  hostname: uiHostname,
+  backendBaseUrl: process.env.VITE_BACKEND_BASE_URL,
+  apiBaseProd: process.env.VITE_API_BASE_PROD,
+  apiBaseProdCompat: process.env.VITE_PROD_API_BASE_URL,
+  apiBaseDev: process.env.VITE_API_BASE_DEV,
+  apiBaseLegacy: process.env.VITE_API_BASE_URL,
+});
+
+// Backward-compatible export name used by existing helpers/specs.
+export const VITE_API_BASE_URL = API_BASE_URL;
 export const BUYER_EMAIL = requireEnv('BUYER_EMAIL');
 export const BUYER_PASSWORD = requireEnv('BUYER_PASSWORD');
 export const ADMIN_EMAIL = requireEnv('ADMIN_EMAIL');

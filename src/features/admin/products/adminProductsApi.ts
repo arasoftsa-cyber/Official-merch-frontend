@@ -1,13 +1,15 @@
 import { apiFetch, apiFetchForm } from '../../../shared/api/http';
 import { resolveMediaUrl } from '../../../shared/utils/media';
-import type { Artist, PendingMerchRequest, Product } from '../pages/AdminProductsPage.utils';
 import {
   extractItems,
-  normalizeArtistItem,
-  normalizePendingRequestItem,
-  normalizeProductItem,
-  normalizeStatus,
-} from '../pages/AdminProductsPage.utils';
+  mapAdminArtistDto,
+  mapAdminProductDto,
+  mapPendingMerchRequestDto,
+  type Artist,
+  type PendingMerchRequest,
+  type Product,
+} from './adminProductsDtos';
+import { normalizeStatus } from '../pages/AdminProductsPage.utils';
 
 export type AdminProductsDataSnapshot = {
   products: Product[];
@@ -33,23 +35,23 @@ export async function fetchAdminProductsDataSnapshot(): Promise<AdminProductsDat
   const rejectedPayload = rejectedResult.status === 'fulfilled' ? rejectedResult.value : null;
 
   const products = extractItems(productsPayload, ['items', 'products', 'rows', 'data'])
-    .map((item: any) => normalizeProductItem(item))
+    .map((item: any) => mapAdminProductDto(item))
     .filter((item: Product | null): item is Product => Boolean(item));
   const artists = extractItems(artistsPayload, ['artists', 'items', 'data'])
-    .map((item: any) => normalizeArtistItem(item))
+    .map((item: any) => mapAdminArtistDto(item))
     .filter((item: Artist | null): item is Artist => Boolean(item));
   const pendingItems = extractItems(pendingPayload, ['items', 'products', 'rows', 'data'])
-    .map((item: any) => normalizePendingRequestItem(item))
+    .map((item: any) => mapPendingMerchRequestDto(item))
     .filter((item: PendingMerchRequest | null): item is PendingMerchRequest => Boolean(item));
   const rejectedItems = extractItems(rejectedPayload, ['items', 'products', 'rows', 'data'])
-    .map((item: any) => normalizePendingRequestItem(item))
+    .map((item: any) => mapPendingMerchRequestDto(item))
     .filter((item: PendingMerchRequest | null): item is PendingMerchRequest => Boolean(item));
 
   const pendingRequests = [...pendingItems, ...rejectedItems]
     .filter((item) => ['pending', 'rejected'].includes(normalizeStatus(item?.status)))
     .sort((left, right) => {
-      const leftTs = new Date(String(left.createdAt || left.created_at || 0)).getTime();
-      const rightTs = new Date(String(right.createdAt || right.created_at || 0)).getTime();
+      const leftTs = new Date(String(left.createdAt || 0)).getTime();
+      const rightTs = new Date(String(right.createdAt || 0)).getTime();
       return Number.isFinite(rightTs) ? rightTs - (Number.isFinite(leftTs) ? leftTs : 0) : 0;
     });
 
@@ -62,8 +64,7 @@ export async function fetchAdminProductsDataSnapshot(): Promise<AdminProductsDat
 
 export async function fetchAdminProductDetail(productId: string): Promise<Product | null> {
   const payload = await apiFetch(`/products/${productId}`);
-  const detailProduct = (payload?.product ?? payload) as Product | null;
-  return detailProduct && typeof detailProduct === 'object' ? detailProduct : null;
+  return mapAdminProductDto(payload?.product ?? payload);
 }
 
 export async function patchAdminProduct(

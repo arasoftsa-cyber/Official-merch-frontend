@@ -320,7 +320,7 @@ export default function ArtistProductVariantsPage() {
     return (
       <Page>
         <Container>
-          <p className="text-slate-500 dark:text-slate-400">Loading variantsÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</p>
+          <p className="text-slate-500 dark:text-slate-400">Loading variants...</p>
         </Container>
       </Page>
     );
@@ -465,7 +465,7 @@ export default function ArtistProductVariantsPage() {
             onClick={saveVariants}
             disabled={saving}
           >
-            {saving ? 'SavingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦' : 'Save Changes'}
+            {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </Container>

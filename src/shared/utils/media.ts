@@ -1,4 +1,4 @@
-import { API_BASE } from "../api/http";
+import API_BASE_CONFIG from "../../config/apiBase";
 
 export function getArtistInitials(nameOrHandle: unknown): string {
   const raw = String(nameOrHandle ?? "").trim();
@@ -16,7 +16,7 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
   if (!raw) return null;
   if (/^https?:\/\//i.test(raw)) return raw;
 
-  const base = String(API_BASE ?? "").trim().replace(/\/+$/, "");
+  const base = String(API_BASE_CONFIG ?? "").trim().replace(/\/+$/, "");
   if (!base) {
     return raw.startsWith("/") ? raw : `/${raw}`;
   }

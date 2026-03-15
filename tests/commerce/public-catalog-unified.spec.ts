@@ -70,43 +70,59 @@ const mockProducts = async (page: Page) => {
 };
 
 test.describe('Public catalog unified UX', () => {
-  test('/artists renders shared toolbar, card grid, and pagination', async ({ page }) => {
+  test('catalog route matrix keeps the shared structure and key route-specific contract', async ({ page }) => {
     await mockArtists(page, 14);
-    await page.goto(`${UI_BASE_URL}/artists`, { waitUntil: 'domcontentloaded' });
-
-    await expect(page.getByTestId('public-catalog-toolbar')).toBeVisible();
-    await expect(page.getByTestId('public-catalog-grid')).toBeVisible();
-    await expect(page.getByTestId('artist-catalog-card')).toHaveCount(12);
-    await expect(page.getByTestId('public-catalog-pagination')).toBeVisible();
-
-    await page.getByRole('button', { name: /next/i }).click();
-    await expect(page.getByTestId('artist-catalog-card')).toHaveCount(2);
-  });
-
-  test('/drops renders card grid (not row list) with pagination', async ({ page }) => {
     await mockDrops(page, 14);
-    await page.goto(`${UI_BASE_URL}/drops`, { waitUntil: 'domcontentloaded' });
-
-    await expect(page.getByTestId('public-catalog-toolbar')).toBeVisible();
-    await expect(page.getByTestId('public-catalog-grid')).toBeVisible();
-    await expect(page.getByTestId('drop-catalog-card')).toHaveCount(12);
-    await expect(page.getByTestId('public-catalog-pagination')).toBeVisible();
-
-    await page.getByRole('button', { name: /next/i }).click();
-    await expect(page.getByTestId('drop-catalog-card')).toHaveCount(2);
-  });
-
-  test('/products sort dropdown is readable and operable in dark mode', async ({ page }) => {
     await mockProducts(page);
-    await page.goto(`${UI_BASE_URL}/products`, { waitUntil: 'domcontentloaded' });
 
+    const routeCases = [
+      {
+        path: '/artists',
+        heading: 'Artists',
+        cardTestId: 'artist-catalog-card',
+        expectedFirstPageCount: 12,
+        expectedSecondPageCount: 2,
+      },
+      {
+        path: '/drops',
+        heading: 'Drops',
+        cardTestId: 'drop-catalog-card',
+        expectedFirstPageCount: 12,
+        expectedSecondPageCount: 2,
+      },
+      {
+        path: '/products',
+        heading: 'Merch catalog',
+        cardTestId: 'product-catalog-card',
+        expectedFirstPageCount: 3,
+        expectedSecondPageCount: null,
+      },
+    ] as const;
+
+    for (const scenario of routeCases) {
+      await test.step(scenario.path, async () => {
+        await page.goto(`${UI_BASE_URL}${scenario.path}`, { waitUntil: 'domcontentloaded' });
+        await expect(
+          page.getByRole('heading', { level: 1, name: scenario.heading, exact: true })
+        ).toBeVisible();
+        await expect(page.getByTestId('public-catalog-toolbar')).toBeVisible();
+        await expect(page.getByTestId('public-catalog-grid')).toBeVisible();
+        await expect(page.getByTestId(scenario.cardTestId)).toHaveCount(scenario.expectedFirstPageCount);
+
+        if (scenario.expectedSecondPageCount !== null) {
+          await expect(page.getByTestId('public-catalog-pagination')).toBeVisible();
+          await page.getByRole('button', { name: /next/i }).click();
+          await expect(page.getByTestId(scenario.cardTestId)).toHaveCount(scenario.expectedSecondPageCount);
+        }
+      });
+    }
+
+    await page.goto(`${UI_BASE_URL}/products`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => {
       document.documentElement.classList.add('dark');
     });
-
     const sortSelect = page.getByTestId('public-catalog-sort');
     await expect(sortSelect).toBeVisible();
-
     const computed = await sortSelect.evaluate((node) => {
       const styles = getComputedStyle(node);
       return {
@@ -114,9 +130,7 @@ test.describe('Public catalog unified UX', () => {
         backgroundColor: styles.backgroundColor,
       };
     });
-
     expect(computed.color).not.toBe(computed.backgroundColor);
-
     await sortSelect.selectOption('newest');
     await expect(sortSelect).toHaveValue('newest');
   });
@@ -149,18 +163,4 @@ test.describe('Public catalog unified UX', () => {
     await expect(page.getByText('No products yet')).toHaveCount(0);
   });
 
-  test('public catalog pages load with shared structure', async ({ page }) => {
-    await mockArtists(page, 4);
-    await mockDrops(page, 4);
-    await mockProducts(page);
-
-    await page.goto(`${UI_BASE_URL}/artists`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { level: 1, name: 'Artists', exact: true })).toBeVisible();
-
-    await page.goto(`${UI_BASE_URL}/drops`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { level: 1, name: 'Drops', exact: true })).toBeVisible();
-
-    await page.goto(`${UI_BASE_URL}/products`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { level: 1, name: 'Merch catalog', exact: true })).toBeVisible();
-  });
 });

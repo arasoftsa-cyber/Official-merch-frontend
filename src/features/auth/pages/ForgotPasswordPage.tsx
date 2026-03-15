@@ -1,32 +1,22 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { forgotPassword } from '../../../shared/api/auth';
+import {
+  getPortalLoginHref,
+  getRequestedAuthPortal,
+  getRequestedReturnTo,
+  toSafeReturnTo,
+} from '../../../shared/auth/routingPolicy';
 import { Page, Card } from '../../../shared/ui/Page';
-
-type Portal = 'fan' | 'partner';
-
-const parsePortal = (value: string | null): Portal => (value === 'partner' ? 'partner' : 'fan');
-
-const toSafeReturnTo = (value: string | null | undefined, portal: Portal): string => {
-  const fallback = portal === 'partner' ? '/partner/dashboard' : '/fan';
-  const raw = String(value || '').trim();
-  if (!raw) return fallback;
-
-  try {
-    const decoded = decodeURIComponent(raw);
-    if (decoded.startsWith('/') && !decoded.startsWith('//')) return decoded;
-  } catch {
-    // ignore malformed returnTo
-  }
-  return fallback;
-};
 
 export default function ForgotPasswordPage() {
   const location = useLocation();
-  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const portal = parsePortal(params.get('portal'));
-  const returnTo = toSafeReturnTo(params.get('returnTo'), portal);
-  const loginTarget = `${portal === 'partner' ? '/partner/login' : '/fan/login'}?returnTo=${encodeURIComponent(returnTo)}`;
+  const portal = getRequestedAuthPortal(location.search);
+  const returnTo = toSafeReturnTo(getRequestedReturnTo(location.search), {
+    portal,
+    fallbackRoute: portal === 'partner' ? '/partner' : '/fan',
+  });
+  const loginTarget = getPortalLoginHref(portal, returnTo);
 
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -120,4 +110,3 @@ export default function ForgotPasswordPage() {
     </Page>
   );
 }
-

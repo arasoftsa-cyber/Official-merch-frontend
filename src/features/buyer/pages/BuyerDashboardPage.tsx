@@ -18,7 +18,7 @@ export default function BuyerDashboardPage() {
             View all your orders, payment status, and shipping updates.
           </p>
           <Link
-            to="/buyer/orders"
+            to="/fan/orders"
             className="mt-5 inline-flex items-center rounded-full border border-slate-300 dark:border-white/30 px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-700 dark:text-white transition hover:border-slate-900 dark:hover:border-white/60 hover:bg-slate-900 hover:text-white dark:hover:bg-white/10"
           >
             Open orders
@@ -29,7 +29,7 @@ export default function BuyerDashboardPage() {
           <h2 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">Delivery info</h2>
           <p className="mt-3 text-sm text-slate-600 dark:text-white/70">Manage your saved addresses for faster checkout.</p>
           <Link
-            to="/buyer/addresses"
+            to="/fan/addresses"
             className="mt-5 inline-flex items-center rounded-full border border-slate-300 dark:border-white/30 px-4 py-2 text-xs uppercase tracking-[0.3em] text-slate-700 dark:text-white transition hover:border-slate-900 dark:hover:border-white/60 hover:bg-slate-900 hover:text-white dark:hover:bg-white/10"
           >
             Manage addresses

@@ -4,36 +4,22 @@ import Card from '../../../../shared/ui/legacy/Card';
 import { apiFetch } from '../../../../shared/api/http';
 import { clearTokens, setAccessToken, setRefreshToken } from '../../../../shared/auth/tokenStore';
 import { buildGoogleOidcStartUrl } from '../../../../shared/auth/oidc';
-
-const FAN_ALLOWED_ROLES = new Set(['buyer', 'fan', 'customer']);
-const ROLE_NOT_ALLOWED_MESSAGE = 'This account is for the Partner Portal. Go to Partner Login';
-
-function resolveRole(payload: any): string {
-  const role =
-    payload?.role ||
-    (Array.isArray(payload?.roles) ? payload.roles[0] : null) ||
-    payload?.user?.role ||
-    null;
-  return String(role || '').toLowerCase();
-}
-
-function toSafeReturnTo(raw: string | null): string {
-  const value = String(raw || '').trim();
-  if (!value) return '/fan';
-  try {
-    const decoded = decodeURIComponent(value);
-    if (decoded.startsWith('/') && !decoded.startsWith('//')) return decoded;
-  } catch {
-    // ignore malformed returnTo
-  }
-  return '/fan';
-}
+import {
+  getPortalLoginHref,
+  getRequestedReturnTo,
+  isFanRole,
+  resolvePortalIssue,
+  resolvePortalIssueFromSearch,
+  resolvePostLoginRedirect,
+  resolveRoleFromAuthPayload,
+  toSafeReturnTo,
+} from '../../../../shared/auth/routingPolicy';
 
 export default function FanLoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const returnTo = new URLSearchParams(location.search).get('returnTo') ?? '/fan';
-  const safeReturnTo = toSafeReturnTo(returnTo);
+  const requestedReturnTo = getRequestedReturnTo(location.search);
+  const safeReturnTo = toSafeReturnTo(requestedReturnTo, { portal: 'fan', fallbackRoute: '/fan' });
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,24 +28,24 @@ export default function FanLoginPage() {
   const [partnerRedirect, setPartnerRedirect] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
+  const forgotPasswordTarget = `/forgot-password?portal=fan&returnTo=${encodeURIComponent(safeReturnTo)}`;
+  const registerTarget = `/fan/register?returnTo=${encodeURIComponent(safeReturnTo)}`;
+  const partnerLoginTarget = getPortalLoginHref('partner', safeReturnTo);
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const portalError = String(params.get('portalError') || '').trim();
-    const message = String(params.get('message') || '').trim();
-
-    if (!portalError && !message) return;
-
-    if (portalError === 'partner_account') {
-      setError(message || ROLE_NOT_ALLOWED_MESSAGE);
-      setPartnerRedirect('/partner/login');
-      return;
+    const issue = resolvePortalIssueFromSearch({
+      search: location.search,
+      currentPortal: 'fan',
+      fallbackReturnTo: safeReturnTo,
+    });
+    if (issue.message) {
+      setError(issue.message);
+      setPartnerRedirect(issue.redirectTo);
+    } else {
+      setError(null);
+      setPartnerRedirect(null);
     }
-
-    if (message) {
-      setError(message);
-    }
-  }, [location.search]);
+  }, [location.search, safeReturnTo]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -73,11 +59,16 @@ export default function FanLoginPage() {
         method: 'POST',
         body: { email, password },
       });
-      const role = resolveRole(res);
-      if (role && !FAN_ALLOWED_ROLES.has(role)) {
+      const role = resolveRoleFromAuthPayload(res);
+      if (role && !isFanRole(role)) {
         clearTokens();
-        setError(ROLE_NOT_ALLOWED_MESSAGE);
-        setPartnerRedirect('/partner/login');
+        const issue = resolvePortalIssue({
+          code: 'auth_portal_mismatch_fan_to_partner',
+          currentPortal: 'fan',
+          returnTo: safeReturnTo,
+        });
+        setError(issue.message);
+        setPartnerRedirect(issue.redirectTo);
         return;
       }
 
@@ -90,14 +81,29 @@ export default function FanLoginPage() {
         setRefreshToken(refreshToken);
       }
 
-      navigate(safeReturnTo, { replace: true });
+      const target = resolvePostLoginRedirect({
+        search: location.search,
+        portal: 'fan',
+        role,
+        fallbackRoute: '/fan',
+      });
+      navigate(target, { replace: true });
     } catch (err: any) {
       const status = Number(err?.status || 0);
       const body = err?.payload || null;
-      if (status === 403 && body?.error === 'ROLE_NOT_ALLOWED') {
+      const issue =
+        status === 403
+          ? resolvePortalIssue({
+              code: body?.error,
+              message: body?.message,
+              currentPortal: 'fan',
+              returnTo: safeReturnTo,
+            })
+          : null;
+      if (issue?.message) {
         clearTokens();
-        setError(ROLE_NOT_ALLOWED_MESSAGE);
-        setPartnerRedirect(String(body?.redirectTo || '/partner/login'));
+        setError(issue.message);
+        setPartnerRedirect(issue.redirectTo);
       } else {
         setError(err?.message || 'Login failed');
       }
@@ -138,7 +144,7 @@ export default function FanLoginPage() {
             {partnerRedirect && (
               <Link
                 data-testid="fan-login-partner-link"
-                to={`${partnerRedirect}?returnTo=${encodeURIComponent(safeReturnTo)}`}
+                to={partnerRedirect}
                 className="mt-2 inline-block font-semibold underline underline-offset-4"
               >
                 Go to Partner Login
@@ -174,7 +180,7 @@ export default function FanLoginPage() {
               </label>
               <Link
                 data-testid="fan-login-forgot-password"
-                to={`/forgot-password?portal=fan&returnTo=${encodeURIComponent(safeReturnTo)}`}
+                to={forgotPasswordTarget}
                 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 transition hover:text-slate-900 dark:text-white/30 dark:hover:text-white"
               >
                 Forgot?
@@ -229,8 +235,8 @@ export default function FanLoginPage() {
         <div className="mt-8 flex flex-col items-center gap-2 text-sm text-slate-500 dark:text-white/40">
           <p>
             New here?{' '}
-            <Link
-              to={`/fan/register?returnTo=${encodeURIComponent(safeReturnTo)}`}
+              <Link
+                to={registerTarget}
               className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
             >
               Sign up
@@ -238,11 +244,11 @@ export default function FanLoginPage() {
           </p>
           <p>
             Are you an artist?{' '}
-            <Link
-              to={`/partner/login?returnTo=${encodeURIComponent(safeReturnTo)}`}
-              className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
-            >
-              Partner Login
+              <Link
+                to={partnerLoginTarget}
+                className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
+              >
+                Partner Login
             </Link>
           </p>
         </div>

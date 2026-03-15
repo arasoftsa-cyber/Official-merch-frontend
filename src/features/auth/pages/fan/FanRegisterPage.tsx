@@ -1,6 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../../shared/api/http';
+import {
+  getPortalLoginHref,
+  getRequestedReturnTo,
+  resolvePostLoginRedirect,
+  toSafeReturnTo,
+} from '../../../../shared/auth/routingPolicy';
 import { setAccessToken, setRefreshToken } from '../../../../shared/auth/tokenStore';
 import { buildGoogleOidcStartUrl } from '../../../../shared/auth/oidc';
 import { Page, Card } from '../../../../shared/ui/Page';
@@ -134,18 +140,18 @@ function mapRegisterError(err: any) {
 export default function FanRegisterPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  const rawReturn = params.get('returnTo') || params.get('next') || '/fan';
-  let redirectTarget = rawReturn;
-  try {
-    redirectTarget = decodeURIComponent(rawReturn);
-  } catch {
-    redirectTarget = rawReturn;
-  }
-  const safeRedirectTarget =
-    redirectTarget.startsWith('/') && !redirectTarget.startsWith('//') ? redirectTarget : '/fan';
-  const loginLinkTarget = `/fan/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`;
-  const partnerLinkTarget = `/partner/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`;
+  const safeRedirectTarget = toSafeReturnTo(getRequestedReturnTo(location.search), {
+    portal: 'fan',
+    fallbackRoute: '/fan',
+  });
+  const postRegisterTarget = resolvePostLoginRedirect({
+    search: location.search,
+    portal: 'fan',
+    role: 'buyer',
+    fallbackRoute: '/fan',
+  });
+  const loginLinkTarget = getPortalLoginHref('fan', safeRedirectTarget);
+  const partnerLinkTarget = getPortalLoginHref('partner', safeRedirectTarget);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -240,9 +246,9 @@ export default function FanRegisterPage() {
         if (refreshToken) {
           setRefreshToken(refreshToken);
         }
-        navigate(safeRedirectTarget);
+        navigate(postRegisterTarget);
       } else {
-        navigate(`/fan/login?returnTo=${encodeURIComponent(safeRedirectTarget)}`);
+        navigate(getPortalLoginHref('fan', safeRedirectTarget));
       }
     } catch (err: any) {
       setFormError(mapRegisterError(err));

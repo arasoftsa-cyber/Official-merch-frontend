@@ -5,30 +5,12 @@ import {
   fulfillAdminOrder,
   refundAdminOrder,
 } from '../../../shared/api/adminOrdersApi';
+import type { OrderDetailDto } from '../../../shared/api/orderDtos';
 import { safeErrorMessage } from '../../../shared/utils/safeError';
-import { formatCurrencyFromCents } from '../../../shared/utils/currency';
-
-type OrderItem = {
-  id?: string;
-  productId?: string;
-  productVariantId?: string;
-  quantity?: number;
-  priceCents?: number;
-};
-
-type OrderDetail = {
-  id?: string;
-  status?: string;
-  totalCents?: number;
-  createdAt?: string;
-  buyerUserId?: string;
-  payment?: {
-    paymentId?: string;
-    status?: string;
-    provider?: string;
-  } | null;
-  items?: OrderItem[];
-};
+import {
+  formatCurrencyFromCents,
+  formatDateTime as formatDateTimeValue,
+} from '../../../shared/utils/formatting';
 
 const statusPillClass = (status: string) => {
   const normalized = status.toLowerCase();
@@ -41,15 +23,13 @@ const statusPillClass = (status: string) => {
 
 const formatLocalDateTime = (value?: string | null) => {
   if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
+  return formatDateTimeValue(value);
 };
 
 export default function AdminOrderDetailPage() {
   const { id, orderId } = useParams<{ id?: string; orderId?: string }>();
   const resolvedOrderId = id ?? orderId ?? '';
-  const [data, setData] = useState<OrderDetail | null>(null);
+  const [data, setData] = useState<OrderDetailDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fulfillBusy, setFulfillBusy] = useState(false);

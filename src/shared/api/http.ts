@@ -1,18 +1,15 @@
-import {
-  clearTokens,
-  getAccessToken,
-  getRefreshToken,
-  setAccessToken,
-  setRefreshToken,
-} from '../auth/tokenStore';
+import { getAccessToken } from '../auth/tokenStore';
 import API_BASE_CONFIG from '@/config/apiBase';
 import { validateApiResponse } from '../validation/schemas';
+import { createRefreshFlow, shouldRetryAfter401 } from './authRefreshFlow';
 export const API_BASE = String(API_BASE_CONFIG || '').trim().replace(/\/+$/, '');
-const AUTH_REFRESH_ENDPOINT = '/api/auth/refresh';
 const NETWORK_ERROR_MESSAGE =
   'Cannot reach the server. Make sure the backend is running and your API base URL is correct.';
-type ApiRequestOptions = RequestInit & { schema?: any };
-const LOGIN_OR_REGISTER_PATH_RE = /^\/(fan|partner)\/(login|register)(?:\/|$)/i;
+type ApiRequestOptions = RequestInit & {
+  schema?: any;
+  __retryCount?: number;
+  __skipAuthRefresh?: boolean;
+};
 
 const ensureApiPath = (path: string) => {
   const trimmed = path.trim();
@@ -41,78 +38,26 @@ const isLikelyNetworkError = (err: unknown): boolean => {
   return false;
 };
 
-const getAccessTokenFromPayload = (payload: any): string | null => {
-  return (
-    payload?.accessToken ||
-    payload?.token ||
-    payload?.data?.accessToken ||
-    payload?.access_token ||
-    null
-  );
-};
-
-const getRefreshTokenFromPayload = (payload: any): string | null => {
-  return (
-    payload?.refreshToken ||
-    payload?.data?.refreshToken ||
-    payload?.refresh_token ||
-    null
-  );
-};
-
-let refreshInFlight: Promise<string | null> | null = null;
-
-const refreshAccessToken = async (): Promise<string | null> => {
-  if (!refreshInFlight) {
-    refreshInFlight = (async () => {
-      const refreshToken = getRefreshToken();
-      if (!refreshToken) {
-        return null;
-      }
-
-      let payload: any = null;
-      try {
-        payload = await apiFetchInternal(
-          AUTH_REFRESH_ENDPOINT,
-          { method: 'POST', body: { refreshToken } },
-          false
-        );
-      } catch (err: any) {
-        if (Number(err?.status || 0) === 401) {
-          return null;
-        }
-        return null;
-      }
-
-      const token = getAccessTokenFromPayload(payload);
-      if (token) {
-        setAccessToken(token);
-      }
-      const rotatedRefreshToken = getRefreshTokenFromPayload(payload);
-      if (rotatedRefreshToken) {
-        setRefreshToken(rotatedRefreshToken);
-      }
-      return token;
-    })().finally(() => {
-      refreshInFlight = null;
-    });
-  }
-
-  return refreshInFlight;
-};
+const refreshFlow = createRefreshFlow((path, options) =>
+  apiFetchInternal(path, options as ApiRequestOptions)
+);
 
 async function apiFetchInternal(
   path: string,
-  options: ApiRequestOptions = {},
-  allowRefresh = true
+  options: ApiRequestOptions = {}
 ): Promise<any> {
   const endpoint = ensureApiPath(path);
+  const retryCount = Number(options.__retryCount || 0);
+  const skipAuthRefresh = Boolean(options.__skipAuthRefresh);
   if (import.meta.env.DEV && endpoint.includes('/api/api/')) {
     // eslint-disable-next-line no-console
     console.warn('Double /api/ detected in API request', path);
   }
   const url = `${API_BASE}${endpoint}`;
   const init: RequestInit = { ...options };
+  delete (init as any).schema;
+  delete (init as any).__retryCount;
+  delete (init as any).__skipAuthRefresh;
   const headers = new Headers(init.headers ?? {});
   headers.set('Accept', 'application/json');
   const token = getAccessToken();
@@ -152,19 +97,20 @@ async function apiFetchInternal(
   }
 
   if (!response.ok) {
-    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-    const shouldSkipRefresh = LOGIN_OR_REGISTER_PATH_RE.test(currentPath);
-    if (
-      response.status === 401 &&
-      allowRefresh &&
-      endpoint !== AUTH_REFRESH_ENDPOINT &&
-      !shouldSkipRefresh
-    ) {
-      const refreshedToken = await refreshAccessToken();
+    if (!skipAuthRefresh && shouldRetryAfter401({
+      endpoint,
+      status: response.status,
+      payload,
+      retryCount,
+    })) {
+      const refreshedToken = await refreshFlow.refreshAccessToken();
       if (refreshedToken) {
-        return apiFetchInternal(path, options, false);
+        return apiFetchInternal(path, {
+          ...options,
+          __retryCount: retryCount + 1,
+        });
       }
-      clearTokens();
+      refreshFlow.clearSessionOnce();
     }
 
     const message =
@@ -183,7 +129,10 @@ export async function apiFetch(
   path: string,
   options: ApiRequestOptions = {}
 ): Promise<any> {
-  return apiFetchInternal(path, options, true);
+  return apiFetchInternal(path, {
+    ...options,
+    __retryCount: Number(options.__retryCount || 0),
+  });
 }
 
 export async function apiFetchForm(

@@ -36,7 +36,14 @@ const getFixturePhotos = () => {
   ];
 };
 
-const setupAdminProductsMocks = async (page: Page) => {
+const setupAdminProductsMocks = async (
+  page: Page,
+  options?: {
+    initialProducts?: ProductItem[];
+    detailDelayMs?: number;
+    failDetailForId?: string;
+  }
+) => {
   const buildCorsHeaders = (route: any) => {
     const requestHeaders = route.request().headers();
     const origin = requestHeaders?.origin || 'http://localhost:5173';
@@ -68,7 +75,7 @@ const setupAdminProductsMocks = async (page: Page) => {
   };
 
   const state = {
-    products: makeInitialProducts(),
+    products: options?.initialProducts ? [...options.initialProducts] : makeInitialProducts(),
     patchCalls: 0,
     photoCalls: 0,
     lastPatchBody: null as any,
@@ -95,6 +102,13 @@ const setupAdminProductsMocks = async (page: Page) => {
       return;
     }
     const id = route.request().url().split('/api/products/')[1]?.split('?')[0];
+    if (options?.detailDelayMs) {
+      await page.waitForTimeout(options.detailDelayMs);
+    }
+    if (options?.failDetailForId && options.failDetailForId === id) {
+      await fulfillJson(route, 500, { message: 'detail_failed' });
+      return;
+    }
     const row = state.products.find((item) => item.id === id || item.productId === id);
     await fulfillJson(route, row ? 200 : 404, row ? { product: row } : { error: 'not_found' });
   });
@@ -183,6 +197,15 @@ const openEditModal = async (page: Page) => {
   await firstRow.getByTestId('admin-product-row-edit').click();
   await expect(page.getByTestId('admin-product-edit-modal')).toBeVisible({ timeout: 10000 });
   await expect(page.getByRole('heading', { name: /edit product/i })).toBeVisible({ timeout: 10000 });
+};
+
+const openEditModalByTitle = async (page: Page, title: string) => {
+  await loginAdmin(page, { returnTo: '/partner/admin/products' });
+  await gotoApp(page, '/partner/admin/products', { waitUntil: 'domcontentloaded' });
+  const row = page.getByTestId('admin-product-row').filter({ hasText: title }).first();
+  await expect(row).toBeVisible({ timeout: 10000 });
+  await row.getByTestId('admin-product-row-edit').click();
+  await expect(page.getByTestId('admin-product-edit-modal')).toBeVisible({ timeout: 10000 });
 };
 
 test.describe('Admin edit product modal', () => {
@@ -282,5 +305,65 @@ test.describe('Admin edit product modal', () => {
       'src',
       /replacement-1\.png/
     );
+  });
+
+  test('binds selected row state into modal, clears on close, and reopens for the newly selected product', async ({ page }) => {
+    await setupAdminProductsMocks(page, {
+      initialProducts: [
+        {
+          id: 'product-1',
+          productId: 'product-1',
+          title: 'Original Product Name',
+          description: 'Original product description with enough length.',
+          artistId: 'artist-1',
+          isActive: true,
+          listingPhotoUrls: ['/uploads/products/original-thumb.png'],
+        },
+        {
+          id: 'product-2',
+          productId: 'product-2',
+          title: 'Second Product Title',
+          description: 'Second product description with enough length.',
+          artistId: 'artist-1',
+          isActive: true,
+          listingPhotoUrls: ['/uploads/products/second-thumb.png'],
+        },
+      ],
+    });
+    await openEditModalByTitle(page, 'Second Product Title');
+
+    await expect(page.getByTestId('admin-edit-product-merch-name')).toHaveValue('Second Product Title');
+    await expect(page.getByTestId('admin-edit-product-story')).toHaveValue(
+      'Second product description with enough length.'
+    );
+    await expect(page.getByTestId('admin-product-edit-modal')).toHaveAttribute(
+      'data-product-id',
+      'product-2'
+    );
+    await expect(page.getByTestId('admin-edit-product-initial-title')).toHaveText(
+      'Second Product Title'
+    );
+
+    await page.getByRole('button', { name: 'Discard' }).click();
+    await expect(page.getByTestId('admin-product-edit-modal')).toHaveCount(0);
+
+    await openEditModalByTitle(page, 'Original Product Name');
+    await expect(page.getByTestId('admin-product-edit-modal')).toHaveAttribute(
+      'data-product-id',
+      'product-1'
+    );
+    await expect(page.getByTestId('admin-edit-product-merch-name')).toHaveValue(
+      'Original Product Name'
+    );
+  });
+
+  test('shows loading then error state when product detail hydration fails', async ({ page }) => {
+    await setupAdminProductsMocks(page, { detailDelayMs: 500, failDetailForId: 'product-1' });
+    await openEditModal(page);
+
+    await expect(page.getByText(/fetching matrix/i)).toBeVisible();
+    await expect(page.getByText(/detail_failed|failed to load full product details/i)).toBeVisible({
+      timeout: 10000,
+    });
   });
 });

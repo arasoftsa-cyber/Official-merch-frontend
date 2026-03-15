@@ -81,8 +81,8 @@ const mapValidationDetails = (details: any[]): FieldErrors => {
 
 const formatSkuLabel = (sku: InventorySku): string => {
   const quality = asText(sku.qualityTier || sku.quality_tier);
-  const qualityPart = quality ? ` Ã‚Â· ${quality}` : '';
-  return `${sku.supplierSku} Ã‚Â· ${sku.merchType}${qualityPart} Ã‚Â· ${sku.color} Ã‚Â· ${sku.size} Ã‚Â· Stock: ${sku.stock}${sku.isActive ? '' : ' Ã‚Â· Inactive'}`;
+  const qualityPart = quality ? ` - ${quality}` : '';
+  return `${sku.supplierSku} - ${sku.merchType}${qualityPart} - ${sku.color} - ${sku.size} - Stock: ${sku.stock}${sku.isActive ? '' : ' - Inactive'}`;
 };
 
 const buildVariantSku = (sku: InventorySku): string => {
