@@ -4,6 +4,7 @@ import { apiFetch, API_BASE } from '../shared/api/http';
 import {
   clearSession,
   getAccessToken,
+  clearTokens,
   getRefreshToken,
   loadPersistedSession,
 } from '../shared/auth/tokenStore';
