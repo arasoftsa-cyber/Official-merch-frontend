@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { API_BASE } from '../../../shared/api/http';
-import { getAccessToken } from '../../../shared/auth/tokenStore';
+import { apiFetch } from '../../../shared/api/http';
 import { useToast } from '../../../shared/components/ux/ToastHost';
 import { Page, Container } from '../../../shared/ui/Page';
 
@@ -55,7 +54,6 @@ const isAbort = (e: unknown) =>
 
 export default function ArtistProductVariantsPage() {
   const { id } = useParams<{ id: string }>();
-  const authToken = getAccessToken();
   const toast = useToast();
   const [productTitle, setProductTitle] = useState<string | null>(null);
   const [variants, setVariants] = useState<EditableVariant[]>([]);
@@ -64,36 +62,15 @@ export default function ArtistProductVariantsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const buildHeaders = (contentType?: string) => {
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-    };
-    if (contentType) {
-      headers['Content-Type'] = contentType;
-    }
-    if (authToken) {
-      headers.Authorization = `Bearer ${authToken}`;
-    }
-    return headers;
-  };
-
   const loadProductInfo = async (
     signal?: AbortSignal,
     isAlive: () => boolean = () => true
   ) => {
     if (!id) return;
     try {
-      const response = await fetch(`${API_BASE}/api/products/${id}`, {
-        method: 'GET',
-        headers: buildHeaders(),
+      const payload = (await apiFetch(`/products/${id}`, {
         signal,
-      });
-      if (signal?.aborted || !isAlive()) return;
-      if (!response.ok) {
-        if (isAlive()) setProductTitle('Product');
-        return;
-      }
-      const payload = (await response.json().catch(() => null)) as ProductResponse;
+      }).catch(() => null)) as ProductResponse | null;
       if (signal?.aborted || !isAlive()) return;
       if (payload?.product) {
         setProductTitle(payload.product?.title ?? payload.product?.id ?? 'Product');
@@ -111,17 +88,9 @@ export default function ArtistProductVariantsPage() {
   ) => {
     if (!id) return;
     try {
-      const response = await fetch(`${API_BASE}/api/products/${id}/variants`, {
-        method: 'GET',
-        headers: buildHeaders(),
+      const payload = (await apiFetch(`/products/${id}/variants`, {
         signal,
-      });
-      if (signal?.aborted || !isAlive()) return;
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(payload?.message ?? payload?.error ?? response.statusText);
-      }
-      const payload = (await response.json().catch(() => null)) as {
+      })) as {
         productId?: string;
         variants?: Array<EditableVariant & { priceCents?: number }>;
       };
@@ -184,7 +153,7 @@ export default function ArtistProductVariantsPage() {
       controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, authToken]);
+  }, [id]);
 
   const addVariant = () => {
     setMessage(null);
@@ -196,17 +165,9 @@ export default function ArtistProductVariantsPage() {
 
   const deleteVariant = async (variantId: string): Promise<string | null> => {
     try {
-      const response = await fetch(
-        `${API_BASE}/api/product-variants/${variantId}`,
-        {
-          method: 'DELETE',
-          headers: buildHeaders(),
-        }
-      );
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        return payload?.message ?? payload?.error ?? response.statusText;
-      }
+      await apiFetch(`/product-variants/${variantId}`, {
+        method: 'DELETE',
+      });
       return null;
     } catch (err: any) {
       if (isAbort(err)) return null;
@@ -296,15 +257,10 @@ export default function ArtistProductVariantsPage() {
           stock: Number(variant.stock),
         })),
       };
-      const response = await fetch(`${API_BASE}/api/products/${id}/variants`, {
+      await apiFetch(`/products/${id}/variants`, {
         method: 'PUT',
-        headers: buildHeaders('application/json'),
-        body: JSON.stringify(payload),
+        body: payload,
       });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(payload?.message ?? payload?.error ?? response.statusText);
-      }
       setMessage('Variants saved');
       toast.notify('Variants saved.', 'success');
       await loadVariants();

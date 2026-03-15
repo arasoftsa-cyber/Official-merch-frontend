@@ -7,7 +7,7 @@ import {
   resolvePostLoginRedirect,
   toSafeReturnTo,
 } from '../../../../shared/auth/routingPolicy';
-import { setAccessToken, setRefreshToken } from '../../../../shared/auth/tokenStore';
+import { setSession } from '../../../../shared/auth/tokenStore';
 import { buildGoogleOidcStartUrl } from '../../../../shared/auth/oidc';
 import { Page, Card } from '../../../../shared/ui/Page';
 
@@ -242,10 +242,10 @@ export default function FanRegisterPage() {
       const token = res?.accessToken || res?.token;
       const refreshToken = res?.refreshToken || res?.data?.refreshToken || res?.refresh_token || null;
       if (token) {
-        setAccessToken(token);
-        if (refreshToken) {
-          setRefreshToken(refreshToken);
-        }
+        setSession({
+          accessToken: token,
+          refreshToken,
+        });
         navigate(postRegisterTarget);
       } else {
         navigate(getPortalLoginHref('fan', safeRedirectTarget));

@@ -2,8 +2,10 @@ import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 
 import { Routes, Navigate, useLocation } from 'react-router-dom';
 import { apiFetch, API_BASE } from '../shared/api/http';
 import {
+  clearSession,
   getAccessToken,
-  clearTokens,
+  getRefreshToken,
+  loadPersistedSession,
 } from '../shared/auth/tokenStore';
 import {
   getPortalForPath,
@@ -110,14 +112,28 @@ function useAuthStatus() {
   const location = useLocation();
   const [role, setRole] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [hasToken, setHasToken] = useState(() => Boolean(getAccessToken()));
   const validatedTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
+    const persistedSession = loadPersistedSession();
     const currentToken = getAccessToken() || null;
-    setHasToken(Boolean(currentToken));
-    if (currentToken && validatedTokenRef.current !== currentToken) {
+    const currentRefreshToken = persistedSession.refreshToken || null;
+    const sessionCandidate = currentToken || currentRefreshToken;
+
+    if (!sessionCandidate) {
+      if (isMounted) {
+        setRole(null);
+        setAuthChecked(true);
+        validatedTokenRef.current = null;
+      }
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const currentSessionKey = currentToken || `refresh:${currentRefreshToken}`;
+    if (validatedTokenRef.current !== currentSessionKey) {
       setAuthChecked(false);
     }
 
@@ -128,17 +144,7 @@ function useAuthStatus() {
       };
 
       try {
-        if (!currentToken) {
-          if (isMounted) {
-            setRole(null);
-            setHasToken(false);
-            validatedTokenRef.current = null;
-          }
-          return;
-        }
-
-        if (validatedTokenRef.current === currentToken) {
-          if (isMounted) setHasToken(true);
+        if (validatedTokenRef.current === currentSessionKey) {
           return;
         }
 
@@ -146,25 +152,21 @@ function useAuthStatus() {
         if (!isMounted) return;
 
         if (!resolvedRole) {
-          clearTokens();
+          clearSession();
           setRole(null);
-          setHasToken(false);
           validatedTokenRef.current = null;
           return;
         }
         setRole(resolvedRole);
-        setHasToken(true);
-        validatedTokenRef.current = currentToken;
+        validatedTokenRef.current = getAccessToken() || currentSessionKey;
       } catch (err: any) {
         const message = typeof err?.message === 'string' ? err.message : '';
         if (message.includes('401') || message.includes('403')) {
-          clearTokens();
-          setHasToken(false);
+          clearSession();
           setRole(null);
           validatedTokenRef.current = null;
         } else if (isMounted) {
           setRole(null);
-          setHasToken(false);
           validatedTokenRef.current = null;
         }
       } finally {
@@ -179,7 +181,11 @@ function useAuthStatus() {
     };
   }, [location.pathname]);
 
-  return { role, authChecked, hasToken };
+  return {
+    role,
+    authChecked,
+    hasSessionCandidate: Boolean(getAccessToken() || getRefreshToken()),
+  };
 }
 
 function Loading() {
@@ -191,18 +197,16 @@ function Loading() {
 }
 
 function AppRoutes() {
-  const { role, authChecked, hasToken } = useAuthStatus();
+  const { role, authChecked, hasSessionCandidate } = useAuthStatus();
   const location = useLocation();
-  // Use live token presence as source-of-truth to avoid stale auth state after logout.
-  const hasLiveToken = Boolean(getAccessToken());
-  const isAuthenticated = hasToken && hasLiveToken;
+  const isAuthenticated = authChecked && Boolean(role);
   const effectiveRole = isAuthenticated ? role : null;
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
-  if (isAuthenticated && !authChecked) {
+  if (!authChecked && hasSessionCandidate) {
     return <Loading />;
   }
 
@@ -211,7 +215,7 @@ function AppRoutes() {
       return element;
     }
 
-    if (!isAuthenticated && !authChecked) {
+    if (!authChecked && hasSessionCandidate) {
       return <Loading />;
     }
 
@@ -224,10 +228,6 @@ function AppRoutes() {
       return element;
     }
 
-    if (!authChecked) {
-      return <Loading />;
-    }
-
     if (effectiveRole && !roleAllowsPath(effectiveRole, location.pathname)) {
       return <Navigate to="/forbidden" replace />;
     }
@@ -236,7 +236,7 @@ function AppRoutes() {
   };
 
   const loginEntryElement = (element: React.ReactNode) => {
-    if (isAuthenticated && !authChecked) {
+    if (!authChecked && hasSessionCandidate) {
       return <Loading />;
     }
     if (isAuthenticated && authChecked) {

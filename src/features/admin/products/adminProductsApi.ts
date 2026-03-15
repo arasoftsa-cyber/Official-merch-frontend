@@ -1,10 +1,11 @@
 import { apiFetch, apiFetchForm } from '../../../shared/api/http';
+import { createApiContractError } from '../../../shared/api/contract';
 import { resolveMediaUrl } from '../../../shared/utils/media';
 import {
-  extractItems,
-  mapAdminArtistDto,
+  parseAdminArtists,
+  parseAdminProducts,
+  parsePendingMerchRequests,
   mapAdminProductDto,
-  mapPendingMerchRequestDto,
   type Artist,
   type PendingMerchRequest,
   type Product,
@@ -16,6 +17,7 @@ export type AdminProductsDataSnapshot = {
   artists: Artist[];
   pendingRequests: PendingMerchRequest[];
 };
+const PRODUCTS_DOMAIN = 'admin.products';
 
 export async function fetchAdminProductsDataSnapshot(): Promise<AdminProductsDataSnapshot> {
   const [productsResult, artistsResult, pendingResult, rejectedResult] = await Promise.allSettled([
@@ -34,18 +36,10 @@ export async function fetchAdminProductsDataSnapshot(): Promise<AdminProductsDat
   const pendingPayload = pendingResult.status === 'fulfilled' ? pendingResult.value : null;
   const rejectedPayload = rejectedResult.status === 'fulfilled' ? rejectedResult.value : null;
 
-  const products = extractItems(productsPayload, ['items', 'products', 'rows', 'data'])
-    .map((item: any) => mapAdminProductDto(item))
-    .filter((item: Product | null): item is Product => Boolean(item));
-  const artists = extractItems(artistsPayload, ['artists', 'items', 'data'])
-    .map((item: any) => mapAdminArtistDto(item))
-    .filter((item: Artist | null): item is Artist => Boolean(item));
-  const pendingItems = extractItems(pendingPayload, ['items', 'products', 'rows', 'data'])
-    .map((item: any) => mapPendingMerchRequestDto(item))
-    .filter((item: PendingMerchRequest | null): item is PendingMerchRequest => Boolean(item));
-  const rejectedItems = extractItems(rejectedPayload, ['items', 'products', 'rows', 'data'])
-    .map((item: any) => mapPendingMerchRequestDto(item))
-    .filter((item: PendingMerchRequest | null): item is PendingMerchRequest => Boolean(item));
+  const products = parseAdminProducts(productsPayload);
+  const artists = artistsPayload ? parseAdminArtists(artistsPayload) : [];
+  const pendingItems = pendingPayload ? parsePendingMerchRequests(pendingPayload) : [];
+  const rejectedItems = rejectedPayload ? parsePendingMerchRequests(rejectedPayload) : [];
 
   const pendingRequests = [...pendingItems, ...rejectedItems]
     .filter((item) => ['pending', 'rejected'].includes(normalizeStatus(item?.status)))
@@ -93,11 +87,15 @@ export async function replaceAdminProductPhotos(
   const photoUpdate = await apiFetchForm(`/admin/products/${productId}/photos`, fd, {
     method: 'PUT',
   });
-  return Array.isArray(photoUpdate?.listingPhotoUrls)
-    ? photoUpdate.listingPhotoUrls
-        .map((entry: any) => resolveMediaUrl(typeof entry === 'string' ? entry : null))
-        .filter((entry: string | null): entry is string => Boolean(entry))
-    : [];
+  if (!Array.isArray(photoUpdate?.listingPhotoUrls)) {
+    throw createApiContractError(
+      PRODUCTS_DOMAIN,
+      'Product photo update response is missing listingPhotoUrls.'
+    );
+  }
+  return photoUpdate.listingPhotoUrls
+    .map((entry: any) => resolveMediaUrl(typeof entry === 'string' ? entry : null))
+    .filter((entry: string | null): entry is string => Boolean(entry));
 }
 
 export async function approveAdminPendingMerchRequest(

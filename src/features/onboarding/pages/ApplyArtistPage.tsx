@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ErrorState from '../../../shared/components/ux/ErrorState';
-import { API_BASE } from '../../../shared/api/http';
+import { apiFetch, apiFetchForm } from '../../../shared/api/http';
 import { Container, Page } from '../../../shared/ui/Page';
 import PlanTypeSelector from './ApplyArtistPlanTypeSelector';
 
@@ -127,8 +127,6 @@ export default function ApplyArtistPage() {
 
     const handle = normalizeHandle(form.handle);
     const socialsArray = buildSocialsArray(form.socials);
-
-    let response: Response;
     const isMultipart = Boolean(form.profilePhoto);
     try {
       if (isMultipart) {
@@ -142,14 +140,10 @@ export default function ApplyArtistPage() {
         fd.append('message_for_fans', form.messageForFans.trim());
         fd.append('profile_photo', form.profilePhoto as File);
         fd.append('socials', JSON.stringify(socialsArray));
-        response = await fetch(`${API_BASE}/api/artist-access-requests`, {
-          method: 'POST',
-          body: fd,
-        });
+        await apiFetchForm('/artist-access-requests', fd, { method: 'POST' });
       } else {
-        response = await fetch(`${API_BASE}/api/artist-access-requests`, {
+        await apiFetch('/artist-access-requests', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             artist_name: form.artistName.trim(),
             handle,
@@ -162,35 +156,11 @@ export default function ApplyArtistPage() {
           }),
         });
       }
-    } catch {
-      setSubmitError('Unable to submit request');
-      setSubmitting(false);
-      return;
-    }
-
-    if (!response.ok) {
-      let responseBodyText = '';
-      if (import.meta.env.DEV) {
-        responseBodyText = await response
-          .clone()
-          .text()
-          .catch(() => '');
-      }
-      let data: any = null;
-      try {
-        data = await response.json();
-      } catch {
-        data = null;
-      }
-      if (import.meta.env.DEV) {
-        console.error('[apply/artist] submit failed', {
-          status: response.status,
-          body: responseBodyText || data,
-        });
-      }
+    } catch (err: any) {
+      const data = err?.payload ?? null;
       const backendMessage =
         typeof data?.error === 'string' && typeof data?.message === 'string'
-          ? data.message.trim()
+          ? String(data.message).trim()
           : '';
       const genericSubmitError = backendMessage
         ? `Unable to submit request: ${backendMessage}`

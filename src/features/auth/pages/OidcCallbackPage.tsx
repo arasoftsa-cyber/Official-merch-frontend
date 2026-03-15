@@ -2,9 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../shared/api/http';
 import {
-  clearTokens,
-  setAccessToken,
-  setRefreshToken,
+  clearSession,
+  setSession,
 } from '../../../shared/auth/tokenStore';
 import {
   extractOidcTokens,
@@ -122,10 +121,10 @@ export default function OidcCallbackPage() {
           throw new Error('Google login response did not include an access token.');
         }
 
-        setAccessToken(accessToken);
-        if (refreshToken) {
-          setRefreshToken(refreshToken);
-        }
+        setSession({
+          accessToken,
+          refreshToken,
+        });
 
         if (cancelled) return;
         const target = resolveOidcSuccessRedirect({
@@ -147,7 +146,7 @@ export default function OidcCallbackPage() {
           }
           return;
         }
-        clearTokens();
+        clearSession();
         if (cancelled) return;
         setError(String(err?.message || 'Google sign-in failed.'));
       }

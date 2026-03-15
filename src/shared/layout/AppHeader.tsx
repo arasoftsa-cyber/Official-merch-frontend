@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { clearTokens, getAccessToken } from '../../shared/auth/tokenStore';
+import { clearSession, getAccessToken } from '../../shared/auth/tokenStore';
 import { getMe } from '../../shared/api/appApi';
 import { logoutAuth } from '../../shared/api/auth';
+import { useCart } from '../../cart/CartContext';
 
 type AppHeaderProps = {
   variant?: 'public' | 'buyer';
@@ -14,48 +15,15 @@ const navItems = [
   { label: 'Products', to: '/products' },
 ];
 const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'admin']);
-const CART_UPDATED_EVENT = 'om:cart-updated';
-
-function readCartCount(): number {
-  if (typeof window === 'undefined' || !window.localStorage) return 0;
-  try {
-    const raw = window.localStorage.getItem('om_cart_v1');
-    if (!raw) return 0;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return 0;
-    return parsed.reduce((sum, item) => {
-      const qty = Number(item?.quantity);
-      if (!Number.isFinite(qty) || qty <= 0) return sum;
-      return sum + qty;
-    }, 0);
-  } catch {
-    return 0;
-  }
-}
-
 export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
   const location = useLocation();
+  const { cartCount } = useCart();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [cartCount, setCartCount] = useState<number>(readCartCount());
   const [loggedIn, setLoggedIn] = useState(Boolean(getAccessToken()));
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
-    const syncCount = () => setCartCount(readCartCount());
-    syncCount();
-    const onStorage = () => syncCount();
-    const onCartUpdated = () => syncCount();
-    window.addEventListener('storage', onStorage);
-    window.addEventListener(CART_UPDATED_EVENT, onCartUpdated);
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener(CART_UPDATED_EVENT, onCartUpdated);
-    };
-  }, []);
-
-  useEffect(() => {
-    setCartCount(readCartCount());
     setMobileOpen(false);
   }, [location.pathname, location.search]);
 
@@ -91,7 +59,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
     } catch {
       // Best-effort server logout.
     } finally {
-      clearTokens();
+      clearSession();
       sessionStorage.clear();
       setLoggedIn(false);
       setRole(null);

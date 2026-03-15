@@ -1,5 +1,8 @@
+import { readArrayEnvelope } from '../../../shared/api/contract';
 import { resolveMediaUrl } from '../../../shared/utils/media';
 import type { ArtistRequest, ArtistRequestPlanType, ArtistRequestStatus } from './types';
+
+const ARTIST_REQUESTS_DOMAIN = 'admin.artistRequests';
 
 export const normalizeArtistRequestStatus = (value: unknown): ArtistRequestStatus => {
   const normalized = String(value ?? '').trim().toLowerCase();
@@ -54,24 +57,19 @@ const normalizeSocials = (value: any) => {
 export const isPremiumEnabledFromConfig = (payload: any): boolean => {
   if (!payload || typeof payload !== 'object') return false;
   if (typeof payload.premium_plan_enabled === 'boolean') return payload.premium_plan_enabled;
-  if (typeof payload.premiumPlanEnabled === 'boolean') return payload.premiumPlanEnabled;
   if (Array.isArray(payload.enabled_plan_types)) {
     return payload.enabled_plan_types.map(normalizePlanType).includes('premium');
-  }
-  if (Array.isArray(payload.enabledPlans)) {
-    return payload.enabledPlans.map(normalizePlanType).includes('premium');
   }
   return false;
 };
 
 export const mapArtistRequestDto = (item: any): ArtistRequest => {
   const artistName =
-    String((item as any).artist_name ?? item.artistName ?? item.name ?? 'Unknown').trim() || 'Unknown';
-  const handle =
-    String((item as any).handle ?? (item as any).handle_suggestion ?? item.handleSuggestion ?? '').trim();
-  const email = String((item as any).email ?? (item as any).contact_email ?? item.contactEmail ?? '').trim();
-  const phone = String((item as any).phone ?? (item as any).contact_phone ?? item.contactPhone ?? '').trim();
-  const createdAt = String((item as any).created_at ?? item.createdAt ?? new Date().toISOString()).trim();
+    String((item as any).artist_name ?? item.artistName ?? 'Unknown').trim() || 'Unknown';
+  const handle = String((item as any).handle ?? '').trim();
+  const email = String((item as any).email ?? '').trim();
+  const phone = String((item as any).phone ?? '').trim();
+  const createdAt = String((item as any).created_at ?? item.createdAt ?? '').trim();
 
   return {
     id: String(item.id),
@@ -83,24 +81,32 @@ export const mapArtistRequestDto = (item: any): ArtistRequest => {
     handle,
     email,
     phone,
-    socials: normalizeSocials((item as any).socials ?? item.socials),
-    aboutMe: String((item as any).about_me ?? item.aboutMe ?? (item as any).pitch ?? '').trim(),
+    socials: normalizeSocials((item as any).socials),
+    aboutMe: String((item as any).about_me ?? item.aboutMe ?? '').trim(),
     profilePhotoUrl:
       resolveMediaUrl(
         String(
           (item as any).profile_photo_url ??
             (item as any).profile_photo_path ??
             item.profilePhotoUrl ??
-            item.profilePhotoPath ??
             ''
         ).trim() || null
       ) ?? '',
-    messageForFans: String(
-      (item as any).message_for_fans ?? item.messageForFans ?? (item as any).fan_message ?? ''
-    ).trim(),
+    messageForFans: String((item as any).message_for_fans ?? item.messageForFans ?? '').trim(),
     requestedPlanType: normalizePlan(
       String((item as any).requested_plan_type ?? item.requestedPlanType ?? 'basic')
     ),
     rejectionComment: String((item as any).rejection_comment ?? item.rejectionComment ?? '').trim(),
   };
+};
+
+export const parseAdminArtistRequestsResponse = (
+  payload: unknown,
+  fallbackPage: number
+): { items: ArtistRequest[]; total: number; page: number } => {
+  const items = readArrayEnvelope(payload, 'items', ARTIST_REQUESTS_DOMAIN).map(mapArtistRequestDto);
+  const source = (payload && typeof payload === 'object' ? payload : {}) as Record<string, any>;
+  const total = typeof source.total === 'number' ? source.total : items.length;
+  const page = Number(source.page) || fallbackPage;
+  return { items, total, page };
 };

@@ -1,20 +1,9 @@
 import { apiFetch } from './http';
-
-type StartResponse = { attemptId?: string; raw: any };
-
-function extractAttemptId(payload: any): string | undefined {
-  return (
-    payload?.attemptId ||
-    payload?.id ||
-    payload?.paymentAttemptId ||
-    payload?.attempt?.id ||
-    payload?.data?.attemptId
-  );
-}
+import { parseStartPaymentResponse, type StartResponse } from './paymentsFlowDtos';
 
 export async function startPayment(orderId: string): Promise<StartResponse> {
   const payload = await apiFetch(`/orders/${orderId}/pay`, { method: 'POST' });
-  return { attemptId: extractAttemptId(payload), raw: payload };
+  return parseStartPaymentResponse(payload);
 }
 
 export async function confirmPayment(orderId: string, attemptId?: string) {

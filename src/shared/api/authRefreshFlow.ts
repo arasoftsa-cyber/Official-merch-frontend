@@ -1,9 +1,8 @@
 import {
-  clearTokens,
+  clearSession,
   getAccessToken,
   getRefreshToken,
-  setAccessToken,
-  setRefreshToken,
+  setSession,
 } from '../auth/tokenStore';
 
 export const AUTH_REFRESH_ENDPOINT = '/api/auth/refresh';
@@ -36,7 +35,7 @@ const getRefreshTokenFromPayload = (payload: any): string | null => {
 
 const clearSessionOnce = () => {
   if (!getAccessToken() && !getRefreshToken()) return;
-  clearTokens();
+  clearSession();
 };
 
 export const shouldRetryAfter401 = ({
@@ -88,11 +87,11 @@ export function createRefreshFlow(send: RefreshRequest) {
           return null;
         }
 
-        setAccessToken(nextAccessToken);
         const nextRefreshToken = getRefreshTokenFromPayload(payload);
-        if (nextRefreshToken) {
-          setRefreshToken(nextRefreshToken);
-        }
+        setSession({
+          accessToken: nextAccessToken,
+          refreshToken: nextRefreshToken || refreshToken,
+        });
         return nextAccessToken;
       })().finally(() => {
         refreshInFlight = null;

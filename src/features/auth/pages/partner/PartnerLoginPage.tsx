@@ -2,9 +2,8 @@ import React, { useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../../shared/api/http';
 import {
-  setAccessToken,
-  setRefreshToken,
-  clearTokens,
+  clearSession,
+  setSession,
 } from '../../../../shared/auth/tokenStore';
 import { buildGoogleOidcStartUrl } from '../../../../shared/auth/oidc';
 import { Page, Card } from '../../../../shared/ui/Page';
@@ -65,15 +64,15 @@ export default function PartnerLoginPage() {
         throw new Error('Missing access token');
       }
 
-      setAccessToken(accessToken);
-      if (refreshToken) {
-        setRefreshToken(refreshToken);
-      }
+      setSession({
+        accessToken,
+        refreshToken,
+      });
 
       const me = await apiFetch('/auth/whoami');
       const role = resolveRoleFromAuthPayload(me);
       if (!isPartnerRole(role)) {
-        clearTokens();
+        clearSession();
         const issue = resolvePortalIssue({
           code: 'auth_portal_mismatch_partner_to_fan',
           currentPortal: 'partner',
@@ -102,7 +101,7 @@ export default function PartnerLoginPage() {
         returnTo: safeReturnTo,
       });
       if (issue.redirectTo) {
-        clearTokens();
+        clearSession();
         navigate(issue.redirectTo, { replace: true });
         return;
       }

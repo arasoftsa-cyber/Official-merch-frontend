@@ -7,6 +7,7 @@ import LoadingSkeleton from '../shared/components/ux/LoadingSkeleton';
 import { useToast } from '../shared/components/ux/ToastHost';
 import { trackEvent, trackPageView } from '../shared/lib/telemetry';
 import { resolveMediaUrl } from '../shared/utils/media';
+import { createApiContractError, readArrayEnvelope, readObjectEnvelope } from '../shared/api/contract';
 import { NotFoundPage } from './ErrorPages';
 
 type DropData = {
@@ -14,8 +15,7 @@ type DropData = {
   handle: string;
   title: string;
   description?: string;
-  coverUrl?: string | null;
-  heroImageUrl?: string;
+  heroImageUrl?: string | null;
   quizJson?: {
     title?: string;
     questions?: QuizQuestion[];
@@ -25,18 +25,6 @@ type DropData = {
 type ProductCard = {
   id: string;
   title: string;
-};
-
-type DropProductItemDTO = {
-  id?: string;
-  productId?: string;
-  sku?: string;
-  title?: string;
-  name?: string;
-};
-
-type DropProductsResponse = {
-  items?: DropProductItemDTO[];
 };
 
 type QuizQuestion = {
@@ -50,6 +38,46 @@ type QuizQuestion = {
 type QuizState = 'idle' | 'quiz' | 'leadCapture' | 'submitted';
 
 const formatDropTitle = (drop?: DropData) => drop?.title ?? 'Drop';
+const DROP_PAGE_DOMAIN = 'catalog.drop';
+
+const parseDropPayload = (payload: unknown): DropData => {
+  const source = readObjectEnvelope(payload, 'drop', DROP_PAGE_DOMAIN, { allowDirect: false });
+  const id = String(source.id ?? '').trim();
+  const handle = String(source.handle ?? '').trim();
+  const title = String(source.title ?? '').trim();
+
+  if (!id || !handle || !title) {
+    throw createApiContractError(
+      DROP_PAGE_DOMAIN,
+      'Drop response is missing canonical id, handle, or title fields.'
+    );
+  }
+
+  return {
+    id,
+    handle,
+    title,
+    description: typeof source.description === 'string' ? source.description : undefined,
+    heroImageUrl: resolveMediaUrl(
+      typeof source.heroImageUrl === 'string'
+        ? source.heroImageUrl
+        : typeof source.coverUrl === 'string'
+          ? source.coverUrl
+          : null
+    ),
+    quizJson: source.quizJson ?? source.quiz_json ?? null,
+  };
+};
+
+const parseDropProductsPayload = (payload: unknown): ProductCard[] =>
+  readArrayEnvelope(payload, 'items', `${DROP_PAGE_DOMAIN}.products`)
+    .map((entry: any) => ({
+      id: entry?.id,
+      title:
+        (typeof entry?.title === 'string' && entry.title.trim()) ||
+        'Untitled product',
+    }))
+    .filter((item): item is ProductCard => Boolean(item.id));
 
 export default function DropPage() {
   const { handle } = useParams<{ handle: string }>();
@@ -76,26 +104,7 @@ export default function DropPage() {
     setNotFound(false);
     try {
       const payload = await fetchJson<{ drop?: any }>(`/drops/${handle}`);
-      if (!payload?.drop) {
-        throw new Error('Drop not found');
-      }
-      setDrop({
-        id: payload.drop.id,
-        handle: payload.drop.handle,
-        title: payload.drop.title,
-        description: payload.drop.description,
-        coverUrl: payload.drop.coverUrl ?? payload.drop.cover_url ?? null,
-        heroImageUrl:
-          payload.drop.coverUrl ??
-          payload.drop.cover_url ??
-          payload.drop.heroImageUrl ??
-          payload.drop.hero_image_url ??
-          payload.drop.heroImageURL ??
-          payload.drop.hero_image ??
-          payload.drop.imageUrl ??
-          null,
-        quizJson: payload.drop.quizJson ?? payload.drop.quiz_json ?? null,
-      });
+      setDrop(parseDropPayload(payload));
       setStatus('idle');
     } catch (err: any) {
       if (err?.status === 404 || err?.message === 'Drop not found') {
@@ -112,19 +121,8 @@ export default function DropPage() {
     if (!dropHandle) return;
     setProductsStatus('loading');
     try {
-      const payload = await fetchJson<DropProductsResponse>(`/drops/${dropHandle}/products`);
-      const mapped = Array.isArray(payload?.items)
-        ? payload.items
-          .map((entry) => ({
-            id: entry?.id ?? entry?.productId ?? entry?.sku,
-            title:
-              (typeof entry?.title === 'string' && entry.title.trim()) ||
-              (typeof entry?.name === 'string' && entry.name.trim()) ||
-              'Untitled product',
-          }))
-          .filter((item): item is ProductCard => Boolean(item.id))
-        : [];
-      setProducts(mapped);
+      const payload = await fetchJson(`/drops/${dropHandle}/products`);
+      setProducts(parseDropProductsPayload(payload));
     } catch {
       setProducts([]);
     } finally {
@@ -238,15 +236,7 @@ export default function DropPage() {
     }
   };
 
-  const heroUrl = useMemo(
-    () =>
-      resolveMediaUrl(
-        drop?.coverUrl ??
-        drop?.heroImageUrl ??
-        null
-      ),
-    [drop]
-  );
+  const heroUrl = useMemo(() => drop?.heroImageUrl ?? null, [drop?.heroImageUrl]);
 
   return (
     <section>

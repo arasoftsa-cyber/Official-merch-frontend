@@ -1,12 +1,19 @@
 import { apiFetch, apiFetchForm } from '../../../shared/api/http';
+import { readArrayEnvelope, readObjectEnvelope } from '../../../shared/api/contract';
 import type {
   ArtistOption,
   DropLifecycleAction,
   DropRow,
   ProductOption,
 } from '../components/drops/types';
+import {
+  normalizeDrop,
+  parseAdminDropHeroUploadResponse,
+  parseAdminDropItems,
+} from './adminDropsDtos';
 
 const ADMIN_DROPS_BASE = '/api/admin/drops';
+const ADMIN_DROPS_DOMAIN = 'admin.drops';
 
 type AdminFetchResult<T> = {
   ok: boolean;
@@ -59,34 +66,6 @@ async function adminFetch<T>(path: string, init?: RequestInit): Promise<AdminFet
   }
 }
 
-export const normalizeDrop = (raw: any): DropRow | null => {
-  const id = raw?.id;
-  const title = raw?.title;
-  if (!id || !title) return null;
-
-  return {
-    id: String(id),
-    handle: raw?.handle ? String(raw.handle) : undefined,
-    title: String(title),
-    status: String(raw?.status ?? 'draft'),
-    artistId: raw?.artistId ?? raw?.artist_id ?? null,
-    artistName: raw?.artistName ?? raw?.artist_name ?? null,
-    description: raw?.description ?? null,
-    heroImageUrl: raw?.heroImageUrl ?? raw?.hero_image_url ?? null,
-    startsAt: raw?.startsAt ?? raw?.starts_at ?? null,
-    endsAt: raw?.endsAt ?? raw?.ends_at ?? null,
-    quizJson: raw?.quizJson ?? raw?.quiz_json ?? null,
-    mappedProductsCount:
-      typeof raw?.mappedProductsCount === 'number'
-        ? raw.mappedProductsCount
-        : typeof raw?.mapped_products_count === 'number'
-          ? raw.mapped_products_count
-          : null,
-    createdAt: raw?.createdAt ?? raw?.created_at ?? null,
-    updatedAt: raw?.updatedAt ?? raw?.updated_at ?? null,
-  };
-};
-
 const normalizeArtist = (artist: any): ArtistOption | null => {
   const id = artist?.id;
   if (!id) return null;
@@ -118,21 +97,11 @@ export async function fetchAdminDropsSnapshot(): Promise<AdminDropsSnapshot> {
   }
 
   const dropsPayload = dropsResult.data;
-  const dropItems = Array.isArray(dropsPayload?.items)
-    ? dropsPayload.items
-    : Array.isArray(dropsPayload)
-      ? dropsPayload
-      : [];
-  const artistItems = Array.isArray(artistsPayload?.artists)
-    ? artistsPayload.artists
-    : Array.isArray(artistsPayload?.items)
-      ? artistsPayload.items
-      : [];
-  const productItems = Array.isArray(productsPayload?.items)
-    ? productsPayload.items
-    : Array.isArray(productsPayload)
-      ? productsPayload
-      : [];
+  const dropItems = parseAdminDropItems(dropsPayload);
+  const artistItems = readArrayEnvelope(artistsPayload, 'items', 'admin.drops.artists');
+  const productItems = readArrayEnvelope(productsPayload, 'items', 'admin.drops.products', {
+    allowDirectArray: true,
+  });
 
   const artists = artistItems
     .map(normalizeArtist)
@@ -143,8 +112,6 @@ export async function fetchAdminDropsSnapshot(): Promise<AdminDropsSnapshot> {
 
   const artistNameById = new Map(artists.map((artist) => [artist.id, artist.name]));
   const rows = dropItems
-    .map(normalizeDrop)
-    .filter((item: DropRow | null): item is DropRow => Boolean(item))
     .map((drop) => ({
       ...drop,
       artistName: drop.artistName ?? (drop.artistId ? artistNameById.get(drop.artistId) : null) ?? undefined,
@@ -169,7 +136,6 @@ export async function createAdminDrop(title: string, artistId: string): Promise<
   const createBody = {
     title,
     artistId,
-    artist_id: artistId,
   };
 
   const createResult = await adminFetch<any>(ADMIN_DROPS_BASE, {
@@ -181,7 +147,7 @@ export async function createAdminDrop(title: string, artistId: string): Promise<
     throw new Error(createResult.errText ?? `HTTP_${createResult.status}`);
   }
 
-  return normalizeDrop(createResult.data?.drop ?? createResult.data);
+  return normalizeDrop(readObjectEnvelope(createResult.data, 'drop', ADMIN_DROPS_DOMAIN, { allowDirect: false }));
 }
 
 export async function runAdminDropLifecycle(dropKey: string, action: DropLifecycleAction): Promise<void> {
@@ -221,21 +187,7 @@ export async function uploadAdminDropHeroImage(dropId: string, file: File): Prom
     formData,
     { method: 'POST' }
   );
-
-  const uploadedUrl = String(
-    payload?.heroImageUrl ??
-      payload?.public_url ??
-      payload?.publicUrl ??
-      payload?.drop?.heroImageUrl ??
-      payload?.drop?.hero_image_url ??
-      ''
-  ).trim();
-
-  if (!uploadedUrl) {
-    throw new Error('Upload succeeded but no hero image URL was returned.');
-  }
-
-  return uploadedUrl;
+  return parseAdminDropHeroUploadResponse(payload);
 }
 
 export async function patchAdminDropDetails(

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearTokens } from '../shared/auth/tokenStore';
+import { clearSession } from '../shared/auth/tokenStore';
 import { logoutAuth } from '../shared/api/auth';
 
 export default function LogoutPage() {
@@ -13,7 +13,7 @@ export default function LogoutPage() {
       } catch {
         // Ignore logout API errors and clear local state regardless.
       } finally {
-        clearTokens();
+        clearSession();
         sessionStorage.clear();
         navigate('/', { replace: true });
       }
