@@ -69,6 +69,15 @@ export function getPortalLoginRoute(portal: AuthPortal): string {
   return PORTAL_LOGIN_ROUTE[portal];
 }
 
+export function normalizeAuthPortal(value: NullableString, fallback: AuthPortal = 'fan'): AuthPortal {
+  return String(value || '').trim().toLowerCase() === 'partner' ? 'partner' : fallback;
+}
+
+export function getRequestedAuthPortal(search: NullableString, fallback: AuthPortal = 'fan'): AuthPortal {
+  const params = new URLSearchParams(String(search || ''));
+  return normalizeAuthPortal(params.get('portal'), fallback);
+}
+
 export function getPortalForPath(pathname: NullableString): AuthPortal | null {
   const path = getPathnameOnly(String(pathname || '/'));
   if (path.startsWith('/partner')) return 'partner';
@@ -288,6 +297,10 @@ function buildPortalLoginHref(portal: AuthPortal, returnTo: NullableString): str
   return `${loginPath}?returnTo=${encodeURIComponent(safeReturnTo)}`;
 }
 
+export function getPortalLoginHref(portal: AuthPortal, returnTo?: NullableString): string {
+  return buildPortalLoginHref(portal, returnTo);
+}
+
 export function parseAuthErrorFromSearch(search: NullableString): {
   code: string | null;
   message: string | null;
@@ -375,4 +388,22 @@ export function resolvePortalIssue({
     message: finalMessage || null,
     redirectTo: null,
   };
+}
+
+export function resolvePortalIssueFromSearch({
+  search,
+  currentPortal,
+  fallbackReturnTo,
+}: {
+  search: NullableString;
+  currentPortal: AuthPortal;
+  fallbackReturnTo?: NullableString;
+}): PortalIssueResult {
+  const parsed = parseAuthErrorFromSearch(search);
+  return resolvePortalIssue({
+    code: parsed.code,
+    message: parsed.message,
+    currentPortal,
+    returnTo: parsed.returnTo || fallbackReturnTo,
+  });
 }

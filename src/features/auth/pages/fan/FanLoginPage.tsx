@@ -5,9 +5,11 @@ import { apiFetch } from '../../../../shared/api/http';
 import { clearTokens, setAccessToken, setRefreshToken } from '../../../../shared/auth/tokenStore';
 import { buildGoogleOidcStartUrl } from '../../../../shared/auth/oidc';
 import {
+  getPortalLoginHref,
+  getRequestedReturnTo,
   isFanRole,
-  parseAuthErrorFromSearch,
   resolvePortalIssue,
+  resolvePortalIssueFromSearch,
   resolvePostLoginRedirect,
   resolveRoleFromAuthPayload,
   toSafeReturnTo,
@@ -16,8 +18,8 @@ import {
 export default function FanLoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const returnTo = new URLSearchParams(location.search).get('returnTo') ?? '/fan';
-  const safeReturnTo = toSafeReturnTo(returnTo, { portal: 'fan', fallbackRoute: '/fan' });
+  const requestedReturnTo = getRequestedReturnTo(location.search);
+  const safeReturnTo = toSafeReturnTo(requestedReturnTo, { portal: 'fan', fallbackRoute: '/fan' });
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,14 +28,15 @@ export default function FanLoginPage() {
   const [partnerRedirect, setPartnerRedirect] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
+  const forgotPasswordTarget = `/forgot-password?portal=fan&returnTo=${encodeURIComponent(safeReturnTo)}`;
+  const registerTarget = `/fan/register?returnTo=${encodeURIComponent(safeReturnTo)}`;
+  const partnerLoginTarget = getPortalLoginHref('partner', safeReturnTo);
 
   useEffect(() => {
-    const parsed = parseAuthErrorFromSearch(location.search);
-    const issue = resolvePortalIssue({
-      code: parsed.code,
-      message: parsed.message,
+    const issue = resolvePortalIssueFromSearch({
+      search: location.search,
       currentPortal: 'fan',
-      returnTo: parsed.returnTo || safeReturnTo,
+      fallbackReturnTo: safeReturnTo,
     });
     if (issue.message) {
       setError(issue.message);
@@ -79,7 +82,7 @@ export default function FanLoginPage() {
       }
 
       const target = resolvePostLoginRedirect({
-        returnTo,
+        search: location.search,
         portal: 'fan',
         role,
         fallbackRoute: '/fan',
@@ -177,7 +180,7 @@ export default function FanLoginPage() {
               </label>
               <Link
                 data-testid="fan-login-forgot-password"
-                to={`/forgot-password?portal=fan&returnTo=${encodeURIComponent(safeReturnTo)}`}
+                to={forgotPasswordTarget}
                 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 transition hover:text-slate-900 dark:text-white/30 dark:hover:text-white"
               >
                 Forgot?
@@ -232,8 +235,8 @@ export default function FanLoginPage() {
         <div className="mt-8 flex flex-col items-center gap-2 text-sm text-slate-500 dark:text-white/40">
           <p>
             New here?{' '}
-            <Link
-              to={`/fan/register?returnTo=${encodeURIComponent(safeReturnTo)}`}
+              <Link
+                to={registerTarget}
               className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
             >
               Sign up
@@ -241,11 +244,11 @@ export default function FanLoginPage() {
           </p>
           <p>
             Are you an artist?{' '}
-            <Link
-              to={`/partner/login?returnTo=${encodeURIComponent(safeReturnTo)}`}
-              className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
-            >
-              Partner Login
+              <Link
+                to={partnerLoginTarget}
+                className="font-semibold text-slate-900 underline underline-offset-4 dark:text-white"
+              >
+                Partner Login
             </Link>
           </p>
         </div>

@@ -4,7 +4,7 @@ type LoadingStateProps = {
   message?: string;
 };
 
-export default function LoadingState({ message = 'Loadingâ€¦' }: LoadingStateProps) {
+export default function LoadingState({ message = 'Loading...' }: LoadingStateProps) {
   return (
     <div
       style={{

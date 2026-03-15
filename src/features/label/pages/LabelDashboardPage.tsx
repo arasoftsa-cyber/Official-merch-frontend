@@ -3,65 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import AppShell from '../../../shared/components/layout/AppShell';
 import KpiCard from '../../../shared/ui/legacy/KpiCard';
 import EmptyState from '../../../shared/ui/legacy/EmptyState';
-import { apiFetch } from '../../../shared/api/http';
 import { formatCurrencyFromCents } from '../../../shared/utils/formatting';
-
-type ArtistPortfolioRow = {
-  artistId: string;
-  artistName: string;
-  orders30d: number;
-  gross30d: number;
-  units30d: number;
-  activeProductsCount: number;
-};
-
-type LabelSummary = {
-  totalArtists: number;
-  activeArtists30d: number;
-  inactiveArtists: number;
-  totalGross: number;
-  artists: ArtistPortfolioRow[];
-};
-
-const EMPTY_SUMMARY: LabelSummary = {
-  totalArtists: 0,
-  activeArtists30d: 0,
-  inactiveArtists: 0,
-  totalGross: 0,
-  artists: [],
-};
-
-const toNumber = (value: unknown) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const normalizeSummary = (payload: any): LabelSummary => {
-  const artistsRaw = Array.isArray(payload?.artists) ? payload.artists : [];
-  const artists = artistsRaw.map((artist: any) => ({
-    artistId: String(artist?.artistId ?? artist?.id ?? ''),
-    artistName: String(artist?.artistName ?? artist?.name ?? artist?.handle ?? artist?.artistId ?? 'Unknown'),
-    orders30d: toNumber(artist?.orders30d),
-    gross30d: toNumber(artist?.gross30d),
-    units30d: toNumber(artist?.units30d),
-    activeProductsCount: toNumber(artist?.activeProductsCount),
-  }));
-
-  const totalArtists = toNumber(payload?.totalArtists || artists.length);
-  const activeArtists30d = toNumber(payload?.activeArtists30d);
-  const inactiveArtists =
-    payload?.inactiveArtists !== undefined
-      ? toNumber(payload?.inactiveArtists)
-      : Math.max(totalArtists - activeArtists30d, 0);
-
-  return {
-    totalArtists,
-    activeArtists30d,
-    inactiveArtists,
-    totalGross: toNumber(payload?.totalGross ?? payload?.grossCents ?? payload?.grossAllTimeCents),
-    artists,
-  };
-};
+import {
+  EMPTY_LABEL_SUMMARY,
+  fetchLabelDashboardSummary,
+  submitLabelArtistAccessRequest,
+  type LabelSummaryDto,
+} from '../api/labelDashboardApi';
 
 const formatCurrency = (cents?: number) => {
   return formatCurrencyFromCents(cents);
@@ -70,7 +18,7 @@ const formatCurrency = (cents?: number) => {
 export default function LabelDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [summary, setSummary] = useState<LabelSummary>(EMPTY_SUMMARY);
+  const [summary, setSummary] = useState<LabelSummaryDto>(EMPTY_LABEL_SUMMARY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addArtistOpen, setAddArtistOpen] = useState(false);
@@ -91,10 +39,9 @@ export default function LabelDashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const payload = await apiFetch('/api/labels/dashboard/summary');
-      setSummary(normalizeSummary(payload));
+      setSummary(await fetchLabelDashboardSummary());
     } catch (err: any) {
-      setSummary(EMPTY_SUMMARY);
+      setSummary(EMPTY_LABEL_SUMMARY);
       setError(err?.message ?? 'Failed to load label dashboard summary');
     } finally {
       setLoading(false);
@@ -144,16 +91,13 @@ export default function LabelDashboardPage() {
     setAddArtistSubmitting(true);
     try {
       const socialValue = form.socials.trim();
-      await apiFetch('/api/artist-access-requests', {
-        method: 'POST',
-        body: {
-          artistName: trimmedName,
-          handle: form.handleSuggestion.trim() || null,
-          contactEmail: form.contactEmail.trim() || null,
-          contactPhone: form.contactPhone.trim() || null,
-          socials: socialValue ? { link: socialValue } : null,
-          pitch: form.pitch.trim() || null,
-        },
+      await submitLabelArtistAccessRequest({
+        artistName: trimmedName,
+        handle: form.handleSuggestion,
+        contactEmail: form.contactEmail,
+        contactPhone: form.contactPhone,
+        socialLink: socialValue,
+        pitch: form.pitch,
       });
 
       setAddArtistOpen(false);

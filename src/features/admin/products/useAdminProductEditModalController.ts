@@ -2,11 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import type { FieldErrors, Product, ProductEditSnapshot } from '../pages/AdminProductsPage.utils';
+import type {
+  FieldErrors,
+  Product,
+  ProductEditFormValues,
+  ProductEditSnapshot,
+} from '../pages/AdminProductsPage.utils';
 import {
   MAX_LISTING_PHOTOS,
-  extractListingPhotoUrls,
-  firstText,
+  deriveProductEditFormValues,
   hasSnapshotChanges,
   isAllowedListingPhoto,
   logAdminEditModalDebug,
@@ -72,6 +76,28 @@ export function useAdminProductEditModalController({
     editInteractionRef.current = true;
   };
 
+  const resetEditState = () => {
+    setIsEditOpen(false);
+    setEditLoading(false);
+    setEditError(null);
+    setEditingProduct(null);
+    setEditArtistId('');
+    setEditTitle('');
+    setEditDescription('');
+    setEditListingPhotoUrls([]);
+    setEditReplacementPhotos([]);
+    setEditReplacementPhotoPreviews([]);
+    setEditActive(true);
+    setEditFieldErrors({});
+    setEditPhotoNotice(null);
+    setEditInitialSnapshot(null);
+    editInteractionRef.current = false;
+    queryOpenedEditProductIdRef.current = '';
+    if (editPhotoInputRef.current) {
+      editPhotoInputRef.current.value = '';
+    }
+  };
+
   const syncEditModalQueryParam = (productId?: string | null) => {
     const params = new URLSearchParams(location.search);
     const normalizedId = readText(productId);
@@ -109,27 +135,18 @@ export function useAdminProductEditModalController({
   }, [editReplacementPhotos]);
 
   const applyEditProductToForm = (product: Product) => {
-    const nextArtistId = String(product.artistId || product.artist_id || '').trim();
-    const nextTitle = firstText(product as Record<string, any>, ['title', 'name']);
-    const nextDescription = firstText(product as Record<string, any>, [
-      'merch_story',
-      'merchStory',
-      'description',
-    ]);
-    const nextListingPhotoUrls = extractListingPhotoUrls(product);
-    const nextActive = Boolean(product.isActive ?? product.is_active ?? product.active);
-
+    const nextValues = deriveProductEditFormValues(product);
     setEditingProduct(product);
-    setEditArtistId(nextArtistId);
-    setEditTitle(nextTitle);
-    setEditDescription(nextDescription);
-    setEditListingPhotoUrls(nextListingPhotoUrls);
-    setEditActive(nextActive);
+    setEditArtistId(nextValues.artistId);
+    setEditTitle(nextValues.title);
+    setEditDescription(nextValues.description);
+    setEditListingPhotoUrls(nextValues.listingPhotoUrls);
+    setEditActive(nextValues.isActive);
     setEditInitialSnapshot(
       makeEditSnapshot({
-        title: nextTitle,
-        description: nextDescription,
-        isActive: nextActive,
+        title: nextValues.title,
+        description: nextValues.description,
+        isActive: nextValues.isActive,
       })
     );
     setEditPhotoNotice(null);
@@ -192,7 +209,32 @@ export function useAdminProductEditModalController({
   );
 
   const hasBlockingValidation = Object.keys(blockingValidationErrors).length > 0;
-  const saveDisabled = saving || editLoading || !hasPendingChanges || hasBlockingValidation;
+  const isSubmitting = saving;
+  const saveDisabled = isSubmitting || editLoading || !hasPendingChanges || hasBlockingValidation;
+  const initialValues: ProductEditFormValues | null =
+    editInitialSnapshot && editingProduct
+      ? {
+          artistId: editArtistId,
+          title: editInitialSnapshot.title,
+          description: editInitialSnapshot.description,
+          isActive: editInitialSnapshot.isActive,
+          listingPhotoUrls: deriveProductEditFormValues(editingProduct).listingPhotoUrls,
+        }
+      : null;
+  const values: ProductEditFormValues = {
+    artistId: editArtistId,
+    title: editTitle,
+    description: editDescription,
+    isActive: editActive,
+    listingPhotoUrls: editListingPhotoUrls,
+  };
+  const selectedProduct = editingProduct;
+  const error = editError;
+  const isOpen = isEditOpen;
+  const isLoading = editLoading;
+  const visibleListingPhotoUrls =
+    editReplacementPhotoPreviews.length > 0 ? editReplacementPhotoPreviews : editListingPhotoUrls;
+  const photoFieldError = editFieldErrors.listing_photos || '';
 
   const openPhotoPicker = () => {
     if (editPhotoInputRef.current) {
@@ -267,9 +309,22 @@ export function useAdminProductEditModalController({
       id: normalizedId,
       productId: normalizedId,
       title: '',
+      name: '',
       description: '',
+      merchType: '',
+      merchStory: '',
+      artistId: '',
       isActive: true,
+      status: '',
+      primaryPhotoUrl: '',
+      listingPhotoUrl: '',
       listingPhotoUrls: [],
+      createdAt: '',
+      rejectionReason: null,
+      skuTypes: [],
+      designImageUrl: '',
+      artistName: '',
+      artistHandle: '',
     };
 
     setIsEditOpen(true);
@@ -311,36 +366,18 @@ export function useAdminProductEditModalController({
     }
   };
 
-  const openEditModal = async (product: Product) => {
+  const openForProduct = async (product: Product) => {
     const productId = resolveProductId(product);
     if (!productId) return;
     await openEditModalById(productId, product, { syncQuery: true });
   };
 
-  const closeEditModal = () => {
+  const close = () => {
     logAdminEditModalDebug('close_requested', {
       productId: resolveProductId(editingProduct),
     });
-    setIsEditOpen(false);
-    setEditLoading(false);
-    setEditError(null);
-    setEditFieldErrors({});
-    setEditingProduct(null);
-    setEditArtistId('');
-    setEditTitle('');
-    setEditDescription('');
-    setEditListingPhotoUrls([]);
-    setEditReplacementPhotos([]);
-    setEditReplacementPhotoPreviews([]);
-    setEditActive(true);
-    setEditPhotoNotice(null);
-    setEditInitialSnapshot(null);
-    editInteractionRef.current = false;
-    queryOpenedEditProductIdRef.current = '';
+    resetEditState();
     syncEditModalQueryParam(null);
-    if (editPhotoInputRef.current) {
-      editPhotoInputRef.current.value = '';
-    }
   };
 
   useEffect(() => {
@@ -421,7 +458,7 @@ export function useAdminProductEditModalController({
         setEditReplacementPhotos([]);
       }
 
-      closeEditModal();
+      close();
       await reload();
     } catch (err: any) {
       setEditError(mapEditSaveErrorMessage(err));
@@ -431,31 +468,29 @@ export function useAdminProductEditModalController({
   };
 
   return {
-    saving,
-    isEditOpen,
-    editLoading,
-    editError,
-    editingProduct,
-    editArtistId,
-    editTitle,
-    editDescription,
-    editListingPhotoUrls,
+    isOpen,
+    isLoading,
+    isSubmitting,
+    error,
+    selectedProduct,
+    initialValues,
+    values,
+    visibleListingPhotoUrls,
+    photoFieldError,
     editReplacementPhotos,
-    editReplacementPhotoPreviews,
-    editActive,
     editFieldErrors,
     editPhotoNotice,
     editPhotoInputRef,
-    editModalHeadingRef,
+    headingRef: editModalHeadingRef,
     saveDisabled,
     markEditInteraction,
-    setEditTitle,
-    setEditDescription,
-    setEditActive,
+    setTitle: setEditTitle,
+    setDescription: setEditDescription,
+    setActive: setEditActive,
     openPhotoPicker,
-    onReplacementPhotosChange,
-    openEditModal,
-    closeEditModal,
-    saveEdit,
+    setReplacementPhotos: onReplacementPhotosChange,
+    openForProduct,
+    close,
+    submit: saveEdit,
   };
 }

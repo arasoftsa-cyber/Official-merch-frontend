@@ -24,7 +24,7 @@ type LeadRow = {
 };
 
 const formatDate = (value?: string | null) => {
-  if (!value) return 'Ã¢â‚¬â€';
+  if (!value) return '-';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return formatDateTimeValue(value);
@@ -256,7 +256,7 @@ export default function AdminLeadsPage() {
           </p>
         </div>
 
-        {loading && <p className="text-sm text-slate-500 dark:text-white/70 animate-pulse">Loading leadsÃ¢â‚¬Â¦</p>}
+        {loading && <p className="text-sm text-slate-500 dark:text-white/70 animate-pulse">Loading leads...</p>}
         {error && <p role="alert" className="text-sm font-medium text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 px-4 py-2 rounded-lg border border-rose-200 dark:border-rose-500/20">{error}</p>}
 
         {!loading && !error && (
@@ -281,10 +281,10 @@ export default function AdminLeadsPage() {
                       onClick={() => setSelectedId(row.id)}
                       className="cursor-pointer border-t border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
                     >
-                      <td className="px-4 py-3 font-medium">{row.source ?? 'Ã¢â‚¬â€'}</td>
-                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">{row.name ?? 'Ã¢â‚¬â€'}</td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{row.email ?? row.phone ?? 'Ã¢â‚¬â€'}</td>
-                      <td className="px-4 py-3 font-mono text-xs">{row.drop_handle ?? 'Ã¢â‚¬â€'}</td>
+                      <td className="px-4 py-3 font-medium">{row.source ?? '-'}</td>
+                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">{row.name ?? '-'}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{row.email ?? row.phone ?? '-'}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{row.drop_handle ?? '-'}</td>
                       <td className="px-4 py-3">
                         <span className="font-bold text-slate-900 dark:text-white">{row.score}</span>
                         <span className="text-slate-400">/{row.maxScore}</span>
@@ -334,19 +334,19 @@ export default function AdminLeadsPage() {
                   <div className="space-y-3 text-sm text-slate-600 dark:text-slate-200">
                     <p className="flex justify-between border-b border-slate-100 dark:border-white/5 pb-2">
                       <span className="font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider">Name</span>
-                      <span className="font-medium text-slate-900 dark:text-white">{selectedRow.name ?? 'Ã¢â‚¬â€'}</span>
+                      <span className="font-medium text-slate-900 dark:text-white">{selectedRow.name ?? '-'}</span>
                     </p>
                     <p className="flex justify-between border-b border-slate-100 dark:border-white/5 pb-2">
                       <span className="font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider">Email</span>
-                      <span className="font-medium text-slate-900 dark:text-white">{selectedRow.email ?? 'Ã¢â‚¬â€'}</span>
+                      <span className="font-medium text-slate-900 dark:text-white">{selectedRow.email ?? '-'}</span>
                     </p>
                     <p className="flex justify-between border-b border-slate-100 dark:border-white/5 pb-2">
                       <span className="font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider">Phone</span>
-                      <span className="font-medium text-slate-900 dark:text-white">{selectedRow.phone ?? 'Ã¢â‚¬â€'}</span>
+                      <span className="font-medium text-slate-900 dark:text-white">{selectedRow.phone ?? '-'}</span>
                     </p>
                     <p className="flex justify-between border-b border-slate-100 dark:border-white/5 pb-2">
                       <span className="font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider">Drop</span>
-                      <span className="font-mono text-xs font-medium text-indigo-600 dark:text-emerald-400">{selectedRow.drop_handle ?? 'Ã¢â‚¬â€'}</span>
+                      <span className="font-mono text-xs font-medium text-indigo-600 dark:text-emerald-400">{selectedRow.drop_handle ?? '-'}</span>
                     </p>
                     <p className="flex justify-between border-b border-slate-100 dark:border-white/5 pb-2">
                       <span className="font-bold text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider">Score</span>

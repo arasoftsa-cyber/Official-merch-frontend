@@ -2,6 +2,7 @@ import React from 'react';
 import type { RefObject } from 'react';
 
 import { formatOnboardingSkuTypeLabel } from '../../../../shared/utils/onboardingSkuTypes';
+import type { PendingMerchRequest } from '../../pages/AdminProductsPage.utils';
 import {
   MARKETPLACE_IMAGE_ACCEPT,
   MAX_MARKETPLACE_IMAGES,
@@ -9,67 +10,80 @@ import {
   readPendingSkuTypes,
   readText,
   resolvePendingSubmittedAt,
-  type PendingMerchRequest,
 } from '../../pages/AdminProductsPage.utils';
 
 type Props = {
-  pendingReviewRequest: PendingMerchRequest;
-  pendingModalError: string | null;
-  pendingModalSuccess: string | null;
-  pendingModalLoading: boolean;
-  pendingDesignPreview: string | null;
-  pendingReviewArtistName: string;
-  pendingReviewStatus: string;
-  pendingReviewRejectionReason: string;
-  pendingReviewMutable: boolean;
-  pendingMarketplaceInputRef: RefObject<HTMLInputElement>;
-  pendingMarketplaceFiles: File[];
-  pendingMarketplaceError: string;
-  pendingRejectionReason: string;
-  pendingActionSaving: boolean;
-  pendingApproveDisabled: boolean;
-  pendingApproveDisabledReason: string;
+  isOpen: boolean;
+  selectedRequest: PendingMerchRequest | null;
+  isLoading: boolean;
+  isSubmitting: boolean;
+  error: string | null;
+  successMessage: string | null;
+  artistName: string;
+  designPreview: string | null;
+  reviewStatus: string;
+  reviewRejectionReason: string;
+  isMutable: boolean;
+  marketplaceFiles: File[];
+  marketplaceError: string;
+  rejectionReasonDraft: string;
+  approveDisabled: boolean;
+  approveDisabledReason: string;
+  marketplaceInputRef: RefObject<HTMLInputElement>;
   onClose: () => void;
-  onPendingMarketplaceFilesChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onRemovePendingMarketplaceImage: (index: number) => void;
-  onSetPendingRejectionReason: (value: string) => void;
-  onApprovePendingRequest: () => void;
-  onRejectPendingRequest: () => void;
+  onMarketplaceFilesChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemoveMarketplaceImage: (index: number) => void;
+  onRejectionReasonChange: (value: string) => void;
+  onApprove: () => void;
+  onReject: () => void;
 };
 
 export default function AdminPendingMerchReviewModal({
-  pendingReviewRequest,
-  pendingModalError,
-  pendingModalSuccess,
-  pendingModalLoading,
-  pendingDesignPreview,
-  pendingReviewArtistName,
-  pendingReviewStatus,
-  pendingReviewRejectionReason,
-  pendingReviewMutable,
-  pendingMarketplaceInputRef,
-  pendingMarketplaceFiles,
-  pendingMarketplaceError,
-  pendingRejectionReason,
-  pendingActionSaving,
-  pendingApproveDisabled,
-  pendingApproveDisabledReason,
+  isOpen,
+  selectedRequest,
+  isLoading,
+  isSubmitting,
+  error,
+  successMessage,
+  artistName,
+  designPreview,
+  reviewStatus,
+  reviewRejectionReason,
+  isMutable,
+  marketplaceFiles,
+  marketplaceError,
+  rejectionReasonDraft,
+  approveDisabled,
+  approveDisabledReason,
+  marketplaceInputRef,
   onClose,
-  onPendingMarketplaceFilesChange,
-  onRemovePendingMarketplaceImage,
-  onSetPendingRejectionReason,
-  onApprovePendingRequest,
-  onRejectPendingRequest,
+  onMarketplaceFilesChange,
+  onRemoveMarketplaceImage,
+  onRejectionReasonChange,
+  onApprove,
+  onReject,
 }: Props) {
-  const pendingReviewSkuTypes = readPendingSkuTypes(pendingReviewRequest);
+  if (!isOpen || !selectedRequest) {
+    return null;
+  }
+
+  const skuTypes = readPendingSkuTypes(selectedRequest);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 shadow-2xl animate-in zoom-in-95 duration-300 custom-scrollbar flex flex-col">
+      <div
+        data-testid="admin-pending-merch-review-modal"
+        data-product-id={selectedRequest.id}
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[2.5rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 shadow-2xl animate-in zoom-in-95 duration-300 custom-scrollbar flex flex-col"
+      >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 dark:border-white/10 bg-white/90 dark:bg-slate-950/90 px-8 py-6 backdrop-blur-sm">
           <div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white">Pending Merch Review</h2>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Admin Approval Queue</p>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+              Pending Merch Review
+            </h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              Admin Approval Queue
+            </p>
           </div>
           <button
             type="button"
@@ -83,33 +97,41 @@ export default function AdminPendingMerchReviewModal({
         </div>
 
         <div className="p-8 space-y-6 flex-1">
-          {pendingModalError && (
+          {error && (
             <div className="rounded-2xl bg-rose-50 dark:bg-rose-500/10 p-4 border border-rose-100 dark:border-rose-500/20">
-              <p className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-widest">{pendingModalError}</p>
+              <p className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-widest">
+                {error}
+              </p>
             </div>
           )}
-          {pendingModalSuccess && (
+          {successMessage && (
             <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 p-4 border border-emerald-100 dark:border-emerald-500/20">
-              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-widest">{pendingModalSuccess}</p>
+              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-widest">
+                {successMessage}
+              </p>
             </div>
           )}
 
-          {pendingModalLoading ? (
+          {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Loading request details...</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                Loading request details...
+              </p>
             </div>
           ) : (
             <>
               <div className="grid gap-6 md:grid-cols-[220px_1fr]">
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Design Preview</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    Design Preview
+                  </p>
                   <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/20 overflow-hidden aspect-square">
-                    {pendingDesignPreview ? (
+                    {designPreview ? (
                       <img
                         data-testid="admin-pending-merch-design-preview"
-                        src={pendingDesignPreview}
-                        alt={pendingReviewRequest.title || 'Design preview'}
+                        src={designPreview}
+                        alt={selectedRequest.title || 'Design preview'}
                         className="h-full w-full object-cover"
                       />
                     ) : (
@@ -122,45 +144,56 @@ export default function AdminPendingMerchReviewModal({
                     )}
                   </div>
                 </div>
+
                 <div className="space-y-4">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Merch Name</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                      Merch Name
+                    </p>
                     <p data-testid="admin-pending-merch-name" className="text-lg font-bold text-slate-900 dark:text-white">
-                      {pendingReviewRequest.title || pendingReviewRequest.name || 'Untitled merch'}
+                      {selectedRequest.title || selectedRequest.name || 'Untitled merch'}
                     </p>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Artist</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                        Artist
+                      </p>
                       <p data-testid="admin-pending-merch-artist" className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                        {pendingReviewArtistName}
+                        {artistName}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Submitted At</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                        Submitted At
+                      </p>
                       <p data-testid="admin-pending-merch-submitted-at" className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                        {resolvePendingSubmittedAt(pendingReviewRequest)}
+                        {resolvePendingSubmittedAt(selectedRequest)}
                       </p>
                     </div>
                     <div className="sm:col-span-2">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Current Status</p>
-                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{pendingReviewStatus}</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                        Current Status
+                      </p>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                        {reviewStatus}
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Selected SKU Types</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  Selected SKU Types
+                </p>
                 <div data-testid="admin-pending-merch-skus" className="flex flex-wrap gap-2">
-                  {pendingReviewSkuTypes.length > 0 ? (
+                  {skuTypes.length > 0 ? (
                     <>
                       <span className="sr-only">
-                        {pendingReviewSkuTypes
-                          .map((entry) => formatOnboardingSkuTypeLabel(entry))
-                          .join(', ')}
+                        {skuTypes.map((entry) => formatOnboardingSkuTypeLabel(entry)).join(', ')}
                       </span>
-                      {pendingReviewSkuTypes.map((skuType, index) => (
+                      {skuTypes.map((skuType, index) => (
                         <span
                           key={`pending-sku-${skuType}-${index}`}
                           className="rounded-full border border-slate-200 dark:border-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-300"
@@ -170,46 +203,52 @@ export default function AdminPendingMerchReviewModal({
                       ))}
                     </>
                   ) : (
-                    <span className="text-[10px] uppercase tracking-widest text-slate-400">No SKU types</span>
+                    <span className="text-[10px] uppercase tracking-widest text-slate-400">
+                      No SKU types
+                    </span>
                   )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Merch Story</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  Merch Story
+                </p>
                 <p
                   data-testid="admin-pending-merch-story"
                   className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/20 p-4 text-sm leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap"
                 >
-                  {readText(pendingReviewRequest.description) || readText(pendingReviewRequest.merch_story) || '-'}
+                  {readText(selectedRequest.description) || readText(selectedRequest.merchStory) || '-'}
                 </p>
-                {pendingReviewStatus === 'rejected' && pendingReviewRejectionReason && (
+                {reviewStatus === 'rejected' && reviewRejectionReason && (
                   <p
                     data-testid="admin-pending-merch-rejection-reason"
                     className="rounded-2xl border border-rose-200 dark:border-rose-500/30 bg-rose-50/70 dark:bg-rose-500/10 p-3 text-xs font-medium text-rose-700 dark:text-rose-200 whitespace-pre-wrap"
                   >
-                    Rejection reason: {pendingReviewRejectionReason}
+                    Rejection reason: {reviewRejectionReason}
                   </p>
                 )}
               </div>
 
               <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-black/20 p-4 space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Marketplace Listing Images (JPG/PNG)</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  Marketplace Listing Images (JPG/PNG)
+                </p>
                 <input
-                  ref={pendingMarketplaceInputRef}
+                  ref={marketplaceInputRef}
                   data-testid="admin-marketplace-images-input"
                   type="file"
                   multiple
                   accept={MARKETPLACE_IMAGE_ACCEPT}
-                  onChange={onPendingMarketplaceFilesChange}
+                  onChange={onMarketplaceFilesChange}
                   className="block w-full text-sm text-slate-700 dark:text-slate-200 file:mr-3 file:rounded-full file:border file:border-slate-200 dark:file:border-white/10 file:bg-white dark:file:bg-black/20 file:px-4 file:py-2 file:text-[10px] file:font-black file:uppercase file:tracking-widest"
                 />
                 <p data-testid="admin-marketplace-image-count" className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  {pendingMarketplaceFiles.length} selected (required {MIN_MARKETPLACE_IMAGES}-{MAX_MARKETPLACE_IMAGES})
+                  {marketplaceFiles.length} selected (required {MIN_MARKETPLACE_IMAGES}-{MAX_MARKETPLACE_IMAGES})
                 </p>
                 <ul data-testid="admin-marketplace-upload-list" className="space-y-1">
-                  {pendingMarketplaceFiles.length > 0 ? (
-                    pendingMarketplaceFiles.map((file, index) => (
+                  {marketplaceFiles.length > 0 ? (
+                    marketplaceFiles.map((file, index) => (
                       <li
                         key={`${file.name}-${file.lastModified}-${index}`}
                         className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/30 px-3 py-2"
@@ -220,8 +259,8 @@ export default function AdminPendingMerchReviewModal({
                         <button
                           type="button"
                           data-testid="admin-marketplace-image-remove"
-                          onClick={() => onRemovePendingMarketplaceImage(index)}
-                          disabled={pendingActionSaving}
+                          onClick={() => onRemoveMarketplaceImage(index)}
+                          disabled={isSubmitting}
                           className="rounded-full border border-slate-200 dark:border-white/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-300 disabled:opacity-50"
                         >
                           Remove
@@ -229,27 +268,31 @@ export default function AdminPendingMerchReviewModal({
                       </li>
                     ))
                   ) : (
-                    <li className="text-[10px] uppercase tracking-widest text-slate-400">No images selected</li>
+                    <li className="text-[10px] uppercase tracking-widest text-slate-400">
+                      No images selected
+                    </li>
                   )}
                 </ul>
-                {pendingMarketplaceError && (
+                {marketplaceError && (
                   <p data-testid="admin-marketplace-upload-error" className="text-[10px] font-bold uppercase tracking-widest text-rose-600 dark:text-rose-300">
-                    {pendingMarketplaceError}
+                    {marketplaceError}
                   </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Rejection Reason (optional)</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  Rejection Reason (optional)
+                </p>
                 <textarea
                   data-testid="admin-rejection-reason"
-                  value={pendingRejectionReason}
-                  onChange={(event) => onSetPendingRejectionReason(event.target.value)}
-                  readOnly={!pendingReviewMutable}
+                  value={rejectionReasonDraft}
+                  onChange={(event) => onRejectionReasonChange(event.target.value)}
+                  readOnly={!isMutable}
                   rows={3}
                   className="block w-full rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 px-4 py-3 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition shadow-inner"
                   placeholder={
-                    pendingReviewMutable
+                    isMutable
                       ? 'Optional note to include when rejecting this request.'
                       : 'Saved rejection reason'
                   }
@@ -263,25 +306,25 @@ export default function AdminPendingMerchReviewModal({
           <button
             type="button"
             data-testid="admin-approve-merch"
-            onClick={onApprovePendingRequest}
-            disabled={pendingApproveDisabled}
+            onClick={onApprove}
+            disabled={approveDisabled}
             className="rounded-[1.25rem] bg-emerald-600 py-3 px-6 text-[10px] font-black uppercase tracking-[0.3em] text-white shadow-xl transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100"
           >
-            {pendingActionSaving ? 'Processing...' : 'Approve'}
+            {isSubmitting ? 'Processing...' : 'Approve'}
           </button>
-          {pendingApproveDisabledReason && (
+          {approveDisabledReason && (
             <p data-testid="admin-approve-disabled-reason" className="self-center text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-300">
-              {pendingApproveDisabledReason}
+              {approveDisabledReason}
             </p>
           )}
           <button
             type="button"
             data-testid="admin-reject-merch"
-            onClick={onRejectPendingRequest}
-            disabled={!pendingReviewMutable || pendingModalLoading || pendingActionSaving}
+            onClick={onReject}
+            disabled={!isMutable || isLoading || isSubmitting}
             className="rounded-[1.25rem] bg-rose-600 py-3 px-6 text-[10px] font-black uppercase tracking-[0.3em] text-white shadow-xl transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100"
           >
-            {pendingActionSaving ? 'Processing...' : 'Reject'}
+            {isSubmitting ? 'Processing...' : 'Reject'}
           </button>
           <button
             type="button"

@@ -307,7 +307,7 @@ test.describe('Admin edit product modal', () => {
     );
   });
 
-  test('binds selected row state into modal and closes with discard', async ({ page }) => {
+  test('binds selected row state into modal, clears on close, and reopens for the newly selected product', async ({ page }) => {
     await setupAdminProductsMocks(page, {
       initialProducts: [
         {
@@ -336,9 +336,25 @@ test.describe('Admin edit product modal', () => {
     await expect(page.getByTestId('admin-edit-product-story')).toHaveValue(
       'Second product description with enough length.'
     );
+    await expect(page.getByTestId('admin-product-edit-modal')).toHaveAttribute(
+      'data-product-id',
+      'product-2'
+    );
+    await expect(page.getByTestId('admin-edit-product-initial-title')).toHaveText(
+      'Second Product Title'
+    );
 
     await page.getByRole('button', { name: 'Discard' }).click();
     await expect(page.getByTestId('admin-product-edit-modal')).toHaveCount(0);
+
+    await openEditModalByTitle(page, 'Original Product Name');
+    await expect(page.getByTestId('admin-product-edit-modal')).toHaveAttribute(
+      'data-product-id',
+      'product-1'
+    );
+    await expect(page.getByTestId('admin-edit-product-merch-name')).toHaveValue(
+      'Original Product Name'
+    );
   });
 
   test('shows loading then error state when product detail hydration fails', async ({ page }) => {

@@ -1,49 +1,17 @@
 import { resolveMediaUrl } from '../../../shared/utils/media';
 import { formatDateTime } from '../../../shared/utils/formatting';
+import type { Artist, PendingMerchRequest, Product } from '../products/adminProductsDtos';
 
-export type Artist = {
-  id: string;
-  handle?: string;
-  name?: string;
-};
-
-export type Product = {
-  id: string;
-  productId?: string;
-  title?: string;
-  name?: string;
-  description?: string;
-  merchType?: string;
-  merch_type?: string;
-  merch_story?: string;
-  merchStory?: string;
-  artistId?: string;
-  artist_id?: string;
-  isActive?: boolean;
-  is_active?: boolean;
-  active?: boolean;
-  status?: string;
-  primaryPhotoUrl?: string;
-  listingPhotoUrl?: string;
-  listingPhotoUrls?: string[];
-  photoUrls?: string[];
-  photos?: string[];
-  createdAt?: string;
-  created_at?: string;
-  rejectionReason?: string | null;
-  rejection_reason?: string | null;
-  skuTypes?: string[];
-  sku_types?: string[];
-  designImageUrl?: string;
-  design_image_url?: string;
-  artistName?: string;
-  artistHandle?: string;
-};
+export type { Artist, PendingMerchRequest, Product } from '../products/adminProductsDtos';
 
 export type ProductsTab = 'catalog' | 'pending';
 
-export type PendingMerchRequest = Product & {
+export type PendingMerchReviewDetails = {
+  artistName: string;
+  designPreview: string | null;
   status: string;
+  rejectionReason: string;
+  isMutable: boolean;
 };
 
 export type FieldErrors = Record<string, string>;
@@ -51,6 +19,14 @@ export type ProductEditSnapshot = {
   title: string;
   description: string;
   isActive: boolean;
+};
+
+export type ProductEditFormValues = {
+  artistId: string;
+  title: string;
+  description: string;
+  isActive: boolean;
+  listingPhotoUrls: string[];
 };
 
 export const MAX_LISTING_PHOTOS = 4;
@@ -111,13 +87,19 @@ export const hasSnapshotChanges = (
 export const snapshotFromProduct = (product: Product | null | undefined): ProductEditSnapshot =>
   makeEditSnapshot({
     title: firstText((product || {}) as Record<string, any>, ['title', 'name']),
-    description: firstText((product || {}) as Record<string, any>, [
-      'merch_story',
-      'merchStory',
-      'description',
-    ]),
-    isActive: Boolean(product?.isActive ?? product?.is_active ?? product?.active),
+    description: firstText((product || {}) as Record<string, any>, ['merchStory', 'description']),
+    isActive: Boolean(product?.isActive),
   });
+
+export const deriveProductEditFormValues = (
+  product: Product | null | undefined
+): ProductEditFormValues => ({
+  artistId: readText(product?.artistId),
+  title: firstText((product || {}) as Record<string, any>, ['title', 'name']),
+  description: firstText((product || {}) as Record<string, any>, ['merchStory', 'description']),
+  isActive: Boolean(product?.isActive),
+  listingPhotoUrls: extractListingPhotoUrls(product),
+});
 
 export const isAllowedListingPhoto = (file: File): boolean => {
   const mimeType = readText(file.type).toLowerCase();
@@ -135,19 +117,69 @@ export const normalizeStatus = (value: unknown): string => readText(value).toLow
 export const resolveProductId = (product: Product | null | undefined): string =>
   readText(product?.id || product?.productId);
 
-export const readPendingSkuTypes = (request: PendingMerchRequest): string[] => {
-  const raw = Array.isArray(request?.skuTypes)
-    ? request.skuTypes
-    : Array.isArray(request?.sku_types)
-      ? request.sku_types
-      : [];
-  return raw
-    .map((entry) => readText(entry))
-    .filter(Boolean);
+export const buildArtistLabelById = (artists: Artist[]): Record<string, string> => {
+  const map: Record<string, string> = {};
+  artists.forEach((artist) => {
+    const label = artist?.name || artist?.handle || artist?.id;
+    map[artist.id] = label;
+  });
+  return map;
 };
 
+export const resolvePendingReviewArtistName = (
+  request: PendingMerchRequest | null | undefined,
+  artistLabelById: Record<string, string>
+): string => {
+  const artistId = readText(request?.artistId);
+  return (
+    readText(request?.artistName) ||
+    readText(request?.artistHandle) ||
+    artistLabelById[artistId] ||
+    'Unknown Artist'
+  );
+};
+
+export const mergePendingReviewRequest = (
+  request: PendingMerchRequest,
+  detailProduct: PendingMerchRequest
+): PendingMerchRequest => ({
+  ...request,
+  ...detailProduct,
+  id: request.id,
+  artistId: request.artistId || detailProduct.artistId,
+  artistName: request.artistName || request.artistHandle || detailProduct.artistName,
+  artistHandle: request.artistHandle || detailProduct.artistHandle,
+  status:
+    request.status === 'unknown'
+      ? detailProduct.status
+      : request.status || detailProduct.status || 'pending',
+  rejectionReason: request.rejectionReason || detailProduct.rejectionReason || null,
+  skuTypes: Array.isArray(request.skuTypes) ? request.skuTypes : detailProduct.skuTypes,
+  designImageUrl:
+    resolveMediaUrl(request.designImageUrl || detailProduct.designImageUrl || null) || '',
+});
+
+export const derivePendingMerchReviewDetails = (
+  request: PendingMerchRequest | null | undefined,
+  artistLabelById: Record<string, string>
+): PendingMerchReviewDetails => {
+  const status = normalizeStatus(request?.status || 'pending') || 'pending';
+  return {
+    artistName: resolvePendingReviewArtistName(request, artistLabelById),
+    designPreview: resolveMediaUrl(request?.designImageUrl || null),
+    status,
+    rejectionReason: readText(request?.rejectionReason),
+    isMutable: status === 'pending',
+  };
+};
+
+export const readPendingSkuTypes = (request: PendingMerchRequest): string[] =>
+  (Array.isArray(request?.skuTypes) ? request.skuTypes : [])
+    .map((entry) => readText(entry))
+    .filter(Boolean);
+
 export const resolvePendingSubmittedAt = (request: PendingMerchRequest): string => {
-  const raw = request?.createdAt ?? request?.created_at ?? null;
+  const raw = request?.createdAt ?? null;
   if (!raw) return '-';
   return formatDateTime(raw, { hour12: false });
 };
@@ -162,10 +194,7 @@ export const mapEditSaveErrorMessage = (err: any): string => {
   if (combined.includes('exactly 4 photos')) {
     return 'Please select exactly 4 product images to replace all photos.';
   }
-  if (
-    combined.includes('invalid') &&
-    combined.includes('photo')
-  ) {
+  if (combined.includes('invalid') && combined.includes('photo')) {
     return 'Please select valid product images (PNG, JPG, or WEBP).';
   }
   if (raw.startsWith('http_5') || raw === 'internal_server_error') {
@@ -227,65 +256,10 @@ export const extractListingPhotoUrls = (product: Product | null | undefined): st
   if (!product) return [];
   const candidates = [
     ...(Array.isArray(product.listingPhotoUrls) ? product.listingPhotoUrls : []),
-    ...(Array.isArray(product.photoUrls) ? product.photoUrls : []),
-    ...(Array.isArray(product.photos) ? product.photos : []),
     typeof product.listingPhotoUrl === 'string' ? product.listingPhotoUrl : '',
     typeof product.primaryPhotoUrl === 'string' ? product.primaryPhotoUrl : '',
   ]
     .map((entry) => resolveMediaUrl(typeof entry === 'string' ? entry : null))
     .filter((entry): entry is string => Boolean(entry));
   return Array.from(new Set(candidates)).slice(0, 4);
-};
-
-export const extractItems = (payload: any, keys: string[]) => {
-  if (Array.isArray(payload)) return payload;
-  if (!payload || typeof payload !== 'object') return [];
-
-  const keySet = Array.from(new Set([...keys, 'results']));
-  for (const key of keySet) {
-    const candidate = payload?.[key];
-    if (Array.isArray(candidate)) return candidate;
-    if (candidate && typeof candidate === 'object') {
-      for (const nestedKey of keySet) {
-        const nestedCandidate = (candidate as any)?.[nestedKey];
-        if (Array.isArray(nestedCandidate)) return nestedCandidate;
-      }
-    }
-  }
-  return [];
-};
-
-export const normalizeProductItem = (item: any): Product | null => {
-  if (!item || typeof item !== 'object') return null;
-  const normalizedId = readText(item.id ?? item.productId ?? item.product_id);
-  if (!normalizedId) return null;
-
-  return {
-    ...(item as Product),
-    id: normalizedId,
-    productId: readText(item.productId ?? item.product_id ?? item.id) || normalizedId,
-    artistId: readText(item.artistId ?? item.artist_id),
-    artist_id: readText(item.artist_id ?? item.artistId),
-  };
-};
-
-export const normalizeArtistItem = (item: any): Artist | null => {
-  if (!item || typeof item !== 'object') return null;
-  const normalizedId = readText(item.id ?? item.artistId ?? item.artist_id);
-  if (!normalizedId) return null;
-  return {
-    id: normalizedId,
-    handle: readText(item.handle),
-    name: readText(item.name),
-  };
-};
-
-export const normalizePendingRequestItem = (item: any): PendingMerchRequest | null => {
-  const normalized = normalizeProductItem(item);
-  if (!normalized) return null;
-  const status = normalizeStatus(item?.status || 'pending') || 'pending';
-  return {
-    ...(normalized as PendingMerchRequest),
-    status,
-  };
 };

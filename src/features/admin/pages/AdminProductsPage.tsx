@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import AdminPendingMerchReviewModal from '../components/products/AdminPendingMerchReviewModal';
@@ -12,8 +12,8 @@ import { useAdminPendingMerchReviewModalController } from '../products/useAdminP
 import { useAdminProductEditModalController } from '../products/useAdminProductEditModalController';
 import { useAdminProductsPage } from '../products/useAdminProductsPage';
 
-import type { ProductsTab } from './AdminProductsPage.utils';
-import { readText } from './AdminProductsPage.utils';
+import type { PendingMerchRequest, Product, ProductsTab } from './AdminProductsPage.utils';
+import { buildArtistLabelById, derivePendingMerchReviewDetails } from './AdminProductsPage.utils';
 
 export default function AdminProductsPage() {
   const navigate = useNavigate();
@@ -31,96 +31,51 @@ export default function AdminProductsPage() {
     rejectPendingMerchRequest,
   } = useAdminProductsPage();
 
-  const artistLabelById = useMemo(() => {
-    const map: Record<string, string> = {};
-    artists.forEach((artist) => {
-      const label = artist?.name || artist?.handle || artist?.id;
-      map[artist.id] = label;
-    });
-    return map;
-  }, [artists]);
+  const artistLabelById = useMemo(() => buildArtistLabelById(artists), [artists]);
 
-  const {
-    saving,
-    isEditOpen,
-    editLoading,
-    editError,
-    editArtistId,
-    editTitle,
-    editDescription,
-    editListingPhotoUrls,
-    editReplacementPhotos,
-    editReplacementPhotoPreviews,
-    editActive,
-    editFieldErrors,
-    editPhotoNotice,
-    editPhotoInputRef,
-    editModalHeadingRef,
-    saveDisabled,
-    markEditInteraction,
-    setEditTitle,
-    setEditDescription,
-    setEditActive,
-    openPhotoPicker,
-    onReplacementPhotosChange,
-    openEditModal,
-    closeEditModal,
-    saveEdit,
-  } = useAdminProductEditModalController({
+  const productEditModal = useAdminProductEditModalController({
     products,
     loadProductDetail,
     saveProductEdits,
     reload,
   });
 
-  const {
-    isPendingOpen,
-    pendingModalLoading,
-    pendingModalError,
-    pendingModalSuccess,
-    pendingActionSaving,
-    pendingReviewRequest,
-    pendingRejectionReason,
-    pendingMarketplaceFiles,
-    pendingMarketplaceInputRef,
-    pendingReviewStatus,
-    pendingReviewRejectionReason,
-    pendingReviewMutable,
-    pendingMarketplaceError,
-    pendingApproveDisabledReason,
-    pendingApproveDisabled,
-    pendingDesignPreview,
-    openPendingModal,
-    closePendingModal,
-    onPendingMarketplaceFilesChange,
-    removePendingMarketplaceImage,
-    approvePendingRequest,
-    rejectPendingRequest,
-    setPendingRejectionReason,
-  } = useAdminPendingMerchReviewModalController({
+  const pendingMerchReviewModal = useAdminPendingMerchReviewModalController({
     loadProductDetail,
     approvePendingMerchRequest,
     rejectPendingMerchRequest,
     reload,
   });
 
-  const visibleListingPhotoUrls =
-    editReplacementPhotoPreviews.length > 0 ? editReplacementPhotoPreviews : editListingPhotoUrls;
-  const photoFieldError = editFieldErrors.listing_photos || '';
-  const photoHelperId = 'admin-edit-product-photo-helper';
-  const photoErrorId = 'admin-edit-product-photo-error';
-  const photoDescribedBy =
-    editPhotoNotice && !photoFieldError ? `${photoHelperId} ${photoErrorId}` : photoHelperId;
+  const pendingReviewDetails = useMemo(
+    () => derivePendingMerchReviewDetails(pendingMerchReviewModal.selectedRequest, artistLabelById),
+    [pendingMerchReviewModal.selectedRequest, artistLabelById]
+  );
 
   const pendingQueueCount = pendingRequests.length;
-  const pendingReviewArtistId = String(
-    pendingReviewRequest?.artistId || pendingReviewRequest?.artist_id || ''
-  ).trim();
-  const pendingReviewArtistName =
-    readText(pendingReviewRequest?.artistName) ||
-    readText(pendingReviewRequest?.artistHandle) ||
-    artistLabelById[pendingReviewArtistId] ||
-    'Unknown Artist';
+  const showCatalogTab = activeTab === 'catalog';
+  const showPendingTab = activeTab === 'pending';
+
+  const handleTabChange = useCallback((nextTab: ProductsTab) => {
+    setActiveTab(nextTab);
+  }, []);
+
+  const handleOpenEditProduct = useCallback(
+    (product: Product) => productEditModal.openForProduct(product),
+    [productEditModal]
+  );
+
+  const handleOpenPendingReview = useCallback(
+    (request: PendingMerchRequest) => pendingMerchReviewModal.openForRequest(request),
+    [pendingMerchReviewModal]
+  );
+
+  const handleOpenVariants = useCallback(
+    (productId: string) => {
+      navigate(`/partner/admin/products/${productId}/variants`);
+    },
+    [navigate]
+  );
 
   return (
     <main className="space-y-8 min-h-screen pb-20">
@@ -129,88 +84,82 @@ export default function AdminProductsPage() {
       <AdminProductsTabs
         activeTab={activeTab}
         pendingQueueCount={pendingQueueCount}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
       />
 
       {error && <AdminProductsErrorBanner error={error} />}
 
-      {activeTab === 'catalog' && (
+      {showCatalogTab && (
         <AdminProductsCatalogTable
           loading={loading}
           products={products}
           artistLabelById={artistLabelById}
-          onEditProduct={openEditModal}
-          onOpenVariants={(productId) => navigate(`/partner/admin/products/${productId}/variants`)}
+          onEditProduct={handleOpenEditProduct}
+          onOpenVariants={handleOpenVariants}
         />
       )}
 
-      {activeTab === 'pending' && (
+      {showPendingTab && (
         <AdminPendingMerchList
           loading={loading}
           pendingRequests={pendingRequests}
           artistLabelById={artistLabelById}
-          onOpenPendingModal={openPendingModal}
+          onOpenPendingModal={handleOpenPendingReview}
         />
       )}
 
-      {isPendingOpen && pendingReviewRequest && (
-        <AdminPendingMerchReviewModal
-          pendingReviewRequest={pendingReviewRequest}
-          pendingModalError={pendingModalError}
-          pendingModalSuccess={pendingModalSuccess}
-          pendingModalLoading={pendingModalLoading}
-          pendingDesignPreview={pendingDesignPreview}
-          pendingReviewArtistName={pendingReviewArtistName}
-          pendingReviewStatus={pendingReviewStatus}
-          pendingReviewRejectionReason={pendingReviewRejectionReason}
-          pendingReviewMutable={pendingReviewMutable}
-          pendingMarketplaceInputRef={pendingMarketplaceInputRef}
-          pendingMarketplaceFiles={pendingMarketplaceFiles}
-          pendingMarketplaceError={pendingMarketplaceError}
-          pendingRejectionReason={pendingRejectionReason}
-          pendingActionSaving={pendingActionSaving}
-          pendingApproveDisabled={pendingApproveDisabled}
-          pendingApproveDisabledReason={pendingApproveDisabledReason}
-          onClose={closePendingModal}
-          onPendingMarketplaceFilesChange={onPendingMarketplaceFilesChange}
-          onRemovePendingMarketplaceImage={removePendingMarketplaceImage}
-          onSetPendingRejectionReason={setPendingRejectionReason}
-          onApprovePendingRequest={approvePendingRequest}
-          onRejectPendingRequest={rejectPendingRequest}
-        />
-      )}
+      <AdminPendingMerchReviewModal
+        isOpen={pendingMerchReviewModal.isOpen}
+        selectedRequest={pendingMerchReviewModal.selectedRequest}
+        isLoading={pendingMerchReviewModal.isLoading}
+        isSubmitting={pendingMerchReviewModal.isSubmitting}
+        error={pendingMerchReviewModal.error}
+        successMessage={pendingMerchReviewModal.successMessage}
+        artistName={pendingReviewDetails.artistName}
+        designPreview={pendingReviewDetails.designPreview}
+        reviewStatus={pendingReviewDetails.status}
+        reviewRejectionReason={pendingReviewDetails.rejectionReason}
+        isMutable={pendingReviewDetails.isMutable}
+        marketplaceFiles={pendingMerchReviewModal.marketplaceFiles}
+        marketplaceError={pendingMerchReviewModal.marketplaceError}
+        rejectionReasonDraft={pendingMerchReviewModal.rejectionReasonDraft}
+        approveDisabled={pendingMerchReviewModal.approveDisabled}
+        approveDisabledReason={pendingMerchReviewModal.approveDisabledReason}
+        marketplaceInputRef={pendingMerchReviewModal.marketplaceInputRef}
+        onClose={pendingMerchReviewModal.close}
+        onMarketplaceFilesChange={pendingMerchReviewModal.setMarketplaceFilesFromInput}
+        onRemoveMarketplaceImage={pendingMerchReviewModal.removeMarketplaceImage}
+        onRejectionReasonChange={pendingMerchReviewModal.setRejectionReasonDraft}
+        onApprove={pendingMerchReviewModal.approve}
+        onReject={pendingMerchReviewModal.reject}
+      />
 
-      {isEditOpen && (
-        <AdminProductEditModal
-          saving={saving}
-          editLoading={editLoading}
-          editError={editError}
-          editArtistId={editArtistId}
-          editTitle={editTitle}
-          editDescription={editDescription}
-          editActive={editActive}
-          editReplacementPhotos={editReplacementPhotos}
-          editPhotoNotice={editPhotoNotice}
-          editFieldErrors={editFieldErrors}
-          artistLabelById={artistLabelById}
-          visibleListingPhotoUrls={visibleListingPhotoUrls}
-          photoFieldError={photoFieldError}
-          photoHelperId={photoHelperId}
-          photoErrorId={photoErrorId}
-          photoDescribedBy={photoDescribedBy}
-          saveDisabled={saveDisabled}
-          editPhotoInputRef={editPhotoInputRef}
-          editModalHeadingRef={editModalHeadingRef}
-          onClose={closeEditModal}
-          onSave={saveEdit}
-          onOpenPhotoPicker={openPhotoPicker}
-          onReplacementPhotosChange={onReplacementPhotosChange}
-          onMarkInteraction={markEditInteraction}
-          onSetEditTitle={setEditTitle}
-          onSetEditDescription={setEditDescription}
-          onSetEditActive={setEditActive}
-        />
-      )}
+      <AdminProductEditModal
+        isOpen={productEditModal.isOpen}
+        selectedProduct={productEditModal.selectedProduct}
+        isLoading={productEditModal.isLoading}
+        isSubmitting={productEditModal.isSubmitting}
+        error={productEditModal.error}
+        initialValues={productEditModal.initialValues}
+        values={productEditModal.values}
+        visibleListingPhotoUrls={productEditModal.visibleListingPhotoUrls}
+        replacementPhotos={productEditModal.editReplacementPhotos}
+        fieldErrors={productEditModal.editFieldErrors}
+        photoFieldError={productEditModal.photoFieldError}
+        photoNotice={productEditModal.editPhotoNotice}
+        saveDisabled={productEditModal.saveDisabled}
+        artistLabelById={artistLabelById}
+        photoInputRef={productEditModal.editPhotoInputRef}
+        headingRef={productEditModal.headingRef}
+        onClose={productEditModal.close}
+        onSubmit={productEditModal.submit}
+        onOpenPhotoPicker={productEditModal.openPhotoPicker}
+        onReplacementPhotosChange={productEditModal.setReplacementPhotos}
+        onMarkInteraction={productEditModal.markEditInteraction}
+        onTitleChange={productEditModal.setTitle}
+        onDescriptionChange={productEditModal.setDescription}
+        onActiveChange={productEditModal.setActive}
+      />
     </main>
   );
 }

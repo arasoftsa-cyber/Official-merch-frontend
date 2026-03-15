@@ -32,12 +32,14 @@ test.describe('Admin drops API contract', () => {
       });
     });
 
-    await gotoApp(adminPage, '/partner/admin/drops', {
-      waitUntil: 'domcontentloaded',
-      authRetry: false,
-    });
+    await gotoApp(adminPage, '/partner/admin/drops', { waitUntil: 'domcontentloaded' });
 
-    const alert = adminPage.getByRole('alert').first();
+    await expect(adminPage).toHaveURL(/\/partner\/admin\/drops(?:[/?#]|$)/i);
+    const pageMain = adminPage.getByRole('main').last();
+    await expect(pageMain.getByRole('heading', { name: /admin drops/i })).toBeVisible({
+      timeout: 15000,
+    });
+    const alert = pageMain.getByRole('alert');
     await expect(alert).toBeVisible({ timeout: 15000 });
     await expect(alert).toContainText(/admin drops endpoint is unavailable|unexpected server response/i);
     await expect(alert).not.toContainText(/cannot get \/api\/admin\/drops/i);

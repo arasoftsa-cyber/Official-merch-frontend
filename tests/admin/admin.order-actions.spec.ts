@@ -75,34 +75,41 @@ const setupAdminOrderDetailMocks = async (page: Page, orderId: string) => {
     refund: 0,
   };
 
-  await page.route(/\/api\/admin\/orders\/[^?#]+(?:[?#].*)?$/i, async (route) => {
-    const method = route.request().method().toUpperCase();
-    const url = new URL(route.request().url());
-    const path = url.pathname.toLowerCase();
-    const expectedBase = `/api/admin/orders/${orderId}`.toLowerCase();
-
-    if (method === 'OPTIONS') {
-      await route.fulfill({
-        status: 204,
-        headers: corsHeaders(route),
-        body: '',
-      });
-      return;
-    }
-
-    if (path === `${expectedBase}/fulfill` || path === `${expectedBase}/actions/fulfill`) {
-      if (!['POST', 'PATCH'].includes(method)) {
+  await page.route(
+    new RegExp(`/api/admin/orders/${orderId}/fulfill(?:[/?#]|$)`, 'i'),
+    async (route) => {
+      const method = route.request().method().toUpperCase();
+      if (method === 'OPTIONS') {
+        await route.fulfill({
+          status: 204,
+          headers: corsHeaders(route),
+          body: '',
+        });
+        return;
+      }
+      if (method !== 'POST') {
         await fulfillJson(route, 405, { error: 'method_not_allowed' });
         return;
       }
       calls.fulfill += 1;
       state.status = 'fulfilled';
       await fulfillJson(route, 200, { ok: true, status: state.status });
-      return;
     }
+  );
 
-    if (path === `${expectedBase}/refund` || path === `${expectedBase}/actions/refund`) {
-      if (!['POST', 'PATCH'].includes(method)) {
+  await page.route(
+    new RegExp(`/api/admin/orders/${orderId}/refund(?:[/?#]|$)`, 'i'),
+    async (route) => {
+      const method = route.request().method().toUpperCase();
+      if (method === 'OPTIONS') {
+        await route.fulfill({
+          status: 204,
+          headers: corsHeaders(route),
+          body: '',
+        });
+        return;
+      }
+      if (method !== 'POST') {
         await fulfillJson(route, 405, { error: 'method_not_allowed' });
         return;
       }
@@ -110,17 +117,29 @@ const setupAdminOrderDetailMocks = async (page: Page, orderId: string) => {
       state.status = 'refunded';
       state.payment.status = 'refunded';
       await fulfillJson(route, 200, { ok: true, status: state.status });
-      return;
     }
+  );
 
-    if (path === expectedBase && method === 'GET') {
+  await page.route(
+    new RegExp(`/api/admin/orders/${orderId}(?:[?#]|$)`, 'i'),
+    async (route) => {
+      const method = route.request().method().toUpperCase();
+      if (method === 'OPTIONS') {
+        await route.fulfill({
+          status: 204,
+          headers: corsHeaders(route),
+          body: '',
+        });
+        return;
+      }
+      if (method !== 'GET') {
+        await fulfillJson(route, 405, { error: 'method_not_allowed' });
+        return;
+      }
       calls.detail += 1;
       await fulfillJson(route, 200, state);
-      return;
     }
-
-    await fulfillJson(route, 404, { error: 'not_found' });
-  });
+  );
 
   return calls;
 };
@@ -138,14 +157,30 @@ test.describe('Admin order detail actions', () => {
     });
     await expect(page.getByTestId('admin-order-status')).toContainText(/paid/i);
 
+    const fulfillResponse = page.waitForResponse(
+      (response) =>
+        new RegExp(`/api/admin/orders/${orderId}/fulfill(?:[/?#]|$)`, 'i').test(response.url()) &&
+        response.request().method().toUpperCase() === 'POST' &&
+        response.status() === 200,
+      { timeout: 10000 }
+    );
     await page.getByTestId('admin-order-fulfill').click();
+    await fulfillResponse;
     await expect.poll(() => calls.fulfill, { timeout: 10000 }).toBe(1);
     await expect(
       page.getByText(/order fulfillment requested successfully/i).first()
     ).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('admin-order-status')).toContainText(/fulfilled/i);
 
+    const refundResponse = page.waitForResponse(
+      (response) =>
+        new RegExp(`/api/admin/orders/${orderId}/refund(?:[/?#]|$)`, 'i').test(response.url()) &&
+        response.request().method().toUpperCase() === 'POST' &&
+        response.status() === 200,
+      { timeout: 10000 }
+    );
     await page.getByTestId('admin-order-refund').click();
+    await refundResponse;
     await expect.poll(() => calls.refund, { timeout: 10000 }).toBe(1);
     await expect(page.getByText(/refund transaction initiated/i).first()).toBeVisible({
       timeout: 10000,

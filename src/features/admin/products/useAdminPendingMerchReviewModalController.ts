@@ -7,6 +7,7 @@ import {
   MAX_MARKETPLACE_IMAGES,
   MIN_MARKETPLACE_IMAGES,
   isAllowedMarketplaceImage,
+  mergePendingReviewRequest,
   mapPendingApproveErrorMessage,
   mapPendingRejectErrorMessage,
   normalizeStatus,
@@ -26,102 +27,63 @@ export function useAdminPendingMerchReviewModalController({
   rejectPendingMerchRequest,
   reload,
 }: UseAdminPendingMerchReviewModalControllerInput) {
-  const [isPendingOpen, setIsPendingOpen] = useState(false);
-  const [pendingModalLoading, setPendingModalLoading] = useState(false);
-  const [pendingModalError, setPendingModalError] = useState<string | null>(null);
-  const [pendingModalSuccess, setPendingModalSuccess] = useState<string | null>(null);
-  const [pendingActionSaving, setPendingActionSaving] = useState(false);
-  const [pendingReviewRequest, setPendingReviewRequest] = useState<PendingMerchRequest | null>(null);
-  const [pendingRejectionReason, setPendingRejectionReason] = useState('');
-  const [pendingMarketplaceFiles, setPendingMarketplaceFiles] = useState<File[]>([]);
-  const [pendingFieldErrors, setPendingFieldErrors] = useState<FieldErrors>({});
-  const pendingMarketplaceInputRef = useRef<HTMLInputElement | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<PendingMerchRequest | null>(null);
+  const [rejectionReasonDraft, setRejectionReasonDraft] = useState('');
+  const [marketplaceFiles, setMarketplaceFiles] = useState<File[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const marketplaceInputRef = useRef<HTMLInputElement | null>(null);
 
-  const resetPendingModalState = () => {
-    setPendingModalLoading(false);
-    setPendingModalError(null);
-    setPendingModalSuccess(null);
-    setPendingActionSaving(false);
-    setPendingRejectionReason('');
-    setPendingMarketplaceFiles([]);
-    setPendingFieldErrors({});
-    if (pendingMarketplaceInputRef.current) {
-      pendingMarketplaceInputRef.current.value = '';
+  const resetState = () => {
+    setIsOpen(false);
+    setIsLoading(false);
+    setError(null);
+    setSuccessMessage(null);
+    setIsSubmitting(false);
+    setSelectedRequest(null);
+    setRejectionReasonDraft('');
+    setMarketplaceFiles([]);
+    setFieldErrors({});
+    if (marketplaceInputRef.current) {
+      marketplaceInputRef.current.value = '';
     }
   };
 
-  const closePendingModal = () => {
-    setIsPendingOpen(false);
-    setPendingReviewRequest(null);
-    resetPendingModalState();
+  const close = () => {
+    resetState();
   };
 
-  const openPendingModal = async (request: PendingMerchRequest) => {
-    setIsPendingOpen(true);
-    setPendingReviewRequest(request);
-    setPendingRejectionReason(readText(request.rejectionReason || request.rejection_reason));
-    resetPendingModalState();
-    setPendingRejectionReason(readText(request.rejectionReason || request.rejection_reason));
-    setPendingModalLoading(true);
+  const openForRequest = async (request: PendingMerchRequest) => {
+    const nextRejectionReason = readText(request.rejectionReason);
+    setIsOpen(true);
+    setIsLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    setIsSubmitting(false);
+    setSelectedRequest(request);
+    setRejectionReasonDraft(nextRejectionReason);
+    setMarketplaceFiles([]);
+    setFieldErrors({});
+    if (marketplaceInputRef.current) {
+      marketplaceInputRef.current.value = '';
+    }
     try {
       const detailProduct = (await loadProductDetail(request.id)) as PendingMerchRequest | null;
       if (detailProduct && typeof detailProduct === 'object') {
-        const resolvedRejectionReason = readText(
-          request.rejectionReason ||
-            request.rejection_reason ||
-            detailProduct.rejectionReason ||
-            detailProduct.rejection_reason
+        const mergedRequest = mergePendingReviewRequest(request, detailProduct);
+        setSelectedRequest(mergedRequest);
+        setRejectionReasonDraft(
+          readText(request.rejectionReason || detailProduct.rejectionReason)
         );
-        setPendingReviewRequest((prev) => ({
-          ...(prev || request),
-          ...detailProduct,
-          id: request.id,
-          artistId:
-            request.artistId || request.artist_id || detailProduct.artistId || detailProduct.artist_id,
-          artistName: request.artistName || request.artistHandle || detailProduct.artistName,
-          artistHandle: request.artistHandle || detailProduct.artistHandle,
-          status: request.status || detailProduct.status || 'pending',
-          rejectionReason:
-            request.rejectionReason ||
-            request.rejection_reason ||
-            detailProduct.rejectionReason ||
-            detailProduct.rejection_reason ||
-            null,
-          rejection_reason:
-            request.rejection_reason ||
-            request.rejectionReason ||
-            detailProduct.rejection_reason ||
-            detailProduct.rejectionReason ||
-            null,
-          skuTypes: Array.isArray(request.skuTypes)
-            ? request.skuTypes
-            : Array.isArray(request.sku_types)
-              ? request.sku_types
-              : Array.isArray(detailProduct.skuTypes)
-                ? detailProduct.skuTypes
-                : [],
-          sku_types: Array.isArray(request.sku_types)
-            ? request.sku_types
-            : Array.isArray(request.skuTypes)
-              ? request.skuTypes
-              : Array.isArray(detailProduct.sku_types)
-                ? detailProduct.sku_types
-                : [],
-          designImageUrl:
-            resolveMediaUrl(
-              request.designImageUrl ||
-                request.design_image_url ||
-                detailProduct.designImageUrl ||
-                detailProduct.design_image_url ||
-                null
-            ) || '',
-        }));
-        setPendingRejectionReason(resolvedRejectionReason);
       }
     } catch (err: any) {
-      setPendingModalError(err?.message ?? 'Failed to load pending merchandise details.');
+      setError(err?.message ?? 'Failed to load pending merchandise details.');
     } finally {
-      setPendingModalLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -141,143 +103,136 @@ export function useAdminPendingMerchReviewModalController({
     return errors;
   };
 
-  const onPendingMarketplaceFilesChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const setMarketplaceFilesFromInput = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    setPendingModalError(null);
-    setPendingModalSuccess(null);
+    setError(null);
+    setSuccessMessage(null);
     if (files.length > MAX_MARKETPLACE_IMAGES) {
-      setPendingMarketplaceFiles([]);
-      setPendingFieldErrors((prev) => ({
+      setMarketplaceFiles([]);
+      setFieldErrors((prev) => ({
         ...prev,
         marketplace_images: `You can upload up to ${MAX_MARKETPLACE_IMAGES} marketplace images.`,
       }));
-      if (pendingMarketplaceInputRef.current) {
-        pendingMarketplaceInputRef.current.value = '';
+      if (marketplaceInputRef.current) {
+        marketplaceInputRef.current.value = '';
       }
       return;
     }
-    setPendingMarketplaceFiles(files);
+    setMarketplaceFiles(files);
     const validationErrors = validatePendingApprovalFiles(files);
-    setPendingFieldErrors((prev) => ({
+    setFieldErrors((prev) => ({
       ...prev,
       marketplace_images: validationErrors.marketplace_images || '',
     }));
   };
 
-  const removePendingMarketplaceImage = (index: number) => {
-    setPendingModalError(null);
-    setPendingModalSuccess(null);
-    const nextFiles = pendingMarketplaceFiles.filter((_, fileIndex) => fileIndex !== index);
-    setPendingMarketplaceFiles(nextFiles);
+  const removeMarketplaceImage = (index: number) => {
+    setError(null);
+    setSuccessMessage(null);
+    const nextFiles = marketplaceFiles.filter((_, fileIndex) => fileIndex !== index);
+    setMarketplaceFiles(nextFiles);
     const validationErrors = validatePendingApprovalFiles(nextFiles);
-    setPendingFieldErrors((current) => ({
+    setFieldErrors((current) => ({
       ...current,
       marketplace_images: validationErrors.marketplace_images || '',
     }));
-    if (pendingMarketplaceInputRef.current) {
-      pendingMarketplaceInputRef.current.value = '';
+    if (marketplaceInputRef.current) {
+      marketplaceInputRef.current.value = '';
     }
   };
 
-  const approvePendingRequest = async () => {
-    if (!pendingReviewRequest?.id || pendingActionSaving) return;
-    const validationErrors = validatePendingApprovalFiles(pendingMarketplaceFiles);
-    setPendingFieldErrors((prev) => ({
+  const approve = async () => {
+    if (!selectedRequest?.id || isSubmitting) return;
+    const validationErrors = validatePendingApprovalFiles(marketplaceFiles);
+    setFieldErrors((prev) => ({
       ...prev,
       marketplace_images: validationErrors.marketplace_images || '',
     }));
     if (Object.keys(validationErrors).length > 0) {
-      setPendingModalError('Please upload 4 to 6 valid marketplace images (JPG or PNG) before approval.');
+      setError('Please upload 4 to 6 valid marketplace images (JPG or PNG) before approval.');
       return;
     }
 
-    setPendingActionSaving(true);
-    setPendingModalError(null);
-    setPendingModalSuccess(null);
+    setIsSubmitting(true);
+    setError(null);
+    setSuccessMessage(null);
     try {
-      await approvePendingMerchRequest(pendingReviewRequest.id, pendingMarketplaceFiles);
-      setPendingModalSuccess('Merch request approved successfully.');
+      await approvePendingMerchRequest(selectedRequest.id, marketplaceFiles);
+      setSuccessMessage('Merch request approved successfully.');
       await reload();
-      closePendingModal();
+      close();
     } catch (err: any) {
-      setPendingModalError(mapPendingApproveErrorMessage(err));
+      setError(mapPendingApproveErrorMessage(err));
     } finally {
-      setPendingActionSaving(false);
+      setIsSubmitting(false);
     }
   };
 
-  const rejectPendingRequest = async () => {
-    if (!pendingReviewRequest?.id || pendingActionSaving) return;
-    setPendingActionSaving(true);
-    setPendingModalError(null);
-    setPendingModalSuccess(null);
+  const reject = async () => {
+    if (!selectedRequest?.id || isSubmitting) return;
+    setIsSubmitting(true);
+    setError(null);
+    setSuccessMessage(null);
     try {
-      await rejectPendingMerchRequest(
-        pendingReviewRequest.id,
-        readText(pendingRejectionReason) || null
-      );
-      setPendingModalSuccess('Merch request rejected.');
+      await rejectPendingMerchRequest(selectedRequest.id, readText(rejectionReasonDraft) || null);
+      setSuccessMessage('Merch request rejected.');
       await reload();
-      closePendingModal();
+      close();
     } catch (err: any) {
-      setPendingModalError(mapPendingRejectErrorMessage(err));
+      setError(mapPendingRejectErrorMessage(err));
     } finally {
-      setPendingActionSaving(false);
+      setIsSubmitting(false);
     }
   };
 
-  const pendingReviewStatus = normalizeStatus(pendingReviewRequest?.status || 'pending') || 'pending';
-  const pendingReviewRejectionReason = readText(
-    pendingReviewRequest?.rejectionReason || pendingReviewRequest?.rejection_reason
-  );
-  const pendingReviewMutable = pendingReviewStatus === 'pending';
+  const reviewStatus = normalizeStatus(selectedRequest?.status || 'pending') || 'pending';
+  const reviewRejectionReason = readText(selectedRequest?.rejectionReason);
+  const isMutable = reviewStatus === 'pending';
 
-  const pendingMarketplaceValidationErrors = useMemo(
-    () => validatePendingApprovalFiles(pendingMarketplaceFiles),
-    [pendingMarketplaceFiles]
+  const marketplaceValidationErrors = useMemo(
+    () => validatePendingApprovalFiles(marketplaceFiles),
+    [marketplaceFiles]
   );
 
-  const pendingMarketplaceError =
-    readText(pendingFieldErrors.marketplace_images) ||
-    readText(pendingMarketplaceValidationErrors.marketplace_images);
+  const marketplaceError =
+    readText(fieldErrors.marketplace_images) ||
+    readText(marketplaceValidationErrors.marketplace_images);
 
-  const pendingApproveDisabledReason = pendingModalLoading
+  const approveDisabledReason = isLoading
     ? 'Loading request details...'
-    : pendingActionSaving
+    : isSubmitting
       ? 'Approval is in progress...'
-      : !pendingReviewMutable
+      : !isMutable
         ? 'Only pending requests can be approved.'
-        : pendingMarketplaceError;
+        : marketplaceError;
 
-  const pendingApproveDisabled = Boolean(pendingApproveDisabledReason);
+  const approveDisabled = Boolean(approveDisabledReason);
 
-  const pendingDesignPreview = resolveMediaUrl(
-    pendingReviewRequest?.designImageUrl || pendingReviewRequest?.design_image_url || null
-  );
+  const designPreview = resolveMediaUrl(selectedRequest?.designImageUrl || null);
 
   return {
-    isPendingOpen,
-    pendingModalLoading,
-    pendingModalError,
-    pendingModalSuccess,
-    pendingActionSaving,
-    pendingReviewRequest,
-    pendingRejectionReason,
-    pendingMarketplaceFiles,
-    pendingMarketplaceInputRef,
-    pendingReviewStatus,
-    pendingReviewRejectionReason,
-    pendingReviewMutable,
-    pendingMarketplaceError,
-    pendingApproveDisabledReason,
-    pendingApproveDisabled,
-    pendingDesignPreview,
-    openPendingModal,
-    closePendingModal,
-    onPendingMarketplaceFilesChange,
-    removePendingMarketplaceImage,
-    approvePendingRequest,
-    rejectPendingRequest,
-    setPendingRejectionReason,
+    isOpen,
+    isLoading,
+    isSubmitting,
+    error,
+    successMessage,
+    selectedRequest,
+    rejectionReasonDraft,
+    marketplaceFiles,
+    marketplaceInputRef,
+    reviewStatus,
+    reviewRejectionReason,
+    isMutable,
+    marketplaceError,
+    approveDisabledReason,
+    approveDisabled,
+    designPreview,
+    openForRequest,
+    close,
+    setMarketplaceFilesFromInput,
+    removeMarketplaceImage,
+    approve,
+    reject,
+    setRejectionReasonDraft,
   };
 }

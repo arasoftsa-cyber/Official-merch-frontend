@@ -36,21 +36,19 @@ export default function AdminPendingMerchList({
             const requestId = String(request.id || request.productId || '').trim();
             const statusLabel = normalizeStatus(request.status || 'pending') || 'pending';
             const isRejected = statusLabel === 'rejected';
-            const artistId = String(request.artistId || request.artist_id || '').trim();
+            const artistId = String(request.artistId || '').trim();
             const artistLabel =
               readText(request.artistName) ||
               readText(request.artistHandle) ||
               artistLabelById[artistId] ||
               'Unknown Artist';
-            const rejectionReason = readText(request.rejectionReason || request.rejection_reason);
+            const rejectionReason = readText(request.rejectionReason);
             const skuTypes = readPendingSkuTypes(request);
-            const designImage = resolveMediaUrl(request.designImageUrl || request.design_image_url || null);
+            const designImage = resolveMediaUrl(request.designImageUrl || null);
 
             return (
               <article
-                key={
-                  requestId || `${request.title || 'pending'}-${request.createdAt || request.created_at || ''}`
-                }
+                key={requestId || `${request.title || 'pending'}-${request.createdAt || ''}`}
                 data-testid="admin-pending-merch-row"
                 className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 p-4"
               >
@@ -79,7 +77,7 @@ export default function AdminPendingMerchList({
                       Submitted: {resolvePendingSubmittedAt(request)}
                     </p>
                     <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">
-                      {readText(request.description) || readText(request.merch_story) || '-'}
+                      {readText(request.description) || readText(request.merchStory) || '-'}
                     </p>
                     {isRejected && rejectionReason && (
                       <p

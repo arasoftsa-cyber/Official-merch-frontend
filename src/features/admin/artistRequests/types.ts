@@ -1,6 +1,9 @@
 export const STATUS_OPTIONS = ['pending', 'approved', 'rejected'] as const;
+export const PLAN_TYPES = ['basic', 'advanced', 'premium'] as const;
 
 export type StatusOption = (typeof STATUS_OPTIONS)[number];
+export type ArtistRequestStatus = StatusOption;
+export type ArtistRequestPlanType = (typeof PLAN_TYPES)[number];
 
 export const STATUS_LABELS: Record<StatusOption, string> = {
   pending: 'Pending',
@@ -19,7 +22,7 @@ export type SocialItem = {
 export type ArtistRequest = {
   id: string;
   createdAt: string;
-  status: string;
+  status: ArtistRequestStatus;
   source: string;
   labelId?: string | null;
   artistName: string;
@@ -30,7 +33,7 @@ export type ArtistRequest = {
   aboutMe: string;
   profilePhotoUrl: string;
   messageForFans: string;
-  requestedPlanType: string;
+  requestedPlanType: ArtistRequestPlanType;
   rejectionComment: string;
 };
 

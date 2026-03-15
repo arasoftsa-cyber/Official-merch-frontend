@@ -9,9 +9,11 @@ import {
 import { buildGoogleOidcStartUrl } from '../../../../shared/auth/oidc';
 import { Page, Card } from '../../../../shared/ui/Page';
 import {
+  getPortalLoginHref,
+  getRequestedReturnTo,
   isPartnerRole,
-  parseAuthErrorFromSearch,
   resolvePortalIssue,
+  resolvePortalIssueFromSearch,
   resolvePostLoginRedirect,
   resolveRoleFromAuthPayload,
   toSafeReturnTo,
@@ -20,16 +22,15 @@ import {
 export default function PartnerLoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const params = new URLSearchParams(location.search);
-  const rawReturnTo = params.get('returnTo');
-  const safeReturnTo = toSafeReturnTo(rawReturnTo, { portal: 'partner', fallbackRoute: '/partner' });
-  const portalIssue = resolvePortalIssue({
-    ...parseAuthErrorFromSearch(location.search),
+  const requestedReturnTo = getRequestedReturnTo(location.search);
+  const safeReturnTo = toSafeReturnTo(requestedReturnTo, { portal: 'partner', fallbackRoute: '/partner' });
+  const portalIssue = resolvePortalIssueFromSearch({
+    search: location.search,
     currentPortal: 'partner',
-    returnTo: safeReturnTo,
+    fallbackReturnTo: safeReturnTo,
   });
-  const redirectHint = safeReturnTo;
-  const fanLinkTarget = `/fan/login?returnTo=${encodeURIComponent(redirectHint)}`;
+  const forgotPasswordTarget = `/forgot-password?portal=partner&returnTo=${encodeURIComponent(safeReturnTo)}`;
+  const fanLinkTarget = getPortalLoginHref('fan', safeReturnTo);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -87,7 +88,7 @@ export default function PartnerLoginPage() {
       }
 
       const target = resolvePostLoginRedirect({
-        returnTo: rawReturnTo,
+        search: location.search,
         portal: 'partner',
         role,
         fallbackRoute: '/',
@@ -184,7 +185,7 @@ export default function PartnerLoginPage() {
                 </label>
                 <Link
                   data-testid="partner-login-forgot-password"
-                  to={`/forgot-password?portal=partner&returnTo=${encodeURIComponent(redirectHint)}`}
+                  to={forgotPasswordTarget}
                   className="text-[10px] font-bold uppercase tracking-widest text-slate-400 transition hover:text-slate-900 dark:text-white/30 dark:hover:text-white"
                 >
                   Forgot?

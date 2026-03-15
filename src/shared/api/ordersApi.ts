@@ -1,21 +1,16 @@
 import { apiFetch } from './http';
+import { mapOrderDetailDto, mapOrderEventsPayload } from './orderDtos';
 
 export async function getOrder(id: string) {
-  return apiFetch(`/orders/${id}`);
+  const payload = await apiFetch(`/orders/${id}`);
+  return mapOrderDetailDto(payload);
 }
 
 export async function getOrderEvents(id: string) {
-  return apiFetch(`/orders/${id}/events`);
+  const payload = await apiFetch(`/orders/${id}/events`);
+  return mapOrderEventsPayload(payload);
 }
 
 export async function cancelOrder(id: string) {
-  try {
-    return await apiFetch(`/orders/${id}/cancel`, { method: 'POST' });
-  } catch (err) {
-    try {
-      return await apiFetch(`/orders/${id}/cancel`, { method: 'PATCH' });
-    } catch (err) {
-      return apiFetch(`/orders/${id}/actions/cancel`, { method: 'POST' });
-    }
-  }
+  return apiFetch(`/orders/${id}/cancel`, { method: 'POST' });
 }

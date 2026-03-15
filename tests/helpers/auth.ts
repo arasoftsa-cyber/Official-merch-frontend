@@ -1,4 +1,4 @@
-import { expect, Locator, Page } from '@playwright/test';
+import { expect, Page } from '@playwright/test';
 import {
   ADMIN_EMAIL,
   ADMIN_PASSWORD,
@@ -111,45 +111,15 @@ const navigateWithinApp = async (page: Page, targetPath: string): Promise<boolea
   }
 };
 
-const firstVisible = async (candidates: Locator[], timeout = 10000): Promise<Locator> => {
-  for (const candidate of candidates) {
-    const locator = candidate.first();
-    if ((await locator.count().catch(() => 0)) === 0) continue;
-    if (await locator.isVisible().catch(() => false)) return locator;
-  }
-  const fallback = candidates[0].first();
-  await expect(fallback).toBeVisible({ timeout });
-  return fallback;
-};
-
 const submitPartnerLoginForm = async (page: Page, email: string, password: string) => {
-  const partnerForm = await firstVisible([
-    page.locator('form:has(input#email):has(input#password)'),
-    page.locator('form:has(input[type="email"]):has(input[type="password"])'),
-    page.locator('form').first(),
-  ]);
+  const pageHeading = page.getByRole('heading', { name: /^partner login$/i });
+  const emailField = page.getByLabel(/^email$/i);
+  const passwordField = page.getByLabel(/^password$/i);
+  const loginButton = page.getByRole('button', { name: /^login$/i });
 
-  const emailField = await firstVisible([
-    partnerForm.locator('input#email'),
-    partnerForm.locator('input[type="email"][name="email"]'),
-    partnerForm.getByLabel(/email/i),
-    partnerForm.getByPlaceholder(/email/i),
-    partnerForm.getByTestId(/email/i),
-    partnerForm.locator('input[type="email"], input#partner-email'),
-  ]);
-  const passwordField = await firstVisible([
-    partnerForm.locator('input#password'),
-    partnerForm.locator('input[type="password"][name="password"]'),
-    partnerForm.getByLabel(/password/i),
-    partnerForm.getByPlaceholder(/password/i),
-    partnerForm.getByTestId(/password/i),
-    partnerForm.locator('input[type="password"], input#partner-password'),
-  ]);
-  const loginButton = await firstVisible([
-    partnerForm.getByRole('button', { name: /^(log\s*in|login|sign\s*in)$/i }),
-    partnerForm.locator('button[type="submit"]'),
-  ]);
-
+  await expect(pageHeading).toBeVisible({ timeout: 10000 });
+  await expect(emailField).toBeVisible({ timeout: 10000 });
+  await expect(passwordField).toBeVisible({ timeout: 10000 });
   await expect(loginButton).toBeVisible({ timeout: 10000 });
   await emailField.fill(email);
   await passwordField.fill(password);
@@ -209,22 +179,14 @@ const submitFanLoginForm = async (page: Page, email: string, password: string) =
 
   await page.goto(`${UI_BASE_URL}/fan/login?returnTo=%2F`, { waitUntil: 'domcontentloaded' });
 
-  const emailField = await firstVisible([
-    page.getByLabel(/email/i),
-    page.getByPlaceholder(/email/i),
-    page.getByTestId(/email/i),
-    page.locator('input[type="email"][name="email"], input#fan-email'),
-  ]);
-  const passwordField = await firstVisible([
-    page.getByLabel(/password/i),
-    page.getByPlaceholder(/password/i),
-    page.getByTestId(/password/i),
-    page.locator('input[type="password"][name="password"], input#fan-password'),
-  ]);
-  const signInButton = page.getByRole('button', { name: /^sign in$/i });
-  const loginButton = page.getByRole('button', { name: /^login$/i });
+  const pageHeading = page.getByRole('heading', { name: /^fan login$/i });
+  const emailField = page.getByTestId('fan-login-email');
+  const passwordField = page.getByTestId('fan-login-password');
+  const submitButton = page.getByTestId('fan-login-submit');
 
-  const submitButton = (await signInButton.isVisible().catch(() => false)) ? signInButton : loginButton;
+  await expect(pageHeading).toBeVisible({ timeout: 10000 });
+  await expect(emailField).toBeVisible({ timeout: 10000 });
+  await expect(passwordField).toBeVisible({ timeout: 10000 });
   await expect(submitButton).toBeVisible({ timeout: 10000 });
   await emailField.fill(email);
   await passwordField.fill(password);
@@ -342,23 +304,36 @@ export const loginPartner = async (page: Page, options: PartnerLoginOptions) => 
     await page.goto(`${UI_BASE_URL}${target}`, { waitUntil: 'domcontentloaded' });
   }
   assertNoPortalError(page);
-  await expectLoggedIn(page, { role, expectedScope: 'partner' });
+  await expectLoggedIn(page, {
+    role,
+    expectedScope: 'partner',
+    allowedPostLoginPaths: [target],
+  });
   assertNoPortalError(page);
 };
 
 export const expectLoggedIn = async (
   page: Page,
-  options: { role: LoginRole; expectedScope?: AuthScope }
+  options: { role: LoginRole; expectedScope?: AuthScope; allowedPostLoginPaths?: string[] }
 ) => {
   const { role } = options;
   const expectedScope: AuthScope =
     options.expectedScope || (role === 'buyer' ? 'fan' : 'partner');
-  const hasVisible = async (locator: Locator) => {
-    if ((await locator.count().catch(() => 0)) === 0) return false;
-    return locator.first().isVisible().catch(() => false);
-  };
+  const allowedPostLoginPaths = Array.isArray(options.allowedPostLoginPaths)
+    ? options.allowedPostLoginPaths
+        .map((value) => normalizeReturnTarget(value, ''))
+        .filter(Boolean)
+        .map((value) => value.toLowerCase())
+    : [];
 
   const roleUrlOk = (pathname: string) => {
+    if (
+      allowedPostLoginPaths.some(
+        (allowedPath) => pathname === allowedPath || pathname.startsWith(`${allowedPath}/`)
+      )
+    ) {
+      return true;
+    }
     switch (role) {
       case 'buyer':
         return pathname.includes('/fan') || pathname.includes('/buyer') || pathname.includes('/products');
@@ -368,39 +343,6 @@ export const expectLoggedIn = async (
         return pathname.includes('/partner');
       case 'label':
         return pathname.includes('/partner');
-      default:
-        return false;
-    }
-  };
-
-  const roleUiOk = async () => {
-    switch (role) {
-      case 'buyer':
-        return (
-          (await hasVisible(page.getByRole('link', { name: /logout/i }))) ||
-          (await hasVisible(page.getByRole('button', { name: /logout/i }))) ||
-          (await hasVisible(page.getByRole('link', { name: /products/i }))) ||
-          (await hasVisible(page.getByRole('link', { name: /cart/i })))
-        );
-      case 'admin':
-        return (
-          (await hasVisible(page.getByRole('link', { name: /admin/i }))) ||
-          (await hasVisible(page.getByRole('button', { name: /admin/i })))
-        );
-      case 'artist':
-        return (
-          (await hasVisible(page.getByRole('link', { name: /products/i }))) ||
-          (await hasVisible(page.getByRole('link', { name: /drops/i }))) ||
-          (await hasVisible(page.getByRole('button', { name: /products/i }))) ||
-          (await hasVisible(page.getByRole('button', { name: /drops/i })))
-        );
-      case 'label':
-        return (
-          (await hasVisible(page.getByRole('link', { name: /portfolio/i }))) ||
-          (await hasVisible(page.getByRole('link', { name: /sales/i }))) ||
-          (await hasVisible(page.getByRole('button', { name: /portfolio/i }))) ||
-          (await hasVisible(page.getByRole('button', { name: /sales/i })))
-        );
       default:
         return false;
     }
@@ -422,13 +364,11 @@ export const expectLoggedIn = async (
     .poll(
       async () => {
         const path = new URL(page.url()).pathname.toLowerCase();
-        if (roleUrlOk(path)) return 'url';
-        if (await roleUiOk()) return 'ui';
-        return '';
+        return roleUrlOk(path);
       },
       { timeout: 20000 }
     )
-    .not.toBe('');
+    .toBe(true);
 };
 
 export const loginBuyer = async (page: Page, options: BuyerLoginOptions = {}) => {
@@ -457,7 +397,11 @@ export const loginBuyer = async (page: Page, options: BuyerLoginOptions = {}) =>
   if (!navigated) {
     await page.goto(`${UI_BASE_URL}${target}`, { waitUntil: 'domcontentloaded' });
   }
-  await expectLoggedIn(page, { role: 'buyer', expectedScope: 'fan' });
+  await expectLoggedIn(page, {
+    role: 'buyer',
+    expectedScope: 'fan',
+    allowedPostLoginPaths: [target],
+  });
 };
 
 export const loginFanWithCredentials = async (

@@ -2,6 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { apiFetch } from '../../../shared/api/http';
 import { getAccessToken } from '../../../shared/auth/tokenStore';
+import {
+  cancelOrder as cancelOrderRequest,
+  getOrder,
+  getOrderEvents,
+} from '../../../shared/api/ordersApi';
+import { startPayment } from '../../../shared/api/paymentsFlowApi';
+import type { OrderDetailDto, OrderEventDto } from '../../../shared/api/orderDtos';
 import { ConfirmDialog } from '../../../shared/ui/ConfirmDialog';
 import { isUiTest } from '../../../shared/lib/uiTest';
 import { Card } from '../../../shared/ui/Page';
@@ -9,8 +16,6 @@ import {
   formatCurrencyFromCents,
   formatDateTime as formatDateTimeValue,
 } from '../../../shared/utils/formatting';
-
-type OrderDetail = Record<string, any>;
 
 const money = (cents?: number | null) =>
   typeof cents === 'number' ? formatCurrencyFromCents(cents) : '-';
@@ -22,7 +27,7 @@ const statusMap: Record<string, string> = {
   placed: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 ring-emerald-500/20',
   fulfilled: 'bg-sky-500/10 text-sky-600 dark:text-sky-200 ring-sky-500/30',
   cancelled: 'bg-rose-500/10 text-rose-600 dark:text-rose-200 ring-rose-500/30',
-  refund: 'bg-amber-500/10 text-amber-600 dark:text-amber-200 ring-amber-500/30',
+  refunded: 'bg-amber-500/10 text-amber-600 dark:text-amber-200 ring-amber-500/30',
   pending: 'bg-slate-500/10 text-slate-600 dark:text-slate-200 ring-slate-500/30',
 };
 
@@ -34,8 +39,8 @@ const statusClass = (status?: string) => {
 export default function BuyerOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const token = getAccessToken();
-  const [detail, setDetail] = useState<OrderDetail | null>(null);
-  const [events, setEvents] = useState<any[]>([]);
+  const [detail, setDetail] = useState<OrderDetailDto | null>(null);
+  const [events, setEvents] = useState<OrderEventDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
@@ -56,19 +61,12 @@ export default function BuyerOrderDetailPage() {
     setError(null);
     try {
       const orderId = String(id).trim();
-      const path = `/api/orders/${orderId}`;
-      const eventsPath = `/api/orders/${orderId}/events`;
       const [detailPayload, eventsPayload] = await Promise.all([
-        apiFetch(path),
-        apiFetch(eventsPath).catch(() => []),
+        getOrder(orderId),
+        getOrderEvents(orderId).catch(() => []),
       ]);
       setDetail(detailPayload);
-      const normalizedEvents = Array.isArray(eventsPayload)
-        ? eventsPayload
-        : Array.isArray((eventsPayload as any)?.items)
-          ? (eventsPayload as any).items
-          : [];
-      setEvents(normalizedEvents);
+      setEvents(eventsPayload);
     } catch (err: any) {
       setError(err?.message ?? 'Unable to load order');
     } finally {
@@ -89,7 +87,7 @@ export default function BuyerOrderDetailPage() {
     setActionBusy(true);
     setActionMessage(null);
     try {
-      await apiFetch(`/api/orders/${id}/cancel`, { method: 'POST' });
+      await cancelOrderRequest(id);
       setActionMessage('Order cancelled');
       await loadData();
     } catch (err: any) {
@@ -104,13 +102,8 @@ export default function BuyerOrderDetailPage() {
     setPayBusy(true);
     setPayError(null);
     try {
-      const res: any = await apiFetch(`/api/orders/${id}/pay`, { method: 'POST' });
-      const newAttemptId =
-        res?.attemptId ??
-        res?.paymentAttemptId ??
-        res?.id ??
-        res?.attempt?.id ??
-        null;
+      const res = await startPayment(id);
+      const newAttemptId = res.attemptId ?? null;
       if (newAttemptId) {
         setAttemptId(newAttemptId);
       }
@@ -140,35 +133,12 @@ export default function BuyerOrderDetailPage() {
     () => (Array.isArray(detail?.items) ? detail.items : []),
     [detail?.items]
   );
-  const status = detail?.status ?? detail?.state ?? detail?.orderStatus;
-  const totalCents =
-    typeof detail?.totalCents === 'number'
-      ? detail.totalCents
-      : typeof detail?.amount === 'number'
-        ? Math.round(detail.amount * 100)
-        : null;
+  const status = detail?.status ?? 'unknown';
+  const totalCents = detail?.totalCents ?? null;
   const formattedTotal =
     totalCents !== null ? formatCurrencyFromCents(totalCents) : '-';
-  const paymentStatus = useMemo(() => {
-    if (!detail) return 'unpaid';
-    if (detail?.payment?.status) return detail.payment.status;
-    if (detail?.paymentStatus) return detail.paymentStatus;
-    if (detail?.payment?.state) return detail.payment.state;
-    if (detail?.payment?.paymentStatus) return detail.payment.paymentStatus;
-    if (detail?.status === 'paid') return 'paid';
-    return 'unpaid';
-  }, [detail]);
-  const derivedAttemptId = useMemo(() => {
-    if (!detail) return null;
-    return (
-      detail?.paymentAttemptId ??
-      detail?.payment_attempt_id ??
-      detail?.payment?.attemptId ??
-      detail?.payment?.paymentAttemptId ??
-      detail?.attemptId ??
-      null
-    );
-  }, [detail]);
+  const paymentStatus = useMemo(() => detail?.payment.status ?? 'unpaid', [detail]);
+  const derivedAttemptId = useMemo(() => detail?.payment.attemptId ?? null, [detail]);
   useEffect(() => {
     if (derivedAttemptId) {
       setAttemptId(String(derivedAttemptId));
@@ -178,31 +148,11 @@ export default function BuyerOrderDetailPage() {
   const isPending = paymentStatus === 'pending' || paymentStatus === 'processing';
 
   const timelineEvents = useMemo(() => {
-    const candidate =
-      detail?.events ??
-      detail?.orderEvents ??
-      detail?.order?.events ??
-      detail?.order?.orderEvents;
-    const normalized = Array.isArray(candidate)
-      ? candidate
-      : Array.isArray(events)
-        ? events
-        : [];
+    const normalized = detail?.events?.length ? detail.events : events;
     const withTimestamp = normalized.map((event) => ({
       ...event,
-      __type:
-        event?.type ||
-        event?.event ||
-        event?.action ||
-        event?.status ||
-        'event',
-      __ts:
-        event?.at ||
-        event?.createdAt ||
-        event?.created_at ||
-        event?.timestamp ||
-        event?.time ||
-        null,
+      __type: event.type || 'event',
+      __ts: event.at,
     }));
     if (withTimestamp.length === 0 && detail?.createdAt) {
       return [
@@ -243,8 +193,8 @@ export default function BuyerOrderDetailPage() {
     const uniqueProductIds = Array.from(
       new Set(
         detailItems
-          .map((item: any) => item?.productId)
-          .filter((value: any): value is string => typeof value === 'string' && value.length > 0)
+          .map((item) => item.productId)
+          .filter((value): value is string => typeof value === 'string' && value.length > 0)
       )
     );
 
@@ -306,7 +256,7 @@ export default function BuyerOrderDetailPage() {
   }, [detailItems]);
 
   const formatProductLabel = (item: any) => {
-    const productId = item?.productId;
+    const productId = item.productId;
     if (typeof productId === 'string' && productTitles[productId]) {
       return productTitles[productId];
     }
@@ -314,16 +264,13 @@ export default function BuyerOrderDetailPage() {
   };
 
   const formatVariantLabel = (item: any) => {
-    const variantId = item?.productVariantId;
+    const variantId = item.productVariantId;
     if (!variantId) return '-';
 
-    const mapped =
-      typeof variantId === 'string'
-        ? variantMeta[variantId]
-        : undefined;
-    const size = item?.size ?? item?.variantSize ?? mapped?.size;
-    const color = item?.color ?? item?.variantColor ?? mapped?.color;
-    const sku = item?.sku ?? item?.variantSku ?? mapped?.sku;
+    const mapped = typeof variantId === 'string' ? variantMeta[variantId] : undefined;
+    const size = item.size ?? mapped?.size;
+    const color = item.color ?? mapped?.color;
+    const sku = item.sku ?? mapped?.sku;
     const sizeColor = [size, color].filter(Boolean).join('/');
 
     if (sizeColor && sku) return `${sizeColor} (${sku})`;
@@ -360,7 +307,7 @@ export default function BuyerOrderDetailPage() {
     <div className="space-y-8">
       <div className="space-y-2">
         <p className="text-sm uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400">Order</p>
-        <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Order {detail?.id ?? detail?.orderId ?? id}</h1>
+        <h1 className="text-3xl font-semibold text-slate-900 dark:text-white">Order {detail?.id ?? id}</h1>
       </div>
 
       {actionMessage && (
@@ -485,7 +432,7 @@ export default function BuyerOrderDetailPage() {
             <span className="text-right">Line total</span>
           </div>
           <div className="space-y-2">
-            {detailItems.map((item: any) => (
+            {detailItems.map((item) => (
               <div
                 key={item.id || `${item.productId}-${item.productVariantId}`}
                 className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 md:grid-cols-[1fr_1fr_0.5fr_0.8fr_0.9fr] md:p-4"
@@ -514,7 +461,7 @@ export default function BuyerOrderDetailPage() {
             ))}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-4 px-4 text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-            <span>Items: {detail?.items?.length ?? 0}</span>
+            <span>Items: {detailItems.length}</span>
             <span className="text-sm">Order total: <span className="text-lg text-slate-900 dark:text-white">{money(totalCents)}</span></span>
           </div>
         </section>

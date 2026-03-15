@@ -183,7 +183,7 @@ export default function AdminProvisioningPage() {
             </div>
 
             <div className={formClass}>
-              <p className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Link artist Ã¢â€ â€ user</p>
+                <p className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Link artist to user</p>
               <input
                 placeholder="Artist ID"
                 className={inputClass}
@@ -211,7 +211,7 @@ export default function AdminProvisioningPage() {
             </div>
 
             <div className={formClass}>
-              <p className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Link label Ã¢â€ â€ artist</p>
+                <p className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Link label to artist</p>
               <input
                 placeholder="Label ID"
                 className={inputClass}

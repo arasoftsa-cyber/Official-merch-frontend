@@ -51,7 +51,7 @@ export default function AdminProductsCatalogTable({
             </tr>
           )}
           {products.map((product) => {
-            const active = Boolean(product.isActive ?? product.is_active);
+            const active = Boolean(product.isActive);
             const statusLabel =
               typeof product.status === 'string' && product.status.trim().length > 0
                 ? product.status.toLowerCase()
@@ -59,7 +59,7 @@ export default function AdminProductsCatalogTable({
                   ? 'active'
                   : 'inactive';
             const rowProductId = String(product.productId || product.id || '').trim();
-            const artistId = product.artistId || product.artist_id || '';
+            const artistId = product.artistId || '';
             const thumbnail = extractListingPhotoUrls(product)[0] || '';
 
             return (
@@ -111,10 +111,10 @@ export default function AdminProductsCatalogTable({
                   </span>
                 </td>
                 <td className="px-8 py-5">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-900 dark:text-white uppercase">
-                      {(String(product.merchType || product.merch_type || 'Other')).replace('_', ' ')}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white uppercase">
+                        {(String(product.merchType || 'Other')).replace('_', ' ')}
+                      </span>
                     <span className="text-[10px] text-slate-400 uppercase tracking-tighter">Category</span>
                   </div>
                 </td>
