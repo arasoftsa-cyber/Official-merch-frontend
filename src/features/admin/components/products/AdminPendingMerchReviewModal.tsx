@@ -88,6 +88,7 @@ export default function AdminPendingMerchReviewModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Dismiss"
             className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition shadow-sm"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

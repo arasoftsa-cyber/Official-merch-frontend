@@ -1,4 +1,6 @@
 import { formatCurrencyFromCents } from '../../../shared/utils/formatting';
+import { createApiContractError, readObjectEnvelope } from '../../../shared/api/contract';
+import { resolveMediaUrl } from '../../../shared/utils/media';
 
 export type Variant = {
   id: string;
@@ -18,12 +20,14 @@ export type Product = {
   title?: string;
   description?: string;
   priceCents?: number;
-  listing_photos?: string[];
+  listingPhotoUrls?: string[];
 };
 
 function asObject(value: unknown): Record<string, any> | null {
   return value !== null && typeof value === 'object' ? (value as Record<string, any>) : null;
 }
+
+const PRODUCT_DETAIL_DOMAIN = 'catalog.productDetail';
 
 function toCents(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -50,47 +54,17 @@ export function formatCurrency(cents: number) {
 }
 
 function normalizeProductListingPhotos(
-  productSource: Record<string, any> | null,
-  root: Record<string, any>,
-  data: Record<string, any> | null
+  productSource: Record<string, any>
 ): string[] {
-  const fromProduct = Array.isArray(productSource?.listing_photos)
-    ? productSource.listing_photos
-    : Array.isArray(productSource?.listingPhotos)
-      ? productSource.listingPhotos
-      : Array.isArray(productSource?.listingPhotoUrls)
-        ? productSource.listingPhotoUrls
-        : Array.isArray(productSource?.photoUrls)
-          ? productSource.photoUrls
-          : Array.isArray(productSource?.photos)
-            ? productSource.photos
-            : [];
-  const fromPayload = Array.isArray(root?.listing_photos)
-    ? root.listing_photos
-    : Array.isArray(root?.listingPhotos)
-      ? root.listingPhotos
-      : Array.isArray(root?.listingPhotoUrls)
-        ? root.listingPhotoUrls
-        : Array.isArray(data?.listing_photos)
-          ? data.listing_photos
-          : Array.isArray(data?.listingPhotos)
-            ? data.listingPhotos
-            : Array.isArray(data?.listingPhotoUrls)
-              ? data.listingPhotoUrls
-              : Array.isArray(root?.photoUrls)
-                ? root.photoUrls
-                : Array.isArray(data?.photoUrls)
-                  ? data.photoUrls
-                  : Array.isArray(root?.photos)
-                    ? root.photos
-                    : Array.isArray(data?.photos)
-                      ? data.photos
-                      : [];
+  const photoCandidates = Array.isArray(productSource.listingPhotoUrls)
+    ? productSource.listingPhotoUrls
+    : Array.isArray(productSource.listing_photos)
+      ? productSource.listing_photos
+      : [];
 
-  return (fromProduct.length ? fromProduct : fromPayload)
-    .filter(
-      (value): value is string => typeof value === 'string' && value.trim().length > 0
-    )
+  return photoCandidates
+    .map((value) => resolveMediaUrl(typeof value === 'string' ? value : null))
+    .filter((value): value is string => Boolean(value))
     .slice(0, 4);
 }
 
@@ -121,34 +95,31 @@ function normalizeVariant(raw: any, index: number): Variant {
 }
 
 export function normalizePayload(payload: any, fallbackId: string) {
-  const root = asObject(payload) ?? {};
-  const data = asObject(root.data);
-  const productSource =
-    asObject(data?.product) ??
-    asObject(data?.item) ??
-    asObject(data) ??
-    asObject(root.product) ??
-    asObject(root.item);
-
-  if (!productSource) return null;
+  const productSource = readObjectEnvelope(payload, 'product', PRODUCT_DETAIL_DOMAIN, {
+    allowDirect: true,
+  });
+  const rootSource = asObject(payload);
+  const productId = String(productSource.id ?? fallbackId).trim();
+  if (!productId) {
+    throw createApiContractError(
+      PRODUCT_DETAIL_DOMAIN,
+      'Product detail response is missing a canonical product id.'
+    );
+  }
 
   const product: Product = {
-    id: String(productSource.id ?? fallbackId),
+    id: productId,
     title: typeof productSource.title === 'string' ? productSource.title : undefined,
     description: typeof productSource.description === 'string' ? productSource.description : undefined,
     priceCents: resolveCents(productSource) ?? undefined,
-    listing_photos: normalizeProductListingPhotos(productSource, root, data),
+    listingPhotoUrls: normalizeProductListingPhotos(productSource),
   };
 
   const variantsSource = Array.isArray(productSource.variants)
     ? productSource.variants
-    : Array.isArray(data?.variants)
-      ? data.variants
-      : Array.isArray(root.variants)
-        ? root.variants
-        : Array.isArray(productSource.items)
-          ? productSource.items
-          : [];
+    : Array.isArray(rootSource?.variants)
+      ? rootSource.variants
+      : [];
 
   const variants = variantsSource.map((variant, index) => normalizeVariant(variant, index));
   return { product, variants };

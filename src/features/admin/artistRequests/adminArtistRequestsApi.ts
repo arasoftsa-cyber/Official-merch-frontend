@@ -9,7 +9,7 @@ import {
 } from './types';
 import {
   isPremiumEnabledFromConfig,
-  mapArtistRequestDto,
+  parseAdminArtistRequestsResponse,
   normalizePlan,
 } from './adminArtistRequestDtos';
 
@@ -27,25 +27,7 @@ export async function fetchAdminArtistRequests(params: {
   }
 
   const payload = await apiFetch(`${ARTIST_REQUESTS_ENDPOINT}?${searchParams.toString()}`);
-
-  let items: any[] = [];
-  let totalCount = 0;
-  let pageFromPayload = params.page;
-
-  if (Array.isArray(payload)) {
-    items = payload;
-    totalCount = payload.length;
-  } else {
-    items = payload?.items ?? [];
-    totalCount = payload?.total ?? items.length;
-    pageFromPayload = Number(payload?.page) || params.page;
-  }
-
-  return {
-    items: items.map(mapArtistRequestDto),
-    total: totalCount,
-    page: pageFromPayload,
-  };
+  return parseAdminArtistRequestsResponse(payload, params.page);
 }
 
 export async function fetchPremiumPlanEnabled(): Promise<boolean> {

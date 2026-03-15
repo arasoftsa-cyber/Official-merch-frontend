@@ -1,3 +1,5 @@
+import { createApiContractError, readArrayEnvelope, readObjectEnvelope } from './contract';
+
 export const ORDER_STATUS_VALUES = [
   'pending',
   'placed',
@@ -152,78 +154,81 @@ const normalizeOrderEventType = (value: unknown): string => {
   return normalized;
 };
 
+const ORDER_DETAIL_DOMAIN = 'orders.detail';
+const ORDER_EVENTS_DOMAIN = 'orders.events';
+const ORDER_LIST_DOMAIN = 'orders.list';
+
+const readOptionalRecord = (value: unknown): Record<string, any> | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, any>;
+};
+
+const readOrderCore = (payload: unknown): Record<string, any> =>
+  readObjectEnvelope(payload, 'order', ORDER_DETAIL_DOMAIN, { allowDirect: true });
+
+const readOrderId = (raw: Record<string, any>): string => readText(raw.id ?? raw.orderId);
+
+const requireOrderId = (raw: Record<string, any>): string => {
+  const id = readOrderId(raw);
+  if (!id) {
+    throw createApiContractError(ORDER_DETAIL_DOMAIN, 'Order payload is missing a canonical id.');
+  }
+  return id;
+};
+
 export const mapOrderEventDto = (raw: any): OrderEventDto => ({
-  type: normalizeOrderEventType(raw?.type ?? raw?.event ?? raw?.action ?? raw?.status),
-  at: readText(raw?.at ?? raw?.createdAt ?? raw?.created_at ?? raw?.timestamp ?? raw?.time) || null,
+  type: normalizeOrderEventType(raw?.type ?? raw?.event),
+  at: readText(raw?.at ?? raw?.createdAt ?? raw?.created_at) || null,
   reason: readText(raw?.reason),
   note: readText(raw?.note ?? raw?.message),
 });
 
 export const mapOrderEventsPayload = (payload: any): OrderEventDto[] => {
-  const items = Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.items)
-      ? payload.items
-      : [];
+  const items = readArrayEnvelope(payload, 'items', ORDER_EVENTS_DOMAIN, { allowDirectArray: true });
   return items.map((item) => mapOrderEventDto(item));
 };
 
 export const mapOrderPaymentDto = (raw: any, orderStatus?: OrderStatus): OrderPaymentDto => {
-  const payment = raw?.payment ?? raw ?? {};
+  const payment = readOptionalRecord(raw?.payment) ?? {};
   const status =
     normalizePaymentStatus(
-      payment?.status ??
-        payment?.paymentStatus ??
-        payment?.state ??
-        raw?.paymentStatus ??
-        raw?.payment_status
+      payment?.status ?? raw?.paymentStatus
     ) || (orderStatus === 'paid' ? 'paid' : 'unknown');
 
   return {
-    paymentId: readText(payment?.paymentId ?? payment?.id ?? raw?.paymentId ?? raw?.payment_id),
+    paymentId: readText(payment?.paymentId ?? payment?.id),
     status: status === 'unknown' && orderStatus === 'paid' ? 'paid' : status,
-    provider: readText(payment?.provider ?? raw?.paymentProvider),
-    attemptId:
-      readText(
-        payment?.attemptId ??
-          payment?.paymentAttemptId ??
-          raw?.paymentAttemptId ??
-          raw?.payment_attempt_id ??
-          raw?.attemptId
-      ) || null,
+    provider: readText(payment?.provider),
+    attemptId: readText(payment?.attemptId ?? raw?.paymentAttemptId ?? raw?.attemptId) || null,
   };
 };
 
 export const mapOrderItemDto = (raw: any): OrderItemDto => ({
   id: readText(raw?.id),
   productId: readText(raw?.productId ?? raw?.product_id),
-  productVariantId: readText(raw?.productVariantId ?? raw?.product_variant_id ?? raw?.variantId),
+  productVariantId: readText(raw?.productVariantId ?? raw?.product_variant_id),
   quantity: readNumber(raw?.quantity) ?? 0,
   priceCents: readMoneyCents(raw?.priceCents, raw?.price_cents, raw?.price),
-  size: readText(raw?.size ?? raw?.variantSize),
-  color: readText(raw?.color ?? raw?.variantColor),
-  sku: readText(raw?.sku ?? raw?.variantSku),
+  size: readText(raw?.size),
+  color: readText(raw?.color),
+  sku: readText(raw?.sku),
 });
 
 export const mapOrderDetailDto = (payload: any): OrderDetailDto => {
-  const raw = payload?.order ?? payload ?? {};
-  const status = normalizeOrderStatus(raw?.status ?? raw?.state ?? raw?.orderStatus);
+  const raw = readOrderCore(payload);
+  const id = requireOrderId(raw);
+  const status = normalizeOrderStatus(raw?.status ?? raw?.state);
   const payment = mapOrderPaymentDto(raw, status);
-  const itemsRaw = Array.isArray(raw?.items)
-    ? raw.items
-    : Array.isArray(raw?.orderItems)
-      ? raw.orderItems
-      : [];
-  const events = mapOrderEventsPayload(
-    raw?.events ?? raw?.orderEvents ?? raw?.order?.events ?? raw?.order?.orderEvents
-  );
+  const itemsRaw = Array.isArray(raw?.items) ? raw.items : Array.isArray(raw?.orderItems) ? raw.orderItems : [];
+  const eventsSource = raw?.events ?? raw?.orderEvents ?? { items: [] };
+  const events = mapOrderEventsPayload(eventsSource);
 
   return {
-    id: readText(raw?.id ?? raw?.orderId),
+    id,
     status,
     totalCents: readMoneyCents(raw?.totalCents, raw?.total_cents, raw?.total, raw?.amount),
     createdAt: readText(raw?.createdAt ?? raw?.created_at) || null,
-    buyerUserId: readText(raw?.buyerUserId ?? raw?.buyer_user_id ?? raw?.userId ?? raw?.user_id),
+    buyerUserId: readText(raw?.buyerUserId ?? raw?.buyer_user_id),
     payment,
     items: itemsRaw.map((item: any) => mapOrderItemDto(item)),
     events,
@@ -242,14 +247,9 @@ export const mapOrderListItemDto = (raw: any): OrderListItemDto => {
 };
 
 export const mapOrderListPayload = (payload: any): OrderListItemDto[] => {
-  const items = Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.items)
-      ? payload.items
-      : Array.isArray(payload?.orders)
-        ? payload.orders
-        : Array.isArray(payload?.data)
-          ? payload.data
-          : [];
+  const items = readArrayEnvelope(payload, 'items', ORDER_LIST_DOMAIN, {
+    allowDirectArray: true,
+    legacyKey: 'orders',
+  });
   return items.map((item: any) => mapOrderListItemDto(item));
 };

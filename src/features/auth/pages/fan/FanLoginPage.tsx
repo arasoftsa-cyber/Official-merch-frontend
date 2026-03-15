@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Card from '../../../../shared/ui/legacy/Card';
 import { apiFetch } from '../../../../shared/api/http';
-import { clearTokens, setAccessToken, setRefreshToken } from '../../../../shared/auth/tokenStore';
+import { clearSession, setSession } from '../../../../shared/auth/tokenStore';
 import { buildGoogleOidcStartUrl } from '../../../../shared/auth/oidc';
 import {
   getPortalLoginHref,
@@ -61,7 +61,7 @@ export default function FanLoginPage() {
       });
       const role = resolveRoleFromAuthPayload(res);
       if (role && !isFanRole(role)) {
-        clearTokens();
+        clearSession();
         const issue = resolvePortalIssue({
           code: 'auth_portal_mismatch_fan_to_partner',
           currentPortal: 'fan',
@@ -75,10 +75,10 @@ export default function FanLoginPage() {
       const accessToken = res?.accessToken || res?.token || '';
       const refreshToken = res?.refreshToken || '';
       if (accessToken) {
-        setAccessToken(accessToken);
-      }
-      if (refreshToken) {
-        setRefreshToken(refreshToken);
+        setSession({
+          accessToken,
+          refreshToken: refreshToken || null,
+        });
       }
 
       const target = resolvePostLoginRedirect({
@@ -101,7 +101,7 @@ export default function FanLoginPage() {
             })
           : null;
       if (issue?.message) {
-        clearTokens();
+        clearSession();
         setError(issue.message);
         setPartnerRedirect(issue.redirectTo);
       } else {

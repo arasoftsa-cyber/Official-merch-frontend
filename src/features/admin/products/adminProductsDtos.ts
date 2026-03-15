@@ -1,3 +1,4 @@
+import { readArrayEnvelope } from '../../../shared/api/contract';
 import { resolveMediaUrl } from '../../../shared/utils/media';
 
 export type Artist = {
@@ -32,6 +33,10 @@ export type PendingMerchRequest = Product & {
   status: 'pending' | 'rejected' | 'approved' | 'unknown';
 };
 
+const PRODUCTS_DOMAIN = 'admin.products';
+const ARTISTS_DOMAIN = 'admin.artists';
+const PENDING_REQUESTS_DOMAIN = 'admin.products.onboarding';
+
 const readText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
 const normalizeStatus = (value: unknown): PendingMerchRequest['status'] => {
@@ -49,14 +54,13 @@ const readStringArray = (value: unknown): string[] => {
 
 const normalizeListingPhotoUrls = (item: any): string[] => {
   const candidates = [
-    ...(Array.isArray(item?.listingPhotoUrls) ? item.listingPhotoUrls : []),
-    ...(Array.isArray(item?.listing_photo_urls) ? item.listing_photo_urls : []),
-    ...(Array.isArray(item?.photoUrls) ? item.photoUrls : []),
-    ...(Array.isArray(item?.photos) ? item.photos : []),
+    ...(Array.isArray(item?.listingPhotoUrls)
+      ? item.listingPhotoUrls
+      : Array.isArray(item?.listing_photos)
+        ? item.listing_photos
+        : []),
     typeof item?.listingPhotoUrl === 'string' ? item.listingPhotoUrl : '',
-    typeof item?.listing_photo_url === 'string' ? item.listing_photo_url : '',
     typeof item?.primaryPhotoUrl === 'string' ? item.primaryPhotoUrl : '',
-    typeof item?.primary_photo_url === 'string' ? item.primary_photo_url : '',
   ]
     .map((entry) => resolveMediaUrl(typeof entry === 'string' ? entry : null))
     .filter((entry): entry is string => Boolean(entry));
@@ -64,26 +68,20 @@ const normalizeListingPhotoUrls = (item: any): string[] => {
 };
 
 export const extractItems = (payload: any, keys: string[]) => {
-  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload) && keys.includes('items')) return payload;
   if (!payload || typeof payload !== 'object') return [];
 
-  const keySet = Array.from(new Set([...keys, 'results']));
+  const keySet = Array.from(new Set(keys));
   for (const key of keySet) {
     const candidate = payload?.[key];
     if (Array.isArray(candidate)) return candidate;
-    if (candidate && typeof candidate === 'object') {
-      for (const nestedKey of keySet) {
-        const nestedCandidate = (candidate as any)?.[nestedKey];
-        if (Array.isArray(nestedCandidate)) return nestedCandidate;
-      }
-    }
   }
   return [];
 };
 
 export const mapAdminArtistDto = (item: any): Artist | null => {
   if (!item || typeof item !== 'object') return null;
-  const id = readText(item?.id ?? item?.artistId ?? item?.artist_id);
+  const id = readText(item?.id);
   if (!id) return null;
 
   return {
@@ -109,11 +107,11 @@ export const mapAdminProductDto = (item: any): Product | null => {
     merchType: readText(item?.merchType ?? item?.merch_type),
     merchStory: readText(item?.merchStory ?? item?.merch_story ?? item?.description),
     artistId: readText(item?.artistId ?? item?.artist_id),
-    isActive: Boolean(item?.isActive ?? item?.is_active ?? item?.active),
+    isActive: Boolean(item?.isActive ?? item?.is_active),
     status: readText(item?.status).toLowerCase(),
     primaryPhotoUrl:
       resolveMediaUrl(
-        readText(item?.primaryPhotoUrl ?? item?.primary_photo_url) || null
+        readText(item?.primaryPhotoUrl ?? item?.listingPhotoUrl) || null
       ) ?? '',
     listingPhotoUrl: listingPhotoUrls[0] ?? '',
     listingPhotoUrls: listingPhotoUrls.slice(0, 4),
@@ -138,3 +136,21 @@ export const mapPendingMerchRequestDto = (item: any): PendingMerchRequest | null
     status: normalizeStatus(item?.status),
   };
 };
+
+export const parseAdminProducts = (payload: unknown): Product[] =>
+  readArrayEnvelope(payload, 'items', PRODUCTS_DOMAIN, { allowDirectArray: true })
+    .map((item: any) => mapAdminProductDto(item))
+    .filter((item: Product | null): item is Product => Boolean(item));
+
+export const parseAdminArtists = (payload: unknown): Artist[] =>
+  readArrayEnvelope(payload, 'items', ARTISTS_DOMAIN, {
+    allowDirectArray: true,
+    legacyKey: 'artists',
+  })
+    .map((item: any) => mapAdminArtistDto(item))
+    .filter((item: Artist | null): item is Artist => Boolean(item));
+
+export const parsePendingMerchRequests = (payload: unknown): PendingMerchRequest[] =>
+  readArrayEnvelope(payload, 'items', PENDING_REQUESTS_DOMAIN)
+    .map((item: any) => mapPendingMerchRequestDto(item))
+    .filter((item: PendingMerchRequest | null): item is PendingMerchRequest => Boolean(item));

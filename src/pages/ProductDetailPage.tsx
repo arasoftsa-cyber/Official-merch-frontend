@@ -11,7 +11,6 @@ import { Container, Page } from '../shared/ui/Page';
 import { useCart } from '../cart/CartContext';
 import { NotFoundPage } from './ErrorPages';
 import { safeErrorMessage } from '../shared/utils/safeError';
-import { resolveMediaUrl } from '../shared/utils/media';
 
 import {
   formatCurrency,
@@ -174,11 +173,8 @@ export default function ProductDetailPage() {
           : 0
       );
   const photos = useMemo(
-    () =>
-      (Array.isArray(product?.listing_photos) ? product.listing_photos : [])
-        .map((value) => resolveMediaUrl(value))
-        .filter((value): value is string => Boolean(value)),
-    [product?.listing_photos]
+    () => (Array.isArray(product?.listingPhotoUrls) ? product.listingPhotoUrls : []),
+    [product?.listingPhotoUrls]
   );
 
   const mainImageUrl = photos[activeIdx] || '';
@@ -314,11 +310,11 @@ export default function ProductDetailPage() {
         variantId: selectedVariantIdentifier,
         title: product?.title ?? 'Product',
         priceCents: displayPriceCents ?? 0,
-        imageUrl: undefined,
+        imageUrl: photos[0] ?? undefined,
       },
       qty
     );
-  }, [addItem, displayPriceCents, id, product?.title, qty, selectedVariantIdentifier]);
+  }, [addItem, displayPriceCents, id, photos, product?.title, qty, selectedVariantIdentifier]);
 
   const handleAddToCart = () => {
     const variantError = getVariantSelectionError();

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { API_BASE } from '../../../shared/api/http';
-import { getAccessToken } from '../../../shared/auth/tokenStore';
+import { apiFetch } from '../../../shared/api/http';
 import { Container, Page } from '../../../shared/ui/Page';
 import { formatDateTime as formatDateTimeValue } from '../../../shared/utils/formatting';
 
@@ -37,6 +36,22 @@ const statusChipClass = (status: LeadStatus) => {
   return 'bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-100 ring-slate-200 dark:ring-white/20';
 };
 
+const mapLeadRow = (item: any): LeadRow => ({
+  id: item.id,
+  source: item.source ?? 'drop_quiz',
+  drop_handle: item.drop_handle ?? null,
+  name: item.name ?? null,
+  email: item.email ?? null,
+  phone: item.phone ?? null,
+  status: (item.status ?? 'new') as LeadStatus,
+  admin_note: item.admin_note ?? null,
+  created_at: item.created_at ?? null,
+  updated_at: item.updated_at ?? null,
+  score: Number(item.score ?? 0),
+  maxScore: Number(item.maxScore ?? 0),
+  answers_json: item.answers_json ?? null,
+});
+
 export default function AdminLeadsPage() {
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,29 +67,12 @@ export default function AdminLeadsPage() {
   const loggedPayloadLengthRef = useRef(false);
 
   const loadLeads = useCallback(async () => {
-    const token = getAccessToken();
-    const response = await fetch(
-      `${API_BASE}/api/admin/leads`,
-      {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          'Cache-Control': 'no-cache',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        cache: 'no-store',
-      }
-    );
-
-    if (response.status === 304) {
-      return null;
-    }
-
-    if (!response.ok) {
-      throw new Error(`HTTP_${response.status}`);
-    }
-
-    const payload = await response.json();
+    const payload = await apiFetch('/admin/leads', {
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
+      cache: 'no-store',
+    });
     return Array.isArray(payload?.items)
       ? payload.items
       : Array.isArray(payload)
@@ -95,23 +93,7 @@ export default function AdminLeadsPage() {
           console.log('[admin leads] payload length:', items.length);
           loggedPayloadLengthRef.current = true;
         }
-        setRows(
-          items.map((item: any) => ({
-            id: item.id,
-            source: item.source ?? 'drop_quiz',
-            drop_handle: item.drop_handle ?? null,
-            name: item.name ?? null,
-            email: item.email ?? null,
-            phone: item.phone ?? null,
-            status: (item.status ?? 'new') as LeadStatus,
-            admin_note: item.admin_note ?? null,
-            created_at: item.created_at ?? null,
-            updated_at: item.updated_at ?? null,
-            score: Number(item.score ?? 0),
-            maxScore: Number(item.maxScore ?? 0),
-            answers_json: item.answers_json ?? null,
-          }))
-        );
+        setRows(items.map(mapLeadRow));
       } catch (err: any) {
         if (active) {
           setError(err?.message ?? 'Unable to load leads');
@@ -155,45 +137,17 @@ export default function AdminLeadsPage() {
     setSaveLoading(true);
     setSaveError(null);
     try {
-      const token = getAccessToken();
-      const response = await fetch(
-        `${API_BASE}/api/admin/leads/${selectedRow.id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            status: editorStatus,
-            adminNote: editorNote,
-          }),
-        }
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP_${response.status}`);
-      }
+      await apiFetch(`/admin/leads/${selectedRow.id}`, {
+        method: 'PATCH',
+        body: {
+          status: editorStatus,
+          adminNote: editorNote,
+        },
+      });
 
       const refreshed = await loadLeads();
       if (refreshed) {
-        setRows(
-          refreshed.map((item: any) => ({
-            id: item.id,
-            source: item.source ?? 'drop_quiz',
-            drop_handle: item.drop_handle ?? null,
-            name: item.name ?? null,
-            email: item.email ?? null,
-            phone: item.phone ?? null,
-            status: (item.status ?? 'new') as LeadStatus,
-            admin_note: item.admin_note ?? null,
-            created_at: item.created_at ?? null,
-            updated_at: item.updated_at ?? null,
-            score: Number(item.score ?? 0),
-            maxScore: Number(item.maxScore ?? 0),
-            answers_json: item.answers_json ?? null,
-          }))
-        );
+        setRows(refreshed.map(mapLeadRow));
       }
     } catch (err: any) {
       setSaveError(err?.message ?? 'Save failed');
@@ -208,34 +162,20 @@ export default function AdminLeadsPage() {
     setConvertError(null);
     setConvertSuccess(null);
     try {
-      const token = getAccessToken();
       const artistName = selectedRow.name?.trim() || 'Lead Applicant';
       const email = selectedRow.email?.trim() || '';
       if (!email) {
         throw new Error('Lead is missing email; cannot create artist request.');
       }
 
-      const response = await fetch(`${API_BASE}/api/artist-access-requests`, {
+      const payload = await apiFetch('/artist-access-requests', {
         method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
+        body: {
           artist_name: artistName,
           email,
           phone: selectedRow.phone ?? null,
-        }),
+        },
       });
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        const message = payload?.message || payload?.error || `HTTP_${response.status}`;
-        throw new Error(message);
-      }
-
-      const payload = await response.json().catch(() => ({}));
       const requestId = payload?.requestId || payload?.id || 'created';
       setConvertSuccess(`Artist request created (${requestId}).`);
     } catch (err: any) {

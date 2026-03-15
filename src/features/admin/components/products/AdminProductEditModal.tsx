@@ -95,6 +95,7 @@ export default function AdminProductEditModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close"
             className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition shadow-sm"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -309,6 +310,7 @@ export default function AdminProductEditModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Discard"
             className="rounded-[1.25rem] border-2 border-slate-200 dark:border-white/10 bg-white dark:bg-transparent px-8 py-4 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white hover:border-slate-900 dark:hover:border-white/20 transition-all"
           >
             Discard

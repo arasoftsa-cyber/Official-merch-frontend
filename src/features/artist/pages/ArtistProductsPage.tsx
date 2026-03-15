@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { getMe } from '../../../shared/api/appApi';
-import { apiFetch, apiFetchForm, API_BASE } from '../../../shared/api/http';
+import { apiFetch, apiFetchForm } from '../../../shared/api/http';
 import { getAccessToken } from '../../../shared/auth/tokenStore';
 import { useToast } from '../../../shared/components/ux/ToastHost';
 import { Page, Container } from '../../../shared/ui/Page';
@@ -254,35 +254,21 @@ export default function ArtistProductsPage() {
     );
 
     try {
-      const response = await fetch(`${API_BASE}/api/products/${productId}/status`, {
-        method: 'PATCH',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ active: nextActive }),
-      });
-
-      if (!response.ok) {
-        const fallback = await fetch(`${API_BASE}/api/products/${productId}`, {
+      try {
+        await apiFetch(`/products/${productId}/status`, {
           method: 'PATCH',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ active: nextActive }),
+          body: { active: nextActive },
         });
-
-        if (!fallback.ok) {
-          const payloadError = await fallback.json().catch(() => null);
-          const message =
-            payloadError?.message ??
-            payloadError?.error ??
-            `Server error (${fallback.status})`;
-          throw new Error(message);
+      } catch (statusError: any) {
+        const statusCode = Number(statusError?.status || 0);
+        if (statusCode !== 404 && statusCode !== 405) {
+          throw statusError;
         }
+
+        await apiFetch(`/products/${productId}`, {
+          method: 'PATCH',
+          body: { active: nextActive },
+        });
       }
 
       toast.notify(`Product set to ${nextActive ? 'active' : 'inactive'}`, 'success');

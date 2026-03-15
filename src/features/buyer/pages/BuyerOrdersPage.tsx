@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAccessToken } from "../../../shared/auth/tokenStore";
+import { apiFetch } from "../../../shared/api/http";
 import { Card } from "../../../shared/ui/Page";
 import {
   formatCurrencyFromCents,
@@ -61,26 +61,15 @@ function normalizeOrderList(raw: any): OrderLike[] {
 }
 
 async function fetchOrdersFallback(): Promise<OrderLike[]> {
-  const token = getAccessToken();
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-  };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  try {
+    const data = await apiFetch("/orders/my");
+    return normalizeOrderList(data);
+  } catch (err: any) {
+    if (Number(err?.status || 0) === 401) {
+      throw new Error("Session expired. Please login again.");
+    }
+    throw err;
   }
-  const res = await fetch("/api/orders/my", {
-    headers,
-  });
-  let message = `Failed to load orders (${res.status})`;
-  if (res.status === 401) {
-    message = "Session expired. Please login again.";
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text ? `${message}: ${text}` : message);
-  }
-  const data = await res.json().catch(() => null);
-  return normalizeOrderList(data);
 }
 
 export default function BuyerOrdersPage() {
@@ -90,21 +79,22 @@ export default function BuyerOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadOrders = async (mounted = true) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const finalList = (await fetchOrdersFallback()) as OrderLike[];
+      if (mounted) setOrders(finalList);
+    } catch (err: any) {
+      if (mounted) setError(err?.message ?? "Failed to load orders");
+    } finally {
+      if (mounted) setLoading(false);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
-    const fetchOrders = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const finalList = (await fetchOrdersFallback()) as OrderLike[];
-        if (mounted) setOrders(finalList);
-      } catch (err: any) {
-        if (mounted) setError(err?.message ?? "Failed to load orders");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-    fetchOrders();
+    void loadOrders(mounted);
     return () => {
       mounted = false;
     };
@@ -158,8 +148,8 @@ export default function BuyerOrdersPage() {
             type="button"
             onClick={() => {
               setError(null);
-              setLoading(true);
               setOrders([]);
+              void loadOrders(true);
             }}
             className="mt-4 rounded-full border border-rose-300 px-6 py-2 text-xs font-bold uppercase tracking-widest text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:text-rose-300 dark:hover:bg-rose-500/10"
           >

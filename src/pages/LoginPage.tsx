@@ -1,10 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../shared/api/http';
-import {
-  setAccessToken,
-  setRefreshToken,
-} from '../shared/auth/tokenStore';
+import { setSession } from '../shared/auth/tokenStore';
 import Card from '../shared/ui/legacy/Card';
 import Input from '../shared/ui/legacy/Input';
 import Label from '../shared/ui/legacy/Label';
@@ -46,10 +43,10 @@ export default function LoginPage() {
         throw new Error('Missing access token');
       }
 
-      setAccessToken(accessToken);
-      if (refreshToken) {
-        setRefreshToken(refreshToken);
-      }
+      setSession({
+        accessToken,
+        refreshToken,
+      });
 
       const params = new URLSearchParams(location.search);
       const encodedReturnTo = params.get('returnTo') || '/';

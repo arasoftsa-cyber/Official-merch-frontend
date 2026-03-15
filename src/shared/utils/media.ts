@@ -11,10 +11,13 @@ export function getArtistInitials(nameOrHandle: unknown): string {
   return `${words[0][0]}${words[1][0]}`.toUpperCase();
 }
 
+const ABSOLUTE_HTTP_URL = /^https?:\/\//i;
+
 export function resolveMediaUrl(url: string | null | undefined): string | null {
   const raw = String(url ?? "").trim();
   if (!raw) return null;
-  if (/^https?:\/\//i.test(raw)) return raw;
+  if (ABSOLUTE_HTTP_URL.test(raw)) return raw;
+  if (/^(data|blob|javascript):/i.test(raw)) return null;
 
   const base = String(API_BASE_CONFIG ?? "").trim().replace(/\/+$/, "");
   if (!base) {
