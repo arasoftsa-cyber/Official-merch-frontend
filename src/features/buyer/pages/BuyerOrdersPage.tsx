@@ -229,7 +229,7 @@ export default function BuyerOrdersPage() {
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() => navigate(`/buyer/orders/${order.id}`)}
+                            onClick={() => navigate(`/fan/orders/${order.id}`)}
                             className="rounded-full border border-slate-200 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-700 transition hover:border-slate-900 hover:bg-slate-900 hover:text-white dark:border-white/20 dark:text-slate-300 dark:hover:border-white dark:hover:bg-white dark:hover:text-black"
                           >
                             View
@@ -237,7 +237,7 @@ export default function BuyerOrdersPage() {
                           {isUnpaidStatus(status) && (
                             <button
                               type="button"
-                              onClick={() => navigate(`/buyer/orders/${order.id}`)}
+                              onClick={() => navigate(`/fan/orders/${order.id}`)}
                               className="rounded-full bg-indigo-600 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white transition hover:bg-indigo-500"
                             >
                               Pay

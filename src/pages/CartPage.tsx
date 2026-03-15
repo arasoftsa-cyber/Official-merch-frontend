@@ -210,7 +210,7 @@ export default function CartPage() {
         throw new Error('Order id missing from response');
       }
       clearCart();
-      navigate(`/buyer/order/${orderId}`);
+      navigate(`/fan/orders/${orderId}`);
     } catch (err: any) {
       const detail = String(err?.message ?? '').trim();
       setErrorMessage(
