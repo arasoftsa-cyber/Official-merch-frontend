@@ -31,12 +31,11 @@ const hostname = forceProduction
 try {
   const apiBaseUrl = resolveApiBase({
     mode,
+    isDev: !forceProduction,
+    isProd: forceProduction,
     hostname,
-    backendBaseUrl: process.env.VITE_BACKEND_BASE_URL,
-    apiBaseProd: process.env.VITE_API_BASE_PROD,
-    apiBaseProdCompat: process.env.VITE_PROD_API_BASE_URL,
-    apiBaseDev: process.env.VITE_API_BASE_DEV,
-    apiBaseLegacy: process.env.VITE_API_BASE_URL,
+    origin: process.env.VITE_PUBLIC_APP_URL,
+    apiBaseUrl: process.env.VITE_API_BASE_URL,
   });
 
   console.log("[env:check] ok", {

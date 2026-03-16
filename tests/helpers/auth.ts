@@ -1,15 +1,5 @@
 import { expect, Page } from '@playwright/test';
-import {
-  ADMIN_EMAIL,
-  ADMIN_PASSWORD,
-  ARTIST_EMAIL,
-  ARTIST_PASSWORD,
-  BUYER_EMAIL,
-  BUYER_PASSWORD,
-  LABEL_EMAIL,
-  LABEL_PASSWORD,
-  UI_BASE_URL,
-} from '../_env';
+import { getBrowserAppEnv, getCredentialedAccount } from '../_env';
 
 const PARTNER_LOGIN_RESPONSE_RE = /\/api\/auth\/(?:partner\/)?login(?:[/?#]|$)/i;
 const PARTNER_LOGIN_DEBUG_ENABLED = /^(1|true|yes)$/i.test(
@@ -27,6 +17,8 @@ const isPartnerLoginResponse = (response: any): boolean => {
     return PARTNER_LOGIN_RESPONSE_RE.test(urlText);
   }
 };
+
+const getUiBaseUrl = () => getBrowserAppEnv().UI_BASE_URL;
 
 const logPartnerLoginDebug = (event: string, payload: Record<string, unknown> = {}) => {
   if (!PARTNER_LOGIN_DEBUG_ENABLED) return;
@@ -95,7 +87,7 @@ const getReturnTargetFromLoginUrl = (urlValue: string, fallback: string) => {
 const navigateWithinApp = async (page: Page, targetPath: string): Promise<boolean> => {
   try {
     const currentUrl = new URL(page.url());
-    const appOrigin = new URL(UI_BASE_URL).origin;
+    const appOrigin = new URL(getUiBaseUrl()).origin;
     if (currentUrl.origin !== appOrigin) return false;
     await page.evaluate((target) => {
       if (window.location.pathname + window.location.search + window.location.hash === target) {
@@ -177,7 +169,7 @@ const submitFanLoginForm = async (page: Page, email: string, password: string) =
   if (await page.getByRole('button', { name: /logout/i }).isVisible().catch(() => false)) return null;
   if (await page.getByRole('button', { name: /my account/i }).isVisible().catch(() => false)) return null;
 
-  await page.goto(`${UI_BASE_URL}/fan/login?returnTo=%2F`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${getUiBaseUrl()}/fan/login?returnTo=%2F`, { waitUntil: 'domcontentloaded' });
 
   const pageHeading = page.getByRole('heading', { name: /^fan login$/i });
   const emailField = page.getByTestId('fan-login-email');
@@ -202,7 +194,7 @@ const submitFanLoginForm = async (page: Page, email: string, password: string) =
 };
 
 const resetAuth = async (page: Page) => {
-  await page.goto(`${UI_BASE_URL}/`, { waitUntil: 'domcontentloaded' }).catch(() => null);
+  await page.goto(`${getUiBaseUrl()}/`, { waitUntil: 'domcontentloaded' }).catch(() => null);
   await page.evaluate(() => {
     try {
       localStorage.clear();
@@ -224,7 +216,7 @@ export const gotoApp = async (
   const usedSoftNavigation = await navigateWithinApp(page, normalizedPath);
 
   if (!usedSoftNavigation) {
-    await page.goto(`${UI_BASE_URL}${normalizedPath}`, {
+    await page.goto(`${getUiBaseUrl()}${normalizedPath}`, {
       waitUntil: 'domcontentloaded',
       ...gotoOptions,
     });
@@ -284,7 +276,7 @@ export const loginPartner = async (page: Page, options: PartnerLoginOptions) => 
   }
 
   await resetAuth(page);
-  await page.goto(`${UI_BASE_URL}/partner/login?returnTo=${encodeURIComponent(target)}`, {
+  await page.goto(`${getUiBaseUrl()}/partner/login?returnTo=${encodeURIComponent(target)}`, {
     waitUntil: 'domcontentloaded',
   });
   assertNoPortalError(page);
@@ -301,7 +293,7 @@ export const loginPartner = async (page: Page, options: PartnerLoginOptions) => 
   );
   const navigated = await navigateWithinApp(page, target);
   if (!navigated) {
-    await page.goto(`${UI_BASE_URL}${target}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${getUiBaseUrl()}${target}`, { waitUntil: 'domcontentloaded' });
   }
   assertNoPortalError(page);
   await expectLoggedIn(page, {
@@ -372,15 +364,17 @@ export const expectLoggedIn = async (
 };
 
 export const loginBuyer = async (page: Page, options: BuyerLoginOptions = {}) => {
-  const emailValue = options.email ?? BUYER_EMAIL;
-  const passwordValue = options.password ?? BUYER_PASSWORD;
+  const buyerAccount =
+    options.email && options.password ? null : getCredentialedAccount('buyer');
+  const emailValue = options.email ?? buyerAccount?.email ?? '';
+  const passwordValue = options.password ?? buyerAccount?.password ?? '';
   const target = options.returnTo ?? '/products';
   if (!emailValue || !passwordValue) {
     throw new Error('Missing buyer credentials');
   }
 
   await resetAuth(page);
-  await page.goto(`${UI_BASE_URL}/fan/login?returnTo=${encodeURIComponent(target)}`, {
+  await page.goto(`${getUiBaseUrl()}/fan/login?returnTo=${encodeURIComponent(target)}`, {
     waitUntil: 'domcontentloaded',
   });
 
@@ -395,7 +389,7 @@ export const loginBuyer = async (page: Page, options: BuyerLoginOptions = {}) =>
   });
   const navigated = await navigateWithinApp(page, target);
   if (!navigated) {
-    await page.goto(`${UI_BASE_URL}${target}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${getUiBaseUrl()}${target}`, { waitUntil: 'domcontentloaded' });
   }
   await expectLoggedIn(page, {
     role: 'buyer',
@@ -413,7 +407,7 @@ export const loginFanWithCredentials = async (
   const { expectRejection = false } = opts;
 
   await resetAuth(page);
-  await page.goto(`${UI_BASE_URL}/fan/login`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${getUiBaseUrl()}/fan/login`, { waitUntil: 'domcontentloaded' });
 
   const form = page.locator('form').first();
   const email = form.getByLabel(/email/i);
@@ -478,24 +472,21 @@ export const loginFanWithCredentials = async (
 
 export const loginAdmin = async (page: Page, options: { returnTo?: string } = {}) =>
   loginPartner(page, {
-    email: ADMIN_EMAIL,
-    password: ADMIN_PASSWORD,
+    ...getCredentialedAccount('admin'),
     returnTo: options.returnTo ?? '/partner/admin',
     role: 'admin',
   });
 
 export const loginArtist = async (page: Page, options: { returnTo?: string } = {}) =>
   loginPartner(page, {
-    email: ARTIST_EMAIL,
-    password: ARTIST_PASSWORD,
+    ...getCredentialedAccount('artist'),
     returnTo: options.returnTo ?? '/partner/artist',
     role: 'artist',
   });
 
 export const loginLabel = async (page: Page, options: { returnTo?: string } = {}) =>
   loginPartner(page, {
-    email: LABEL_EMAIL,
-    password: LABEL_PASSWORD,
+    ...getCredentialedAccount('label'),
     returnTo: options.returnTo ?? '/partner/label',
     role: 'label',
   });

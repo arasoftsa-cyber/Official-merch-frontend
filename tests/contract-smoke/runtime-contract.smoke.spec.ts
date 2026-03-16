@@ -1,22 +1,18 @@
 import { test, expect, type Page } from '@playwright/test';
-import {
-  BUYER_EMAIL,
-  BUYER_PASSWORD,
-  ARTIST_EMAIL,
-  ARTIST_PASSWORD,
-} from '../_env';
+import { getCredentialedAccount } from '../_env';
 import { createAdminProductWithStatus, ensureArtistIdentityForAdmin, makeStamp } from '../helpers/onboarding-flow';
 import { DESIGN_IMAGE_PATH, ensureOnboardingFixtures } from '../helpers/onboarding';
 
 const canonicalFanLogin = async (page: Page, returnTo: string) => {
+  const buyer = getCredentialedAccount('buyer');
   const currentUrl = page.url();
   if (!/\/fan\/login(?:[/?#]|$)/i.test(currentUrl)) {
     await page.goto(returnTo, { waitUntil: 'domcontentloaded' });
   }
   await expect(page).toHaveURL(/\/fan\/login(?:[/?#]|$)/i, { timeout: 15000 });
   await expect(page.getByRole('heading', { name: /^fan login$/i })).toBeVisible({ timeout: 10000 });
-  await page.getByTestId('fan-login-email').fill(BUYER_EMAIL);
-  await page.getByTestId('fan-login-password').fill(BUYER_PASSWORD);
+  await page.getByTestId('fan-login-email').fill(buyer.email);
+  await page.getByTestId('fan-login-password').fill(buyer.password);
   const loginResponse = page.waitForResponse(
     (response) =>
       response.request().method() === 'POST' &&
@@ -32,13 +28,14 @@ const canonicalPartnerLogin = async (
   page: Page,
   returnTo: string
 ) => {
+  const artist = getCredentialedAccount('artist');
   await page.goto(returnTo, { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/partner\/login(?:[/?#]|$)/i, { timeout: 15000 });
   await expect(page.getByRole('heading', { name: /^partner login$/i })).toBeVisible({
     timeout: 10000,
   });
-  await page.getByLabel(/^email$/i).fill(ARTIST_EMAIL);
-  await page.getByLabel(/^password$/i).fill(ARTIST_PASSWORD);
+  await page.getByLabel(/^email$/i).fill(artist.email);
+  await page.getByLabel(/^password$/i).fill(artist.password);
   const loginResponse = page.waitForResponse(
     (response) =>
       response.request().method() === 'POST' &&
@@ -66,11 +63,14 @@ const openCatalogCardByTitle = async (page: Page, title: string) => {
   throw new Error(`Catalog card not visible for seeded product: ${title}`);
 };
 
-test.describe('Runtime contract smoke', () => {
+test.describe('@credentialed Runtime contract smoke', () => {
   test.setTimeout(120_000);
 
   test.beforeAll(async () => {
     ensureOnboardingFixtures();
+    getCredentialedAccount('buyer');
+    getCredentialedAccount('artist');
+    getCredentialedAccount('admin');
   });
 
   test('fan auth returns to canonical orders page', async ({ page }) => {

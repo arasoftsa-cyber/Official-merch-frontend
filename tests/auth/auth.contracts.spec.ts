@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { UI_BASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD } from '../_env';
+import { UI_BASE_URL, getCredentialedAccount, hasCredentialedAccountEnv } from '../_env';
 import { gotoApp, loginAdmin, loginArtist, loginBuyer, loginFanWithCredentials, loginLabel } from '../helpers/auth';
 import { expectRedirectToPortalLogin } from '../helpers/assertions';
 import {
@@ -309,9 +309,13 @@ test.describe('Auth routing and access contracts', () => {
   test('fan portal rejects partner credentials and preserves partner login redirect', async ({
     page,
   }) => {
-    test.skip(!ADMIN_EMAIL || !ADMIN_PASSWORD, 'Missing admin credentials');
+    test.skip(
+      !hasCredentialedAccountEnv('admin'),
+      'Missing admin credentials for the credentialed Playwright lane'
+    );
+    const admin = getCredentialedAccount('admin');
 
-    await loginFanWithCredentials(page, ADMIN_EMAIL, ADMIN_PASSWORD, { expectRejection: true });
+    await loginFanWithCredentials(page, admin.email, admin.password, { expectRejection: true });
     await expect(page).not.toHaveURL(/\/partner\/(admin|artist|label)/, { timeout: 15000 });
     await expect(page).toHaveURL(/\/fan\/login/, { timeout: 15000 });
 

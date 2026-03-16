@@ -2,16 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { request as playwrightRequest } from '@playwright/test';
-import {
-  ADMIN_EMAIL,
-  ADMIN_PASSWORD,
-  ARTIST_EMAIL,
-  ARTIST_PASSWORD,
-  BUYER_EMAIL,
-  BUYER_PASSWORD,
-  LABEL_EMAIL,
-  LABEL_PASSWORD,
-} from '../_env';
+import { getCredentialedAccount } from '../_env';
 import { getApiUrl, readResponseSnippet } from './api';
 
 const FIXTURES_DIR = path.resolve(__dirname, '..', 'fixtures');
@@ -47,12 +38,12 @@ const readAccessToken = (payload: any): string =>
 
 const partnerCredentialsFor = (role: PartnerRole) => {
   if (role === 'admin') {
-    return { email: ADMIN_EMAIL, password: ADMIN_PASSWORD };
+    return getCredentialedAccount('admin');
   }
   if (role === 'artist') {
-    return { email: ARTIST_EMAIL, password: ARTIST_PASSWORD };
+    return getCredentialedAccount('artist');
   }
-  return { email: LABEL_EMAIL, password: LABEL_PASSWORD };
+  return getCredentialedAccount('label');
 };
 
 export const getPartnerAccessToken = async (role: PartnerRole): Promise<string> => {
@@ -228,11 +219,16 @@ export const ensureOnboardingFixtures = () => {
 };
 
 export const ensureOnboardingSmokeSeed = async () => {
-  await verifyPartnerRole(ADMIN_EMAIL, ADMIN_PASSWORD, 'admin');
-  await verifyPartnerRole(ARTIST_EMAIL, ARTIST_PASSWORD, 'artist');
-  await verifyPartnerRole(LABEL_EMAIL, LABEL_PASSWORD, 'label');
-  await verifyFanRole(BUYER_EMAIL, BUYER_PASSWORD);
-  await verifyArtistProductsLoad(ARTIST_EMAIL, ARTIST_PASSWORD);
+  const admin = getCredentialedAccount('admin');
+  const artist = getCredentialedAccount('artist');
+  const label = getCredentialedAccount('label');
+  const buyer = getCredentialedAccount('buyer');
+
+  await verifyPartnerRole(admin.email, admin.password, 'admin');
+  await verifyPartnerRole(artist.email, artist.password, 'artist');
+  await verifyPartnerRole(label.email, label.password, 'label');
+  await verifyFanRole(buyer.email, buyer.password);
+  await verifyArtistProductsLoad(artist.email, artist.password);
 };
 
 export const createPendingMerchRequestViaArtistApi = async (

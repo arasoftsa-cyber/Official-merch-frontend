@@ -1,13 +1,13 @@
 export type ApiBaseResolutionInput = {
   mode?: string | null;
-  backendBaseUrl?: string | null;
-  apiBaseProd?: string | null;
-  apiBaseDev?: string | null;
-  apiBaseLegacy?: string | null;
-  apiBaseProdCompat?: string | null;
+  isDev?: boolean | null;
+  isProd?: boolean | null;
+  apiBaseUrl?: string | null;
   hostname?: string | null;
+  origin?: string | null;
 };
 
+const DEFAULT_DEV_API_BASE = "http://localhost:3000";
 const trim = (value: unknown) => String(value || "").trim();
 
 const isLocalHostname = (hostname: string) => {
@@ -52,55 +52,38 @@ const assertNoLocalhost = (key: string, resolved: string) => {
 
 export function resolveApiBase(input: ApiBaseResolutionInput): string {
   const mode = trim(input.mode).toLowerCase();
-  const backendBaseUrl = trim(input.backendBaseUrl);
-  const apiBaseProd = trim(input.apiBaseProd);
-  const apiBaseDev = trim(input.apiBaseDev);
-  const apiBaseLegacy = trim(input.apiBaseLegacy);
-  const apiBaseProdCompat = trim(input.apiBaseProdCompat);
+  const explicitIsDev = typeof input.isDev === "boolean" ? input.isDev : null;
+  const explicitIsProd = typeof input.isProd === "boolean" ? input.isProd : null;
+  const isDev = explicitIsDev ?? mode === "development";
+  const isProd = explicitIsProd ?? mode === "production";
+  const apiBaseUrl = trim(input.apiBaseUrl);
   const hostname = trim(input.hostname);
-  const isProduction = mode === "production";
+  const origin = trim(input.origin);
   const nonLocalHost = hostname ? !isLocalHostname(hostname) : false;
 
-  const normalizedByKey = {
-    VITE_BACKEND_BASE_URL: parseAbsoluteApiBase("VITE_BACKEND_BASE_URL", backendBaseUrl),
-    VITE_API_BASE_PROD: parseAbsoluteApiBase("VITE_API_BASE_PROD", apiBaseProd),
-    VITE_PROD_API_BASE_URL: parseAbsoluteApiBase("VITE_PROD_API_BASE_URL", apiBaseProdCompat),
-    VITE_API_BASE_DEV: parseAbsoluteApiBase("VITE_API_BASE_DEV", apiBaseDev),
-    VITE_API_BASE_URL: parseAbsoluteApiBase("VITE_API_BASE_URL", apiBaseLegacy),
-  };
-
-  const orderedKeys = isProduction || nonLocalHost
-    ? [
-        "VITE_BACKEND_BASE_URL",
-        "VITE_API_BASE_PROD",
-        "VITE_PROD_API_BASE_URL",
-        "VITE_API_BASE_URL",
-      ]
-    : [
-        "VITE_BACKEND_BASE_URL",
-        "VITE_API_BASE_DEV",
-        "VITE_API_BASE_URL",
-        "VITE_API_BASE_PROD",
-        "VITE_PROD_API_BASE_URL",
-      ];
-
-  const selectedKey = orderedKeys.find((key) => {
-    const value = normalizedByKey[key as keyof typeof normalizedByKey];
-    return Boolean(value);
-  });
-  const candidate = selectedKey
-    ? normalizedByKey[selectedKey as keyof typeof normalizedByKey]
-    : "";
-
-  if (!candidate) {
-    throw new Error(
-      "[config] Missing API base URL. Set VITE_BACKEND_BASE_URL (canonical) or a documented compatibility key."
-    );
+  // Supported frontend inputs:
+  // 1. Explicit VITE_API_BASE_URL for cross-origin API deployments.
+  // 2. Same-origin runtime fallback for deployed production hosts.
+  // 3. Localhost fallback only while running a dev build.
+  const explicitApiBase = parseAbsoluteApiBase("VITE_API_BASE_URL", apiBaseUrl);
+  if (explicitApiBase) {
+    if (isProd || nonLocalHost) {
+      assertNoLocalhost("VITE_API_BASE_URL", explicitApiBase);
+    }
+    return explicitApiBase;
   }
 
-  if ((isProduction || nonLocalHost) && selectedKey) {
-    assertNoLocalhost(selectedKey, candidate);
+  const sameOriginApiBase = parseAbsoluteApiBase("window.location.origin", origin);
+  if ((isProd || nonLocalHost) && sameOriginApiBase) {
+    assertNoLocalhost("window.location.origin", sameOriginApiBase);
+    return sameOriginApiBase;
   }
 
-  return candidate;
+  if (isDev) {
+    return DEFAULT_DEV_API_BASE;
+  }
+
+  throw new Error(
+    "[config] Missing API base URL. Set VITE_API_BASE_URL for cross-origin deployments, rely on same-origin hosting in production, or use the development localhost fallback."
+  );
 }

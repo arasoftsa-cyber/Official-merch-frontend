@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/config/**/*.ts",
+    "scripts/check_env_contract_frontend.ts",
+    "tests/_env.ts",
+    "tests/auth/auth.contracts.spec.ts",
+    "tests/contract-smoke/runtime-contract.smoke.spec.ts",
+    "tests/helpers/auth.ts",
+    "tests/helpers/onboarding.ts",
+    "tests/helpers/urls.ts",
+    "vite.config.ts",
+    "playwright.config.ts"
+  ]
+}

@@ -1,42 +1,99 @@
 import { resolveApiBase } from '../src/config/apiBaseResolver';
 
-export function requireEnv(key: string): string {
-  const value = process.env[key];
-  if (!value || !value.trim()) {
-    throw new Error(`Missing ${key} in Playwright env (.env.ui.local, .env, or CI env vars)`);
+const playwrightProfile = String(process.env.PLAYWRIGHT_PROFILE || '').trim().toLowerCase();
+const isLocalProfile = playwrightProfile === 'local';
+const localEnvSources = '.env.ui.local, .env, or CI env vars';
+const productionEnvSources = '.env.production, .env, or CI env vars';
+const activeEnvSources = isLocalProfile ? localEnvSources : productionEnvSources;
+
+type CredentialedRole = 'buyer' | 'admin' | 'artist' | 'label';
+
+const credentialEnvKeys = {
+  buyer: ['BUYER_EMAIL', 'BUYER_PASSWORD'],
+  admin: ['ADMIN_EMAIL', 'ADMIN_PASSWORD'],
+  artist: ['ARTIST_EMAIL', 'ARTIST_PASSWORD'],
+  label: ['LABEL_EMAIL', 'LABEL_PASSWORD'],
+} as const;
+
+const readEnv = (key: string) => String(process.env[key] || '').trim();
+
+const requireEnvGroup = <TKeys extends readonly string[]>(
+  keys: TKeys,
+  laneLabel: string
+): Record<TKeys[number], string> => {
+  const missing = keys.filter((key) => !readEnv(key));
+  if (missing.length > 0) {
+    throw new Error(
+      `[${laneLabel}] Missing ${missing.join(', ')}. Set them in ${activeEnvSources}.`
+    );
   }
-  return value.trim();
+
+  const values = {} as Record<TKeys[number], string>;
+  for (const key of keys) {
+    values[key] = readEnv(key);
+  }
+  return values;
+};
+
+let browserAppEnvCache:
+  | { UI_BASE_URL: string; API_BASE_URL: string; VITE_API_BASE_URL: string }
+  | null = null;
+
+export function requireEnv(key: string, laneLabel = 'playwright:browser'): string {
+  return requireEnvGroup([key] as const, laneLabel)[key];
 }
 
-export const UI_BASE_URL = requireEnv('UI_BASE_URL');
-const playwrightProfile = String(process.env.PLAYWRIGHT_PROFILE || '').trim().toLowerCase();
-const apiResolutionMode =
-  playwrightProfile === 'local' ? 'development' : process.env.NODE_ENV || 'test';
-const uiHostname = (() => {
-  try {
-    return new URL(UI_BASE_URL).hostname;
-  } catch {
-    return '';
+export function getBrowserAppEnv() {
+  if (browserAppEnvCache) {
+    return browserAppEnvCache;
   }
-})();
 
-export const API_BASE_URL = resolveApiBase({
-  mode: apiResolutionMode,
-  hostname: uiHostname,
-  backendBaseUrl: process.env.VITE_BACKEND_BASE_URL,
-  apiBaseProd: process.env.VITE_API_BASE_PROD,
-  apiBaseProdCompat: process.env.VITE_PROD_API_BASE_URL,
-  apiBaseDev: process.env.VITE_API_BASE_DEV,
-  apiBaseLegacy: process.env.VITE_API_BASE_URL,
-});
+  const { UI_BASE_URL } = requireEnvGroup(['UI_BASE_URL'] as const, 'playwright:browser');
+  const apiResolutionMode = isLocalProfile ? 'development' : 'production';
+  const uiHostname = (() => {
+    try {
+      return new URL(UI_BASE_URL).hostname;
+    } catch {
+      return '';
+    }
+  })();
+  const uiOrigin = (() => {
+    try {
+      return new URL(UI_BASE_URL).origin;
+    } catch {
+      return '';
+    }
+  })();
+  const API_BASE_URL = resolveApiBase({
+    mode: apiResolutionMode,
+    isDev: isLocalProfile,
+    isProd: !isLocalProfile,
+    hostname: uiHostname,
+    origin: uiOrigin,
+    apiBaseUrl: process.env.VITE_API_BASE_URL,
+  });
 
-// Backward-compatible export name used by existing helpers/specs.
+  browserAppEnvCache = {
+    UI_BASE_URL,
+    API_BASE_URL,
+    VITE_API_BASE_URL: API_BASE_URL,
+  };
+  return browserAppEnvCache;
+}
+
+export function hasCredentialedAccountEnv(role: CredentialedRole): boolean {
+  return credentialEnvKeys[role].every((key) => Boolean(readEnv(key)));
+}
+
+export function getCredentialedAccount(role: CredentialedRole) {
+  const [emailKey, passwordKey] = credentialEnvKeys[role];
+  const values = requireEnvGroup(credentialEnvKeys[role], `playwright:credentialed:${role}`);
+  return {
+    email: values[emailKey],
+    password: values[passwordKey],
+  };
+}
+
+export const UI_BASE_URL = getBrowserAppEnv().UI_BASE_URL;
+export const API_BASE_URL = getBrowserAppEnv().API_BASE_URL;
 export const VITE_API_BASE_URL = API_BASE_URL;
-export const BUYER_EMAIL = requireEnv('BUYER_EMAIL');
-export const BUYER_PASSWORD = requireEnv('BUYER_PASSWORD');
-export const ADMIN_EMAIL = requireEnv('ADMIN_EMAIL');
-export const ADMIN_PASSWORD = requireEnv('ADMIN_PASSWORD');
-export const ARTIST_EMAIL = requireEnv('ARTIST_EMAIL');
-export const ARTIST_PASSWORD = requireEnv('ARTIST_PASSWORD');
-export const LABEL_EMAIL = requireEnv('LABEL_EMAIL');
-export const LABEL_PASSWORD = requireEnv('LABEL_PASSWORD');
