@@ -6,78 +6,17 @@ import ErrorBanner from '../shared/components/ux/ErrorBanner';
 import LoadingSkeleton from '../shared/components/ux/LoadingSkeleton';
 import { useToast } from '../shared/components/ux/ToastHost';
 import { trackEvent, trackPageView } from '../shared/lib/telemetry';
-import { resolveMediaUrl } from '../shared/utils/media';
-import { createApiContractError, readArrayEnvelope, readObjectEnvelope } from '../shared/api/contract';
 import { NotFoundPage } from './ErrorPages';
-
-type DropData = {
-  id: string;
-  handle: string;
-  title: string;
-  description?: string;
-  heroImageUrl?: string | null;
-  quizJson?: {
-    title?: string;
-    questions?: QuizQuestion[];
-  } | null;
-};
-
-type ProductCard = {
-  id: string;
-  title: string;
-};
-
-type QuizQuestion = {
-  id: string;
-  type: 'single_choice' | 'text';
-  prompt: string;
-  options?: string[];
-  required?: boolean;
-};
+import {
+  formatDropTitle,
+  parseDropPayload,
+  parseDropProductsPayload,
+  type DropData,
+  type ProductCard,
+  type QuizQuestion,
+} from './DropPage.model';
 
 type QuizState = 'idle' | 'quiz' | 'leadCapture' | 'submitted';
-
-const formatDropTitle = (drop?: DropData) => drop?.title ?? 'Drop';
-const DROP_PAGE_DOMAIN = 'catalog.drop';
-
-const parseDropPayload = (payload: unknown): DropData => {
-  const source = readObjectEnvelope(payload, 'drop', DROP_PAGE_DOMAIN, { allowDirect: false });
-  const id = String(source.id ?? '').trim();
-  const handle = String(source.handle ?? '').trim();
-  const title = String(source.title ?? '').trim();
-
-  if (!id || !handle || !title) {
-    throw createApiContractError(
-      DROP_PAGE_DOMAIN,
-      'Drop response is missing canonical id, handle, or title fields.'
-    );
-  }
-
-  return {
-    id,
-    handle,
-    title,
-    description: typeof source.description === 'string' ? source.description : undefined,
-    heroImageUrl: resolveMediaUrl(
-      typeof source.heroImageUrl === 'string'
-        ? source.heroImageUrl
-        : typeof source.coverUrl === 'string'
-          ? source.coverUrl
-          : null
-    ),
-    quizJson: source.quizJson ?? source.quiz_json ?? null,
-  };
-};
-
-const parseDropProductsPayload = (payload: unknown): ProductCard[] =>
-  readArrayEnvelope(payload, 'items', `${DROP_PAGE_DOMAIN}.products`)
-    .map((entry: any) => ({
-      id: entry?.id,
-      title:
-        (typeof entry?.title === 'string' && entry.title.trim()) ||
-        'Untitled product',
-    }))
-    .filter((item): item is ProductCard => Boolean(item.id));
 
 export default function DropPage() {
   const { handle } = useParams<{ handle: string }>();

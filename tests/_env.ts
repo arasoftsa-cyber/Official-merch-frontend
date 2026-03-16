@@ -1,6 +1,6 @@
 import { resolveApiBase } from '../src/config/apiBaseResolver';
 
-const playwrightProfile = String(process.env.PLAYWRIGHT_PROFILE || '').trim().toLowerCase();
+const playwrightProfile = String(process.env.PLAYWRIGHT_PROFILE || 'local').trim().toLowerCase();
 const isLocalProfile = playwrightProfile === 'local';
 const localEnvSources = '.env.ui.local, .env, or CI env vars';
 const productionEnvSources = '.env.production, .env, or CI env vars';

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import path from 'path';
-import { gotoApp, loginAdmin } from '../helpers/auth';
+import { loginAdmin } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 
 type ArtistState = {
   id: string;

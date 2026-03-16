@@ -1,11 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { loginArtist } from '../helpers/auth';
-import { DESIGN_IMAGE_PATH } from '../helpers/onboarding';
 import {
   expectArtistMerchReadonlyRow,
   gotoArtistProducts,
   makeStamp,
-  submitArtistMerchRequest,
+  submitArtistMerchRequestViaUi,
 } from '../helpers/onboarding-flow';
 import { prepareOnboardingSuite } from '../helpers/onboarding-flow';
 
@@ -22,15 +21,11 @@ test.describe('Onboarding artist submission', () => {
 
     await loginArtist(page);
     await gotoArtistProducts(page);
-    await submitArtistMerchRequest(page, {
+    await submitArtistMerchRequestViaUi(page, {
       merchName,
       merchStory,
       skuTestIds: ['artist-sku-regular-tshirt', 'artist-sku-hoodie'],
     });
-    await page.getByTestId('artist-merch-design-image').setInputFiles(DESIGN_IMAGE_PATH);
-    await page.getByTestId('artist-request-merch-submit').click();
-
-    await expect(page.getByTestId('artist-merch-submit-success')).toBeVisible({ timeout: 20000 });
     const row = await expectArtistMerchReadonlyRow(page, {
       merchName,
       skuLabelPattern: /regular t-shirt|hoodie/i,

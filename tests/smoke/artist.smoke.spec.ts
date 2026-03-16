@@ -1,5 +1,5 @@
 import { test, expect } from '../helpers/session';
-import { gotoApp } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 
 const PRICE_TEXT_RE = /\b\S*[0-9]+(?:[.,][0-9]{2})?\b/;
 

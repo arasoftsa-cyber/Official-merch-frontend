@@ -1,17 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { gotoApp, loginAdmin, loginArtist, loginBuyer } from '../helpers/auth';
+import { loginAdmin, loginArtist, loginBuyer } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 import {
-  createAdminProductWithStatus,
-  ensureArtistIdentityForAdmin,
   makeStamp,
   gotoArtistProducts,
+  rejectPendingMerchViaAdminUi,
+  submitArtistMerchRequestViaUi,
 } from '../helpers/onboarding-flow';
 import { prepareOnboardingSuite } from '../helpers/onboarding-flow';
 import {
-  createPendingMerchRequestViaArtistApi,
-  extractOnboardingProductId,
-  rejectOnboardingViaAdminApi,
-} from '../helpers/onboarding';
+  ensureLocalTestSupportSeed,
+  seedLocalProductWithStatus,
+} from '../helpers/localTestSupport';
 
 test.describe('Onboarding public visibility', () => {
   test.beforeAll(async () => {
@@ -21,30 +21,30 @@ test.describe('Onboarding public visibility', () => {
   test('fan sees only active products across listing/search/storefront/detail', async ({ page }) => {
     const stamp = makeStamp('pw-onb-fan');
 
-    await loginAdmin(page);
-    const { artistId, artistHandle } = await ensureArtistIdentityForAdmin(page);
+    const seeded = await ensureLocalTestSupportSeed();
+    const { artistId, artistHandle } = seeded.artist;
 
     const activeTitle = `${stamp}-active`;
     const pendingTitle = `${stamp}-pending`;
     const inactiveTitle = `${stamp}-inactive`;
     const rejectedTitle = `${stamp}-rejected`;
 
-    const { productId: activeProductId } = await createAdminProductWithStatus(page, {
+    const { productId: activeProductId } = await seedLocalProductWithStatus({
       artistId,
       title: activeTitle,
       status: 'active',
     });
-    const { productId: pendingProductId } = await createAdminProductWithStatus(page, {
+    const { productId: pendingProductId } = await seedLocalProductWithStatus({
       artistId,
       title: pendingTitle,
       status: 'pending',
     });
-    const { productId: inactiveProductId } = await createAdminProductWithStatus(page, {
+    const { productId: inactiveProductId } = await seedLocalProductWithStatus({
       artistId,
       title: inactiveTitle,
       status: 'inactive',
     });
-    const { productId: rejectedProductId } = await createAdminProductWithStatus(page, {
+    const { productId: rejectedProductId } = await seedLocalProductWithStatus({
       artistId,
       title: rejectedTitle,
       status: 'rejected',
@@ -91,16 +91,17 @@ test.describe('Onboarding public visibility', () => {
     const merchName = makeStamp('pw-onb-reject');
     const rejectionReason = `Rejected by smoke ${Date.now()} - missing fit for launch.`;
 
-    const created = await createPendingMerchRequestViaArtistApi(page, {
+    await loginArtist(page);
+    await gotoArtistProducts(page);
+    const { productId } = await submitArtistMerchRequestViaUi(page, {
       merchName,
       merchStory: `Rejection path story for ${merchName}.`,
-      skuTypes: ['hoodie'],
+      skuTestIds: ['artist-sku-hoodie'],
     });
-    const productId = extractOnboardingProductId(created);
     expect(productId.length).toBeGreaterThan(0);
 
     await loginAdmin(page);
-    await rejectOnboardingViaAdminApi(page, { productId, rejectionReason });
+    await rejectPendingMerchViaAdminUi(page, { title: merchName, rejectionReason });
 
     await loginArtist(page);
     await gotoArtistProducts(page);

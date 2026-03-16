@@ -202,6 +202,8 @@ function AppRoutes() {
   const location = useLocation();
   const isAuthenticated = authChecked && Boolean(role);
   const effectiveRole = isAuthenticated ? role : null;
+  const isExplicitLoginRoute =
+    location.pathname === '/fan/login' || location.pathname === '/partner/login';
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -239,6 +241,9 @@ function AppRoutes() {
   const loginEntryElement = (element: React.ReactNode) => {
     if (!authChecked && hasSessionCandidate) {
       return <Loading />;
+    }
+    if (isExplicitLoginRoute) {
+      return element;
     }
     if (isAuthenticated && authChecked) {
       const target = resolvePostLoginRedirect({

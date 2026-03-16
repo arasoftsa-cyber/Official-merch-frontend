@@ -1,5 +1,5 @@
 import { test, expect } from '../helpers/session';
-import { gotoApp } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 
 const PHONE_HELPER_TEXT = 'Enter your 10-digit mobile number. Country code +91 is assumed.';
 

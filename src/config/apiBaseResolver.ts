@@ -2,12 +2,14 @@ export type ApiBaseResolutionInput = {
   mode?: string | null;
   isDev?: boolean | null;
   isProd?: boolean | null;
+  isTest?: boolean | null;
   apiBaseUrl?: string | null;
   hostname?: string | null;
   origin?: string | null;
 };
 
 const DEFAULT_DEV_API_BASE = "http://localhost:3000";
+const DEFAULT_PROD_API_BASE = "/api";
 const trim = (value: unknown) => String(value || "").trim();
 
 const isLocalHostname = (hostname: string) => {
@@ -54,36 +56,32 @@ export function resolveApiBase(input: ApiBaseResolutionInput): string {
   const mode = trim(input.mode).toLowerCase();
   const explicitIsDev = typeof input.isDev === "boolean" ? input.isDev : null;
   const explicitIsProd = typeof input.isProd === "boolean" ? input.isProd : null;
+  const explicitIsTest = typeof input.isTest === "boolean" ? input.isTest : null;
   const isDev = explicitIsDev ?? mode === "development";
   const isProd = explicitIsProd ?? mode === "production";
+  const isTest = explicitIsTest ?? mode === "test";
   const apiBaseUrl = trim(input.apiBaseUrl);
-  const hostname = trim(input.hostname);
-  const origin = trim(input.origin);
-  const nonLocalHost = hostname ? !isLocalHostname(hostname) : false;
-
-  // Supported frontend inputs:
+  // Resolution order:
   // 1. Explicit VITE_API_BASE_URL for cross-origin API deployments.
-  // 2. Same-origin runtime fallback for deployed production hosts.
-  // 3. Localhost fallback only while running a dev build.
+  // 2. Localhost fallback for local development and static test execution.
+  // 3. Relative same-origin /api for production builds.
   const explicitApiBase = parseAbsoluteApiBase("VITE_API_BASE_URL", apiBaseUrl);
   if (explicitApiBase) {
-    if (isProd || nonLocalHost) {
+    if (isProd) {
       assertNoLocalhost("VITE_API_BASE_URL", explicitApiBase);
     }
     return explicitApiBase;
   }
 
-  const sameOriginApiBase = parseAbsoluteApiBase("window.location.origin", origin);
-  if ((isProd || nonLocalHost) && sameOriginApiBase) {
-    assertNoLocalhost("window.location.origin", sameOriginApiBase);
-    return sameOriginApiBase;
-  }
-
-  if (isDev) {
+  if (isDev || isTest) {
     return DEFAULT_DEV_API_BASE;
   }
 
+  if (isProd) {
+    return DEFAULT_PROD_API_BASE;
+  }
+
   throw new Error(
-    "[config] Missing API base URL. Set VITE_API_BASE_URL for cross-origin deployments, rely on same-origin hosting in production, or use the development localhost fallback."
+    "[config] Missing API base URL. Set VITE_API_BASE_URL for cross-origin deployments, use the localhost fallback in development, or rely on the production same-origin /api default."
   );
 }

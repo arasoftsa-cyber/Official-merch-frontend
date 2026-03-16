@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { test, expect } from '@playwright/test';
-import { gotoApp, loginAdmin } from '../helpers/auth';
+import { loginAdmin } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 
 type AdminOrderState = {
   id: string;

@@ -1,4 +1,4 @@
-import { readArrayEnvelope } from '../../../shared/api/contract';
+import { createApiContractError, readArrayEnvelope } from '../../../shared/api/contract';
 import { resolveMediaUrl } from '../../../shared/utils/media';
 
 export type Artist = {
@@ -154,3 +154,21 @@ export const parsePendingMerchRequests = (payload: unknown): PendingMerchRequest
   readArrayEnvelope(payload, 'items', PENDING_REQUESTS_DOMAIN)
     .map((item: any) => mapPendingMerchRequestDto(item))
     .filter((item: PendingMerchRequest | null): item is PendingMerchRequest => Boolean(item));
+
+export const parseAdminProductDetailPayload = (payload: any): Product | null =>
+  mapAdminProductDto(payload?.product ?? payload);
+
+export const parseAdminProductPhotoUpdateResponse = (
+  payload: any,
+  domain = PRODUCTS_DOMAIN
+): string[] => {
+  if (!Array.isArray(payload?.listingPhotoUrls)) {
+    throw createApiContractError(
+      domain,
+      'Product photo update response is missing listingPhotoUrls.'
+    );
+  }
+  return payload.listingPhotoUrls
+    .map((entry: any) => resolveMediaUrl(typeof entry === 'string' ? entry : null))
+    .filter((entry: string | null): entry is string => Boolean(entry));
+};

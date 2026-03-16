@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
-import { gotoApp, loginAdmin } from '../helpers/auth';
+import { loginAdmin } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 
 type PendingRequestItem = {
   id: string;
@@ -78,7 +79,7 @@ const fulfillPreflight = async (route: any) => {
 const setupPendingMerchMocks = async (
   page: Page,
   options?: {
-    detailDelayMs?: number;
+    waitForLoadingStateBeforeDetailResponse?: boolean;
     failDetailForId?: string;
     approveErrorForId?: string;
     rejectErrorForId?: string;
@@ -136,8 +137,12 @@ const setupPendingMerchMocks = async (
       return;
     }
     const productId = route.request().url().split('/api/products/')[1]?.split('?')[0];
-    if (options?.detailDelayMs) {
-      await new Promise((resolve) => setTimeout(resolve, options.detailDelayMs));
+    if (options?.waitForLoadingStateBeforeDetailResponse) {
+      await page
+        .getByTestId('admin-pending-merch-review-modal')
+        .locator('.animate-spin')
+        .first()
+        .waitFor({ state: 'visible', timeout: 5000 });
     }
     if (options?.failDetailForId === productId) {
       await fulfillJson(route, 500, { message: 'detail_failed' });
@@ -281,7 +286,7 @@ test.describe('Admin pending merch review modal', () => {
   });
 
   test('shows loading state while hydrating the selected request', async ({ page }) => {
-    await setupPendingMerchMocks(page, { detailDelayMs: 500 });
+    await setupPendingMerchMocks(page, { waitForLoadingStateBeforeDetailResponse: true });
     const modal = await openPendingMerchModal(page, 'First Pending Request');
 
     await expect(modal.locator('.animate-spin')).toBeVisible();

@@ -1,7 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 import { getCredentialedAccount } from '../_env';
-import { createAdminProductWithStatus, ensureArtistIdentityForAdmin, makeStamp } from '../helpers/onboarding-flow';
+import { makeStamp } from '../helpers/onboarding-flow';
 import { DESIGN_IMAGE_PATH, ensureOnboardingFixtures } from '../helpers/onboarding';
+import {
+  createAdminProductWithStatusViaAdminApi,
+  ensureCredentialedArtistIdentityForAdmin,
+} from '../helpers/credentialedProvisioning';
 
 const canonicalFanLogin = async (page: Page, returnTo: string) => {
   const buyer = getCredentialedAccount('buyer');
@@ -48,19 +52,28 @@ const canonicalPartnerLogin = async (
 };
 
 const openCatalogCardByTitle = async (page: Page, title: string) => {
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    await page.goto('/products', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('public-catalog-toolbar')).toBeVisible({ timeout: 15000 });
-    await page.getByTestId('public-catalog-search').fill(title);
-    const card = page.getByTestId('product-catalog-card').filter({ hasText: title }).first();
-    if (await card.isVisible().catch(() => false)) {
-      await card.click();
-      return;
-    }
-    await page.waitForTimeout(1000);
-  }
+  await expect
+    .poll(
+      async () => {
+        await page.goto('/products', { waitUntil: 'domcontentloaded' });
+        await expect(page.getByTestId('public-catalog-toolbar')).toBeVisible({ timeout: 15000 });
+        await page.getByTestId('public-catalog-search').fill(title);
+        const card = page.getByTestId('product-catalog-card').filter({ hasText: title }).first();
+        return card.isVisible().catch(() => false);
+      },
+      {
+        timeout: 20000,
+        message: `Catalog card not visible for seeded product: ${title}`,
+      }
+    )
+    .toBe(true);
 
-  throw new Error(`Catalog card not visible for seeded product: ${title}`);
+  await page.goto('/products', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByTestId('public-catalog-toolbar')).toBeVisible({ timeout: 15000 });
+  await page.getByTestId('public-catalog-search').fill(title);
+  const card = page.getByTestId('product-catalog-card').filter({ hasText: title }).first();
+  await expect(card).toBeVisible({ timeout: 10000 });
+  await card.click();
 };
 
 test.describe('@credentialed Runtime contract smoke', () => {
@@ -120,8 +133,8 @@ test.describe('@credentialed Runtime contract smoke', () => {
   test('buyer checkout creates a real order from a seeded active product', async ({ page }) => {
     const productTitle = makeStamp('pw-contract-order');
 
-    const { artistId } = await ensureArtistIdentityForAdmin(page);
-    const { productId } = await createAdminProductWithStatus(page, {
+    const { artistId } = await ensureCredentialedArtistIdentityForAdmin(page);
+    const { productId } = await createAdminProductWithStatusViaAdminApi(page, {
       artistId,
       title: productTitle,
       status: 'active',

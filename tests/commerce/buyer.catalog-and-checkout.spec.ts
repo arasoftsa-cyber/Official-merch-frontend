@@ -1,6 +1,6 @@
 import { test, expect } from '../helpers/session';
 import type { Page } from '@playwright/test';
-import { gotoApp } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 import { cartLinkInHeader, getProductCards } from '../helpers/assertions';
 
 const PRICE_OR_UNAVAILABLE_RE = /price unavailable|\b\S*[0-9]+(?:[.,][0-9]{2})?\b/i;
@@ -188,7 +188,6 @@ test.describe('Buyer catalog and checkout', () => {
     await buyerPage.evaluate(() => localStorage.removeItem('om_cart_v1'));
     await gotoApp(buyerPage, `/products/${productId}`, {
       waitUntil: 'domcontentloaded',
-      authRetry: false,
     });
 
     await expect(buyerPage.locator('select#variant-select')).toHaveCount(0);

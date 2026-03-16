@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../../shared/api/http';
 import {
@@ -37,6 +37,15 @@ export default function PartnerLoginPage() {
   const [loading, setLoading] = useState(false);
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
   const emailRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    clearSession();
+    try {
+      sessionStorage.clear();
+    } catch {
+      // Ignore storage restrictions.
+    }
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -133,7 +142,7 @@ export default function PartnerLoginPage() {
 
           <div className="mb-10 text-center">
             <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
-              Partner login
+              Partner Login
             </h1>
             <p className="mt-4 text-sm text-slate-500 dark:text-white/60">
               Use your partner credentials to access dashboards.

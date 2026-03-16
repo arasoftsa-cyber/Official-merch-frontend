@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import path from 'path';
-import { gotoApp, loginAdmin } from '../helpers/auth';
+import { loginAdmin } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 
 type ProductItem = {
   id: string;
@@ -40,7 +41,7 @@ const setupAdminProductsMocks = async (
   page: Page,
   options?: {
     initialProducts?: ProductItem[];
-    detailDelayMs?: number;
+    waitForLoadingStateBeforeDetailResponse?: boolean;
     failDetailForId?: string;
   }
 ) => {
@@ -102,8 +103,8 @@ const setupAdminProductsMocks = async (
       return;
     }
     const id = route.request().url().split('/api/products/')[1]?.split('?')[0];
-    if (options?.detailDelayMs) {
-      await page.waitForTimeout(options.detailDelayMs);
+    if (options?.waitForLoadingStateBeforeDetailResponse) {
+      await page.getByText(/fetching matrix/i).waitFor({ state: 'visible', timeout: 5000 });
     }
     if (options?.failDetailForId && options.failDetailForId === id) {
       await fulfillJson(route, 500, { message: 'detail_failed' });
@@ -358,7 +359,10 @@ test.describe('Admin edit product modal', () => {
   });
 
   test('shows loading then error state when product detail hydration fails', async ({ page }) => {
-    await setupAdminProductsMocks(page, { detailDelayMs: 500, failDetailForId: 'product-1' });
+    await setupAdminProductsMocks(page, {
+      waitForLoadingStateBeforeDetailResponse: true,
+      failDetailForId: 'product-1',
+    });
     await openEditModal(page);
 
     await expect(page.getByText(/fetching matrix/i)).toBeVisible();

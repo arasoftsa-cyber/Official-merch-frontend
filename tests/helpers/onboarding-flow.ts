@@ -1,123 +1,24 @@
 import { expect, type Page } from '@playwright/test';
-import { gotoApp } from './auth';
-import {
-  assertOkResponse,
-  getApiUrl,
-  readResponseSnippet,
-} from './api';
-import { ensureOnboardingFixtures, getPartnerAccessToken } from './onboarding';
-export { readResponseSnippet } from './api';
+import { gotoApp } from './navigation';
+import { DESIGN_IMAGE_PATH, ensureOnboardingFixtures } from './onboarding';
+import { ensureLocalTestSupportSeed } from './localTestSupport';
 
 export const prepareOnboardingSuite = async () => {
   ensureOnboardingFixtures();
+  await ensureLocalTestSupportSeed();
 };
 
 export const makeStamp = (prefix: string) =>
   `${prefix}-${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 
 export const extractProductId = (payload: any): string => {
-  const candidate = payload?.productId || payload?.product_id || payload?.id || payload?.product?.id || '';
+  const candidate =
+    payload?.productId || payload?.product_id || payload?.id || payload?.product?.id || '';
   return typeof candidate === 'string' ? candidate.trim() : '';
-};
-
-const fetchArtists = async (page: Page): Promise<any[]> => {
-  const accessToken = await getPartnerAccessToken('admin');
-  const response = await page.request.get(getApiUrl('/api/artists'), {
-    headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
-  });
-  await assertOkResponse(response, 'Failed to load artists');
-  const payload = await response.json().catch(() => null);
-  return Array.isArray(payload?.artists) ? payload.artists : Array.isArray(payload) ? payload : [];
-};
-
-const createArtistForOnboarding = async (page: Page) => {
-  const accessToken = await getPartnerAccessToken('admin');
-  const suffix = makeStamp('pw-onb-artist').toLowerCase().replace(/[^a-z0-9-]/g, '-');
-  const handle = suffix.slice(0, 48);
-  const response = await page.request.post(getApiUrl('/api/admin/provisioning/create-artist'), {
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-    data: {
-      handle,
-      name: `PW Onboarding ${handle}`,
-      theme: {},
-    },
-  });
-  await assertOkResponse(response, 'Unable to create artist for onboarding');
-  const payload = await response.json().catch(() => null);
-  const artistId = String(payload?.artist?.id || '').trim();
-  const artistHandle = String(payload?.artist?.handle || handle).trim();
-  if (!artistId || !artistHandle) {
-    throw new Error(`Invalid create-artist response payload: ${JSON.stringify(payload ?? null)}`);
-  }
-  return { artistId, artistHandle };
-};
-
-export const ensureArtistIdentityForAdmin = async (page: Page) => {
-  const artists = await fetchArtists(page);
-  if (artists.length === 0) {
-    return createArtistForOnboarding(page);
-  }
-  const firstArtist = artists[0];
-  const artistId = String(firstArtist?.id || '').trim();
-  const artistHandle = String(firstArtist?.handle || '').trim();
-  if (!artistId || !artistHandle) {
-    throw new Error(`Invalid artist payload for seeding: ${JSON.stringify(firstArtist ?? null)}`);
-  }
-  return { artistId, artistHandle };
-};
-
-export const createAdminProductWithStatus = async (
-  page: Page,
-  {
-    artistId,
-    title,
-    status,
-  }: {
-    artistId: string;
-    title: string;
-    status: 'pending' | 'inactive' | 'active' | 'rejected';
-  }
-) => {
-  const accessToken = await getPartnerAccessToken('admin');
-  const response = await page.request.post(getApiUrl('/api/admin/products'), {
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-    data: {
-      artistId,
-      title,
-      description: `Playwright onboarding visibility ${title}`,
-      status,
-      priceCents: 1999,
-      stock: 10,
-      size: 'M',
-      color: 'Black',
-      sku: `PW-ONB-${status}-${Date.now()}`,
-    },
-  });
-  await assertOkResponse(response, `Create product ${title}`);
-  const payload = await response.json().catch(() => null);
-  const productId = extractProductId(payload);
-  if (!productId) {
-    throw new Error(`Create product ${title} returned no productId: ${JSON.stringify(payload ?? null)}`);
-  }
-  return { productId };
 };
 
 export const gotoArtistProducts = async (page: Page) => {
   await gotoApp(page, '/partner/artist/products', { waitUntil: 'domcontentloaded' });
-  if (!/\/partner\/artist\/products(?:[/?#]|$)/i.test(page.url())) {
-    await gotoApp(page, '/partner/artist/products', {
-      waitUntil: 'domcontentloaded',
-      authRetry: false,
-    });
-  }
   await expect(page).toHaveURL(/\/partner\/artist\/products(?:[/?#]|$)/i, { timeout: 20000 });
   await expect(
     page.locator('h1').filter({ hasText: /artist products/i }).first()
@@ -147,6 +48,44 @@ export const submitArtistMerchRequest = async (
   for (const skuTestId of skuTestIds) {
     await page.getByTestId(skuTestId).check();
   }
+};
+
+export const submitArtistMerchRequestViaUi = async (
+  page: Page,
+  {
+    merchName,
+    merchStory,
+    skuTestIds,
+    designImagePath = DESIGN_IMAGE_PATH,
+  }: {
+    merchName: string;
+    merchStory: string;
+    skuTestIds: string[];
+    designImagePath?: string;
+  }
+) => {
+  await submitArtistMerchRequest(page, {
+    merchName,
+    merchStory,
+    skuTestIds,
+  });
+  await page.getByTestId('artist-merch-design-image').setInputFiles(designImagePath);
+  const submitResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/api\/artist\/products\/onboarding(?:[/?#]|$)/i.test(response.url()) &&
+      response.ok(),
+    { timeout: 30000 }
+  );
+  await page.getByTestId('artist-request-merch-submit').click();
+  const response = await submitResponse;
+  const payload = await response.json().catch(() => null);
+  const productId = extractProductId(payload);
+  if (!productId) {
+    throw new Error(`Artist onboarding submission returned no productId: ${JSON.stringify(payload ?? null)}`);
+  }
+  await expect(page.getByTestId('artist-merch-submit-success')).toBeVisible({ timeout: 20000 });
+  return { productId, payload };
 };
 
 export const expectArtistMerchReadonlyRow = async (
@@ -192,6 +131,24 @@ export const openPendingMerchModalByTitle = async (page: Page, title: string) =>
 
   const pendingTabByTestId = page.getByTestId('admin-pending-merch-tab').first();
   const pendingTabByRole = page.getByRole('button', { name: /pending merch/i }).first();
+  const loadingCopy = page.getByText(/^loading\.\.\.$/i).first();
+
+  const waitForAdminProductsScreen = async () => {
+    await expect
+      .poll(async () => {
+        const isLoading = await loadingCopy.isVisible().catch(() => false);
+        if (isLoading) return false;
+
+        const pendingTabVisible = await pendingTabByTestId.isVisible().catch(() => false);
+        if (pendingTabVisible) return true;
+
+        return pendingTabByRole.isVisible().catch(() => false);
+      }, {
+        timeout: 30000,
+        message: 'Admin products screen did not finish loading the pending merch controls.',
+      })
+      .toBe(true);
+  };
 
   const openPendingQueueIfNeeded = async () => {
     if ((await rowByTitle().count().catch(() => 0)) > 0) return true;
@@ -211,7 +168,6 @@ export const openPendingMerchModalByTitle = async (page: Page, title: string) =>
       if ((await input.count().catch(() => 0)) === 0) continue;
       if (!(await input.isVisible().catch(() => false))) continue;
       await input.fill(title).catch(() => null);
-      await page.waitForTimeout(100).catch(() => null);
       break;
     }
 
@@ -220,6 +176,7 @@ export const openPendingMerchModalByTitle = async (page: Page, title: string) =>
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await gotoApp(page, '/partner/admin/products', { waitUntil: 'domcontentloaded' });
+    await waitForAdminProductsScreen();
 
     await expect
       .poll(async () => openPendingQueueIfNeeded(), {
@@ -259,4 +216,24 @@ export const openPendingMerchModalByTitle = async (page: Page, title: string) =>
   }
 
   throw new Error(`Unable to open pending merch modal for title: ${title}`);
+};
+
+export const rejectPendingMerchViaAdminUi = async (
+  page: Page,
+  input: { title: string; rejectionReason: string }
+) => {
+  await openPendingMerchModalByTitle(page, input.title);
+  const review = pendingMerchReview(page);
+  await expect(review.name).toContainText(input.title, { timeout: 15000 });
+  await review.rejectReason.fill(input.rejectionReason);
+  const rejectResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/api\/admin\/products\/[^/]+\/onboarding\/reject(?:[/?#]|$)/i.test(response.url()) &&
+      response.ok(),
+    { timeout: 30000 }
+  );
+  await review.reject.click();
+  await rejectResponse;
+  await expect(page.getByTestId('admin-pending-merch-name')).toHaveCount(0);
 };

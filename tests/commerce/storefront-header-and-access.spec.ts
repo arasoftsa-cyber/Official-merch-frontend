@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { gotoApp, loginAdmin, loginArtist, loginBuyer, loginLabel } from '../helpers/auth';
+import { loginAdmin, loginArtist, loginBuyer, loginLabel } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 import { cartLinkInHeader, myAccountLinkInHeader } from '../helpers/assertions';
 
 const loginByRole = {
@@ -14,7 +15,6 @@ async function gotoStorefront(page: Parameters<typeof cartLinkInHeader>[0]) {
   if (!/\/products(?:[/?#]|$)/i.test(page.url())) {
     await gotoApp(page, '/products', {
       waitUntil: 'domcontentloaded',
-      authRetry: false,
     });
   }
   await expect(page).toHaveURL(/\/products(?:[/?#]|$)/i, { timeout: 15000 });
@@ -22,7 +22,7 @@ async function gotoStorefront(page: Parameters<typeof cartLinkInHeader>[0]) {
 
 test.describe('Storefront header and route access contracts', () => {
   test('storefront header matrix matches role contract', async ({ page }) => {
-    await gotoApp(page, '/products', { waitUntil: 'domcontentloaded', authRetry: false });
+    await gotoApp(page, '/products', { waitUntil: 'domcontentloaded' });
     await expect(cartLinkInHeader(page).first()).toBeVisible({ timeout: 15000 });
     await expect(myAccountLinkInHeader(page)).toHaveCount(0);
 
@@ -65,7 +65,7 @@ test.describe('Storefront header and route access contracts', () => {
     for (const scenario of partnerAreaCases) {
       await test.step(`${scenario.role} partner area`, async () => {
         await loginByRole[scenario.role](page, { returnTo: scenario.path });
-        await gotoApp(page, scenario.path, { waitUntil: 'domcontentloaded', authRetry: false });
+        await gotoApp(page, scenario.path, { waitUntil: 'domcontentloaded' });
         await expect(page).toHaveURL(new RegExp(`${scenario.path.replace(/\//g, '\\/')}(?:[/?#]|$)`, 'i'), {
           timeout: 15000,
         });
@@ -90,7 +90,7 @@ test.describe('Storefront header and route access contracts', () => {
     for (const scenario of aliasCases) {
       await test.step(`${scenario.role} buyer alias redirect`, async () => {
         await loginByRole[scenario.role](page);
-        await gotoApp(page, '/buyer/orders', { waitUntil: 'domcontentloaded', authRetry: false });
+        await gotoApp(page, '/buyer/orders', { waitUntil: 'domcontentloaded' });
         await expect(page).toHaveURL(/\/fan\/orders(?:[/?#]|$)/i, { timeout: 15000 });
         await expect(page.getByRole('heading', { name: scenario.expectedHeading })).toBeVisible({
           timeout: 15000,

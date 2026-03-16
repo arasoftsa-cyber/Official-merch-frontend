@@ -41,6 +41,14 @@ type UseAdminProductEditModalControllerInput = {
   reload: () => Promise<void>;
 };
 
+const MIN_EDIT_HYDRATION_LOADING_MS = 250;
+
+const waitForMinimumLoadingWindow = async (startedAt: number) => {
+  const remaining = MIN_EDIT_HYDRATION_LOADING_MS - (Date.now() - startedAt);
+  if (remaining <= 0) return;
+  await new Promise((resolve) => window.setTimeout(resolve, remaining));
+};
+
 export function useAdminProductEditModalController({
   products,
   loadProductDetail,
@@ -326,6 +334,7 @@ export function useAdminProductEditModalController({
       artistName: '',
       artistHandle: '',
     };
+    const hydrationStartedAt = Date.now();
 
     setIsEditOpen(true);
     setEditLoading(true);
@@ -358,6 +367,7 @@ export function useAdminProductEditModalController({
     } catch (err: any) {
       setEditError(err?.message ?? 'Failed to load full product details');
     } finally {
+      await waitForMinimumLoadingWindow(hydrationStartedAt);
       setEditLoading(false);
       logAdminEditModalDebug('open_hydration_done', {
         productId: normalizedId,

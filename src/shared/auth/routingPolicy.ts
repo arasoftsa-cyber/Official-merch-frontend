@@ -138,7 +138,7 @@ function normalizePartnerEntryTarget(target: string, role: NullableString): stri
 function isAllowedForPortal(pathname: string, portal: AuthPortal | null): boolean {
   if (!portal) return true;
   if (portal === 'fan') return !pathname.startsWith('/partner');
-  return pathname.startsWith('/partner');
+  return !isLoginPath(pathname);
 }
 
 export function roleAllowsPath(role: NullableString, path: NullableString): boolean {

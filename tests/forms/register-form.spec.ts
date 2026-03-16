@@ -106,10 +106,14 @@ test.describe('Fan register UX', () => {
 
   test('submit button shows loading state, disables, and blocks duplicate submit', async ({ page }) => {
     let requestCount = 0;
+    let resolveRegisterRequest: (() => void) | null = null;
+    const registerRequestGate = new Promise<void>((resolve) => {
+      resolveRegisterRequest = resolve;
+    });
 
     await page.route('**/api/auth/register**', async (route) => {
       requestCount += 1;
-      await new Promise((resolve) => setTimeout(resolve, 700));
+      await registerRequestGate;
       await route.fulfill({
         status: 400,
         contentType: 'application/json',
@@ -127,10 +131,12 @@ test.describe('Fan register UX', () => {
     await expect(submitButton).toContainText('Creating account...');
 
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(150);
-    expect(requestCount).toBe(1);
+    await expect.poll(() => requestCount, { timeout: 2000 }).toBe(1);
+
+    resolveRegisterRequest?.();
 
     await expect(page.getByRole('alert')).toContainText(GENERIC_SERVER_FALLBACK);
     await expect(submitButton).toContainText('Sign Up');
+    expect(requestCount).toBe(1);
   });
 });

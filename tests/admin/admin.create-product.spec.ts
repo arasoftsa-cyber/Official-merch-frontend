@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
-import { gotoApp } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
+import { loginAdmin } from '../helpers/auth';
 
 const TINY_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmk8AAAAASUVORK5CYII=';
@@ -73,6 +74,7 @@ const fillBasicForm = async (page: Page) => {
 test.describe('Admin create product SKU flow', () => {
   test('removes legacy color/economics fields and renders SKU selector', async ({ page }) => {
     await registerBaseRoutes(page);
+    await loginAdmin(page, { returnTo: '/partner/admin/products/new' });
     await gotoApp(page, '/partner/admin/products/new', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByTestId('admin-product-vendor-pay')).toHaveCount(0);
@@ -88,6 +90,7 @@ test.describe('Admin create product SKU flow', () => {
   test('requires at least one SKU before submit', async ({ page }) => {
     let createCalls = 0;
     await registerBaseRoutes(page);
+    await loginAdmin(page, { returnTo: '/partner/admin/products/new' });
 
     await page.route('**/api/admin/products', async (route) => {
       if (route.request().method() === 'POST') createCalls += 1;
@@ -113,6 +116,7 @@ test.describe('Admin create product SKU flow', () => {
     let photoUploadCalled = 0;
 
     await registerBaseRoutes(page);
+    await loginAdmin(page, { returnTo: '/partner/admin/products/new' });
 
     await page.route('**/api/admin/products', async (route) => {
       if (route.request().method() === 'POST') {
@@ -201,6 +205,7 @@ test.describe('Admin create product SKU flow', () => {
 
   test('shows readable empty state when no SKUs are available', async ({ page }) => {
     await registerBaseRoutes(page, []);
+    await loginAdmin(page, { returnTo: '/partner/admin/products/new' });
     await gotoApp(page, '/partner/admin/products/new', { waitUntil: 'domcontentloaded' });
 
     await expect(page.getByTestId('admin-product-sku-empty-state')).toBeVisible();

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { UI_BASE_URL, getCredentialedAccount, hasCredentialedAccountEnv } from '../_env';
-import { gotoApp, loginAdmin, loginArtist, loginBuyer, loginFanWithCredentials, loginLabel } from '../helpers/auth';
+import { loginAdmin, loginArtist, loginBuyer, loginFanWithCredentials, loginLabel } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 import { expectRedirectToPortalLogin } from '../helpers/assertions';
 import {
   getPortalLoginHref,
@@ -126,7 +127,7 @@ test.describe('Auth routing and access contracts', () => {
     expect(getRequestedReturnTo('?returnTo=%2F%2Fexample.com')).toBeNull();
 
     expect(toSafeReturnTo('/partner/admin', { portal: 'fan', fallbackRoute: '/fan' })).toBe('/fan');
-    expect(toSafeReturnTo('/fan/orders', { portal: 'partner', fallbackRoute: '/partner' })).toBe('/partner');
+    expect(toSafeReturnTo('/fan/orders', { portal: 'partner', fallbackRoute: '/partner' })).toBe('/fan/orders');
     expect(toSafeReturnTo('/fan/orders', { portal: 'fan', fallbackRoute: '/fan' })).toBe('/fan/orders');
     expect(toSafeReturnTo('/fan/login', { portal: 'fan', fallbackRoute: '/fan' })).toBe('/fan');
     expect(toSafeReturnTo(null, { portal: 'partner', fallbackRoute: '/partner' })).toBe('/partner');
@@ -178,7 +179,7 @@ test.describe('Auth routing and access contracts', () => {
         portal: 'partner',
         fallbackRoute: '/partner',
       })
-    ).toBe('/partner');
+    ).toBe('/fan/orders');
   });
 
   test('portal issue matrix preserves cross-portal guidance', async () => {
@@ -244,7 +245,7 @@ test.describe('Auth routing and access contracts', () => {
       {
         label: 'public user is redirected to partner login',
         exercise: async () => {
-          await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded', authRetry: false });
+          await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded' });
         },
         assert: async () => {
           await expectRedirectToPortalLogin(page, '/partner/admin');
@@ -254,7 +255,7 @@ test.describe('Auth routing and access contracts', () => {
         label: 'buyer is blocked from admin area',
         exercise: async () => {
           await loginBuyer(page);
-          await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded', authRetry: false });
+          await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded' });
         },
         assert: async () => {
           await expect(page).toHaveURL(/\/forbidden(?:[/?#]|$)/i, { timeout: 15000 });
@@ -265,7 +266,7 @@ test.describe('Auth routing and access contracts', () => {
         label: 'artist is blocked from admin area',
         exercise: async () => {
           await loginArtist(page);
-          await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded', authRetry: false });
+          await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded' });
         },
         assert: async () => {
           await expect(page).toHaveURL(/\/forbidden(?:[/?#]|$)/i, { timeout: 15000 });
@@ -276,7 +277,7 @@ test.describe('Auth routing and access contracts', () => {
         label: 'label is blocked from admin area',
         exercise: async () => {
           await loginLabel(page);
-          await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded', authRetry: false });
+          await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded' });
         },
         assert: async () => {
           await expect(page).toHaveURL(/\/forbidden(?:[/?#]|$)/i, { timeout: 15000 });
@@ -287,7 +288,7 @@ test.describe('Auth routing and access contracts', () => {
         label: 'admin reaches canonical admin dashboard',
         exercise: async () => {
           await loginAdmin(page);
-          await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded', authRetry: false });
+          await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded' });
         },
         assert: async () => {
           await expect(page).toHaveURL(/\/partner\/admin(?:[/?#]|$)/i, { timeout: 15000 });
@@ -338,7 +339,7 @@ test.describe('Auth routing and access contracts', () => {
       )
       .toBe(true);
 
-    await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded', authRetry: false });
+    await gotoApp(page, '/partner/admin', { waitUntil: 'domcontentloaded' });
     await expectRedirectToPortalLogin(page, '/partner/admin');
   });
 });

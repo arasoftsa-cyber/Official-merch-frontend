@@ -1,10 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { loginAdmin, loginArtist } from '../helpers/auth';
-import {
-  createPendingMerchRequestViaArtistApi,
-  extractOnboardingProductId,
-  uploadMarketplaceImages,
-} from '../helpers/onboarding';
+import { uploadMarketplaceImages } from '../helpers/onboarding';
 import {
   artistRowByTitle,
   gotoArtistProducts,
@@ -12,6 +8,7 @@ import {
   openPendingMerchModalByTitle,
   pendingMerchReview,
   prepareOnboardingSuite,
+  submitArtistMerchRequestViaUi,
 } from '../helpers/onboarding-flow';
 
 test.describe('Onboarding admin review', () => {
@@ -26,10 +23,11 @@ test.describe('Onboarding admin review', () => {
     const merchStory = `Approval path story for ${merchName}.`;
 
     await loginArtist(page);
-    await createPendingMerchRequestViaArtistApi(page, {
+    await gotoArtistProducts(page);
+    await submitArtistMerchRequestViaUi(page, {
       merchName,
       merchStory,
-      skuTypes: ['regular_tshirt', 'hoodie'],
+      skuTestIds: ['artist-sku-regular-tshirt', 'artist-sku-hoodie'],
     });
 
     await loginAdmin(page);
@@ -87,12 +85,12 @@ test.describe('Onboarding admin review', () => {
     const merchName = makeStamp('pw-onb-detail-error');
 
     await loginArtist(page);
-    const created = await createPendingMerchRequestViaArtistApi(page, {
+    await gotoArtistProducts(page);
+    const { productId } = await submitArtistMerchRequestViaUi(page, {
       merchName,
       merchStory: `Detail failure story for ${merchName}.`,
-      skuTypes: ['regular_tshirt'],
+      skuTestIds: ['artist-sku-regular-tshirt'],
     });
-    const productId = extractOnboardingProductId(created);
     expect(productId.length).toBeGreaterThan(0);
 
     await loginAdmin(page);

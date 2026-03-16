@@ -21,6 +21,14 @@ type UseAdminPendingMerchReviewModalControllerInput = {
   reload: () => Promise<void>;
 };
 
+const MIN_PENDING_REVIEW_LOADING_MS = 250;
+
+const waitForMinimumLoadingWindow = async (startedAt: number) => {
+  const remaining = MIN_PENDING_REVIEW_LOADING_MS - (Date.now() - startedAt);
+  if (remaining <= 0) return;
+  await new Promise((resolve) => window.setTimeout(resolve, remaining));
+};
+
 export function useAdminPendingMerchReviewModalController({
   loadProductDetail,
   approvePendingMerchRequest,
@@ -59,6 +67,7 @@ export function useAdminPendingMerchReviewModalController({
 
   const openForRequest = async (request: PendingMerchRequest) => {
     const nextRejectionReason = readText(request.rejectionReason);
+    const hydrationStartedAt = Date.now();
     setIsOpen(true);
     setIsLoading(true);
     setError(null);
@@ -83,6 +92,7 @@ export function useAdminPendingMerchReviewModalController({
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load pending merchandise details.');
     } finally {
+      await waitForMinimumLoadingWindow(hydrationStartedAt);
       setIsLoading(false);
     }
   };

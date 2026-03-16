@@ -1,15 +1,19 @@
 import { apiFetch } from './http';
 import { parseStartPaymentResponse, type StartResponse } from './paymentsFlowDtos';
+import {
+  buildConfirmPaymentRequest,
+  buildStartPaymentRequest,
+} from './workflowRequestBuilders';
+
+export { buildConfirmPaymentRequest, buildStartPaymentRequest } from './workflowRequestBuilders';
 
 export async function startPayment(orderId: string): Promise<StartResponse> {
-  const payload = await apiFetch(`/orders/${orderId}/pay`, { method: 'POST' });
+  const request = buildStartPaymentRequest(orderId);
+  const payload = await apiFetch(request.path, { method: request.method });
   return parseStartPaymentResponse(payload);
 }
 
 export async function confirmPayment(orderId: string, attemptId?: string) {
-  if (attemptId) {
-    return apiFetch(`/payments/attempts/${attemptId}/confirm`, { method: 'POST' });
-  }
-
-  return apiFetch(`/orders/${orderId}/pay/confirm`, { method: 'POST' });
+  const request = buildConfirmPaymentRequest(orderId, attemptId);
+  return apiFetch(request.path, { method: request.method });
 }

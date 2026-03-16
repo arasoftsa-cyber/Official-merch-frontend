@@ -1,12 +1,49 @@
 import { expect, test } from '@playwright/test';
-import { readFileSync } from 'fs';
-import { mapLabelSummaryDto } from '../../src/features/label/api/labelDashboardDtos';
+import { PLAN_TYPES } from '../../src/features/admin/artistRequests/types';
+import {
+  isPremiumEnabledFromConfig,
+  normalizeArtistRequestStatus,
+  normalizePlan,
+  parseAdminArtistRequestsResponse,
+} from '../../src/features/admin/artistRequests/adminArtistRequestDtos';
+import {
+  mapAdminProductDto,
+  parseAdminProductDetailPayload,
+  parseAdminProductPhotoUpdateResponse,
+  parseAdminProducts,
+  parsePendingMerchRequests,
+} from '../../src/features/admin/products/adminProductsDtos';
 import {
   mapOrderDetailDto,
   mapOrderEventsPayload,
 } from '../../src/shared/api/orderDtos';
+import { getArtistInitials, resolveMediaUrl } from '../../src/shared/utils/media';
+import {
+  createApiContractError,
+  readArrayEnvelope,
+} from '../../src/shared/api/contract';
 import { parseStartPaymentResponse } from '../../src/shared/api/paymentsFlowDtos';
-import { resolveFrontendPathFromTest } from '../helpers/repoPaths';
+import { normalizePayload } from '../../src/features/catalog/product-detail/ProductDetail.model';
+import { parseDropPayload, parseDropProductsPayload } from '../../src/pages/DropPage.model';
+import {
+  parseAdminDropHeroUploadResponse,
+  parseAdminDropItems,
+} from '../../src/features/admin/drops/adminDropsDtos';
+import { mapLabelSummaryDto } from '../../src/features/label/api/labelDashboardDtos';
+import {
+  buildCancelOrderRequest,
+  buildConfirmPaymentRequest,
+  buildFulfillAdminOrderRequest,
+  buildGetAdminOrderPath,
+  buildGetOrderEventsPath,
+  buildGetOrderPath,
+  buildGetOrderPaymentPath,
+  buildRefundAdminOrderRequest,
+  buildStartPaymentRequest,
+} from '../../src/shared/api/workflowRequestBuilders';
+
+const endsWithPath = (value: string | null | undefined, suffix: string) =>
+  String(value || '').endsWith(suffix);
 
 test.describe('workflow API contracts', () => {
   test('order mapper normalizes canonical and narrowly supported legacy fields into canonical DTOs', () => {
@@ -130,167 +167,273 @@ test.describe('workflow API contracts', () => {
     });
   });
 
-  test('contract boundary files keep canonical DTO and endpoint rules obvious in source', () => {
-    const artistRequestTypesPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'features',
-      'admin',
-      'artistRequests',
-      'types.ts'
+  test('artist request contracts normalize status, plans, socials, and items envelopes', () => {
+    expect(PLAN_TYPES).toEqual(['basic', 'advanced', 'premium']);
+    expect(normalizeArtistRequestStatus('APPROVED')).toBe('approved');
+    expect(normalizeArtistRequestStatus('weird')).toBe('pending');
+    expect(normalizePlan('PREMIUM')).toBe('premium');
+    expect(normalizePlan('vip')).toBe('basic');
+    expect(
+      parseAdminArtistRequestsResponse(
+        {
+          items: [
+            {
+              id: 'req-1',
+              created_at: '2026-03-16T10:00:00.000Z',
+              status: 'APPROVED',
+              artist_name: 'Artist One',
+              handle: 'artist-one',
+              email: 'artist@example.com',
+              phone: '123456789',
+              socials: { instagram: 'https://instagram.com/artist-one' },
+              requested_plan_type: 'vip',
+            },
+          ],
+          total: 1,
+          page: 2,
+        },
+        1
+      )
+    ).toEqual({
+      items: [
+        {
+          id: 'req-1',
+          createdAt: '2026-03-16T10:00:00.000Z',
+          status: 'approved',
+          source: 'artist_access_request',
+          artistName: 'Artist One',
+          handle: 'artist-one',
+          email: 'artist@example.com',
+          phone: '123456789',
+          socials: [
+            {
+              platform: 'instagram',
+              profileLink: 'https://instagram.com/artist-one',
+            },
+          ],
+          aboutMe: '',
+          profilePhotoUrl: '',
+          messageForFans: '',
+          requestedPlanType: 'basic',
+          rejectionComment: '',
+        },
+      ],
+      total: 1,
+      page: 2,
+    });
+    expect(isPremiumEnabledFromConfig({ enabled_plan_types: ['basic', 'PREMIUM'] })).toBe(true);
+    expect(() => parseAdminArtistRequestsResponse({ rows: [] }, 1)).toThrow(/items/i);
+  });
+
+  test('admin product contracts keep canonical photo and pending-merch normalization behavior', () => {
+    const canonicalMapped = mapAdminProductDto({
+      id: 'prod-1',
+      product_id: 'prod-1',
+      title: 'Launch Tee',
+      listingPhotoUrls: ['/catalog/a.png'],
+      listing_photo_urls: ['/catalog/ignored.png'],
+      primaryPhotoUrl: '/catalog/primary.png',
+      status: 'pending',
+      sku_types: ['hoodie'],
+      design_image_url: '/design.png',
+    });
+
+    const legacyMapped = mapAdminProductDto({
+      id: 'prod-legacy',
+      title: 'Legacy Tee',
+      listing_photos: ['/catalog/legacy.png'],
+      primaryPhotoUrl: '/catalog/primary.png',
+    });
+
+    expect(canonicalMapped?.listingPhotoUrls.some((entry) => endsWithPath(entry, '/catalog/a.png'))).toBe(
+      true
     );
-    const artistRequestDtosPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'features',
-      'admin',
-      'artistRequests',
-      'adminArtistRequestDtos.ts'
+    expect(canonicalMapped?.listingPhotoUrls.some((entry) => endsWithPath(entry, '/catalog/primary.png'))).toBe(
+      true
     );
-    const adminProductsApiPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'features',
-      'admin',
-      'products',
-      'adminProductsApi.ts'
-    );
-    const adminProductsDtosPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'features',
-      'admin',
-      'products',
-      'adminProductsDtos.ts'
-    );
-    const productDetailModelPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'features',
-      'catalog',
-      'product-detail',
-      'ProductDetail.model.ts'
-    );
-    const mediaUtilsPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'shared',
-      'utils',
-      'media.ts'
-    );
-    const dropPagePath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'pages',
-      'DropPage.tsx'
-    );
-    const productDetailPagePath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'pages',
-      'ProductDetailPage.tsx'
-    );
-    const ordersApiPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'shared',
-      'api',
-      'ordersApi.ts'
-    );
-    const paymentsApiPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'shared',
-      'api',
-      'paymentsApi.ts'
-    );
-    const paymentsFlowApiPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'shared',
-      'api',
-      'paymentsFlowApi.ts'
-    );
-    const paymentsFlowDtosPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'shared',
-      'api',
-      'paymentsFlowDtos.ts'
-    );
-    const adminDropsDtosPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'features',
-      'admin',
-      'drops',
-      'adminDropsDtos.ts'
-    );
-    const contractHelperPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'shared',
-      'api',
-      'contract.ts'
-    );
-    const adminOrdersApiPath = resolveFrontendPathFromTest(
-      test.info().file,
-      'src',
-      'shared',
-      'api',
-      'adminOrdersApi.ts'
+    expect(
+      canonicalMapped?.listingPhotoUrls.some((entry) => endsWithPath(entry, '/catalog/ignored.png'))
+    ).toBe(false);
+    expect(canonicalMapped?.skuTypes).toEqual(['hoodie']);
+    expect(endsWithPath(canonicalMapped?.designImageUrl, '/design.png')).toBe(true);
+    expect(legacyMapped?.listingPhotoUrls.some((entry) => endsWithPath(entry, '/catalog/legacy.png'))).toBe(
+      true
     );
 
-    const artistRequestTypesSource = readFileSync(artistRequestTypesPath, 'utf8');
-    const artistRequestDtosSource = readFileSync(artistRequestDtosPath, 'utf8');
-    const adminProductsApiSource = readFileSync(adminProductsApiPath, 'utf8');
-    const adminProductsDtosSource = readFileSync(adminProductsDtosPath, 'utf8');
-    const productDetailModelSource = readFileSync(productDetailModelPath, 'utf8');
-    const mediaUtilsSource = readFileSync(mediaUtilsPath, 'utf8');
-    const dropPageSource = readFileSync(dropPagePath, 'utf8');
-    const productDetailPageSource = readFileSync(productDetailPagePath, 'utf8');
-    const ordersSource = readFileSync(ordersApiPath, 'utf8');
-    const paymentsSource = readFileSync(paymentsApiPath, 'utf8');
-    const paymentsFlowSource = readFileSync(paymentsFlowApiPath, 'utf8');
-    const paymentsFlowDtosSource = readFileSync(paymentsFlowDtosPath, 'utf8');
-    const adminDropsDtosSource = readFileSync(adminDropsDtosPath, 'utf8');
-    const contractHelperSource = readFileSync(contractHelperPath, 'utf8');
-    const adminOrdersSource = readFileSync(adminOrdersApiPath, 'utf8');
+    expect(
+      parsePendingMerchRequests({
+        items: [{ id: 'prod-2', title: 'Mystery Tee', status: 'unexpected-status' }],
+      })[0]?.status
+    ).toBe('unknown');
 
-    expect(artistRequestTypesSource.includes("PLAN_TYPES = ['basic', 'advanced', 'premium'] as const")).toBe(true);
-    expect(artistRequestDtosSource.includes('normalizeArtistRequestStatus')).toBe(true);
-    expect(artistRequestDtosSource.includes("readArrayEnvelope(payload, 'items', ARTIST_REQUESTS_DOMAIN)")).toBe(true);
-    expect(artistRequestDtosSource.includes("return 'basic';")).toBe(true);
-    expect(adminProductsApiSource.includes('mapAdminProductDto')).toBe(true);
-    expect(adminProductsApiSource.includes('normalizeProductItem')).toBe(false);
-    expect(adminProductsApiSource.includes('normalizePendingRequestItem')).toBe(false);
-    expect(adminProductsDtosSource.includes("readArrayEnvelope(payload, 'items', PRODUCTS_DOMAIN")).toBe(true);
-    expect(adminProductsDtosSource.includes('Array.isArray(item?.listingPhotoUrls)')).toBe(true);
-    expect(adminProductsDtosSource.includes('item?.listing_photo_urls')).toBe(false);
-    expect(adminProductsDtosSource.includes("status: 'pending' | 'rejected' | 'approved' | 'unknown'")).toBe(true);
-    expect(adminDropsDtosSource.includes("readArrayEnvelope(payload, 'items', ADMIN_DROPS_DOMAIN")).toBe(true);
-    expect(adminDropsDtosSource.includes('parseAdminDropHeroUploadResponse')).toBe(true);
-    expect(adminDropsDtosSource.includes('raw?.hero_image_url')).toBe(false);
-    expect(productDetailModelSource.includes('listingPhotoUrls?: string[];')).toBe(true);
-    expect(productDetailModelSource.includes('productSource?.photoUrls')).toBe(false);
-    expect(productDetailModelSource.includes('productSource?.photos')).toBe(false);
-    expect(dropPageSource.includes('parseDropPayload')).toBe(true);
-    expect(dropPageSource.includes('payload.drop.cover_url')).toBe(false);
-    expect(dropPageSource.includes('payload.drop.imageUrl')).toBe(false);
-    expect(productDetailPageSource.includes('product?.listingPhotoUrls')).toBe(true);
-    expect(productDetailPageSource.includes('resolveMediaUrl(value)')).toBe(false);
-    expect(mediaUtilsSource.includes('/^(data|blob|javascript):/i')).toBe(true);
-    expect(ordersSource.includes('/actions/cancel')).toBe(false);
-    expect(ordersSource.includes("method: 'PATCH'")).toBe(false);
-    expect(paymentsSource.includes('/payments/order/')).toBe(false);
-    expect(paymentsSource.includes('/payments/summary/order/')).toBe(false);
-    expect(paymentsFlowSource.includes('/payments/start')).toBe(false);
-    expect(paymentsFlowSource.includes('/payments/confirm')).toBe(false);
-    expect(paymentsFlowSource.includes('/orders/${orderId}/pay')).toBe(true);
-    expect(paymentsFlowDtosSource.includes('parseStartPaymentResponse')).toBe(true);
-    expect(contractHelperSource.includes("code: 'api_contract_error'")).toBe(true);
-    expect(adminOrdersSource.includes('/actions/fulfill')).toBe(false);
-    expect(adminOrdersSource.includes('/actions/refund')).toBe(false);
-    expect(adminOrdersSource.includes("method: 'PATCH'")).toBe(false);
+    expect(
+      parseAdminProducts({
+        items: [{ id: 'prod-3', title: 'Approved Tee', listingPhotoUrls: ['/catalog/live.png'] }],
+      })[0]?.id
+    ).toBe('prod-3');
+
+    expect(
+      parseAdminProductDetailPayload({ product: { id: 'prod-4', title: 'Detail Tee' } })
+    ).toMatchObject({
+      id: 'prod-4',
+      title: 'Detail Tee',
+    });
+
+    const photoUrls = parseAdminProductPhotoUpdateResponse({
+      listingPhotoUrls: ['/catalog/one.png', 'https://cdn.example.com/two.png'],
+    });
+    expect(photoUrls.some((entry) => endsWithPath(entry, '/catalog/one.png'))).toBe(true);
+    expect(photoUrls).toContain('https://cdn.example.com/two.png');
+    expect(() => parseAdminProductPhotoUpdateResponse({ photos: [] })).toThrow(/listingPhotoUrls/i);
+  });
+
+  test('product detail, drop, and media contracts prefer canonical payloads and reject dangerous inputs', () => {
+    expect(
+      normalizePayload(
+        {
+          product: {
+            id: 'prod-10',
+            title: 'Poster',
+            listing_photos: ['/catalog/listing.png'],
+            photoUrls: ['/catalog/ignored-photo-urls.png'],
+            photos: ['/catalog/ignored-photos.png'],
+            variants: [
+              {
+                id: 'var-1',
+                size: 'M',
+                color: 'Black',
+                price_cents: 1999,
+                stock: 7,
+              },
+            ],
+          },
+        },
+        'fallback-id'
+      )
+    ).toEqual({
+      product: {
+        id: 'prod-10',
+        title: 'Poster',
+        description: undefined,
+        priceCents: undefined,
+        listingPhotoUrls: [expect.stringMatching(/\/catalog\/listing\.png$/)],
+      },
+      variants: [
+        {
+          id: 'var-1',
+          sku: undefined,
+          size: 'M',
+          color: 'Black',
+          priceCents: 1999,
+          stock: 7,
+          effectiveSellable: undefined,
+          effectiveIsActive: undefined,
+          skuIsActive: undefined,
+          variantIsListed: undefined,
+        },
+      ],
+    });
+
+    expect(
+      parseDropPayload({
+        drop: {
+          id: 'drop-1',
+          handle: 'summer-drop',
+          title: 'Summer Drop',
+          coverUrl: '/drops/summer.png',
+        },
+      })
+    ).toMatchObject({
+      id: 'drop-1',
+      handle: 'summer-drop',
+      title: 'Summer Drop',
+      heroImageUrl: expect.stringMatching(/\/drops\/summer\.png$/),
+    });
+
+    expect(() => parseDropPayload({ drop: { id: 'drop-1', title: 'Broken Drop' } })).toThrow(
+      /canonical id, handle, or title/i
+    );
+
+    expect(
+      parseDropProductsPayload({
+        items: [{ id: 'prod-1', title: 'Drop Product' }, { id: '', title: 'Broken' }],
+      })
+    ).toEqual([{ id: 'prod-1', title: 'Drop Product' }]);
+
+    expect(resolveMediaUrl('data:text/plain,hello')).toBeNull();
+    expect(resolveMediaUrl('blob:abc')).toBeNull();
+    expect(resolveMediaUrl('javascript:alert(1)')).toBeNull();
+    expect(resolveMediaUrl('/uploads/artist.png')).toEqual(expect.stringMatching(/\/uploads\/artist\.png$/));
+    expect(getArtistInitials('artist one')).toBe('AO');
+  });
+
+  test('admin drops and contract helpers enforce canonical envelopes and error metadata', () => {
+    expect(
+      parseAdminDropItems({
+        items: [
+          {
+            id: 'drop-1',
+            title: 'Drop One',
+            handle: 'drop-one',
+            hero_image_url: '/drops/ignored.png',
+          },
+        ],
+      })[0]
+    ).toMatchObject({
+      id: 'drop-1',
+      title: 'Drop One',
+      handle: 'drop-one',
+      heroImageUrl: null,
+    });
+
+    expect(
+      parseAdminDropHeroUploadResponse({
+        heroImageUrl: '/drops/uploaded.png',
+      })
+    ).toEqual(expect.stringMatching(/\/drops\/uploaded\.png$/));
+    expect(() => parseAdminDropHeroUploadResponse({ hero_image_url: '/drops/ignored.png' })).toThrow(
+      /heroImageUrl/i
+    );
+    expect(() => readArrayEnvelope({ rows: [] }, 'items', 'demo.domain')).toThrow(/items/i);
+
+    const error = createApiContractError('payments.start', 'Broken payload');
+    expect(error.name).toBe('ApiContractError');
+    expect(error.code).toBe('api_contract_error');
+    expect(error.domain).toBe('payments.start');
+    expect(error.message).toBe('Broken payload');
+  });
+
+  test('order and payment API request builders keep canonical routes and verbs', () => {
+    expect(buildGetOrderPath('ord-1')).toBe('/orders/ord-1');
+    expect(buildGetOrderEventsPath('ord-1')).toBe('/orders/ord-1/events');
+    expect(buildCancelOrderRequest('ord-1')).toEqual({
+      path: '/orders/ord-1/cancel',
+      method: 'POST',
+    });
+
+    expect(buildGetOrderPaymentPath('ord-1')).toBe('/orders/ord-1/payment');
+
+    expect(buildStartPaymentRequest('ord-1')).toEqual({
+      path: '/orders/ord-1/pay',
+      method: 'POST',
+    });
+    expect(buildConfirmPaymentRequest('ord-1')).toEqual({
+      path: '/orders/ord-1/pay/confirm',
+      method: 'POST',
+    });
+    expect(buildConfirmPaymentRequest('ord-1', 'att-1')).toEqual({
+      path: '/payments/attempts/att-1/confirm',
+      method: 'POST',
+    });
+
+    expect(buildGetAdminOrderPath('ord-1')).toBe('/admin/orders/ord-1');
+    expect(buildFulfillAdminOrderRequest('ord-1')).toEqual({
+      path: '/admin/orders/ord-1/fulfill',
+      method: 'POST',
+    });
+    expect(buildRefundAdminOrderRequest('ord-1')).toEqual({
+      path: '/admin/orders/ord-1/refund',
+      method: 'POST',
+    });
   });
 });

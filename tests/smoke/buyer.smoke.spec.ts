@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { gotoApp } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 
 const DROP_CARD_SELECTOR =
   '[data-testid="drop-card"], a[href^="/drops/"], [data-testid="drop-list"] a';

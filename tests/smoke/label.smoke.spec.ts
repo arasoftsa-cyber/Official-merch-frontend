@@ -1,5 +1,5 @@
 import { test, expect } from '../helpers/session';
-import { gotoApp } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 import {
   expectRedirectToPortalLogin,
   partnerLogoutButton,
@@ -39,7 +39,7 @@ test.describe('Label smoke', () => {
     await logoutButton.click();
     await expect(labelPage).toHaveURL(/\/($|\?)/, { timeout: 15000 });
 
-    await gotoApp(labelPage, '/partner/label', { waitUntil: 'domcontentloaded', authRetry: false });
+    await gotoApp(labelPage, '/partner/label', { waitUntil: 'domcontentloaded' });
     await expectRedirectToPortalLogin(labelPage, '/partner/label');
   });
 });

@@ -33,6 +33,15 @@ export default function FanLoginPage() {
   const partnerLoginTarget = getPortalLoginHref('partner', safeReturnTo);
 
   useEffect(() => {
+    clearSession();
+    try {
+      sessionStorage.clear();
+    } catch {
+      // Ignore storage restrictions.
+    }
+  }, []);
+
+  useEffect(() => {
     const issue = resolvePortalIssueFromSearch({
       search: location.search,
       currentPortal: 'fan',

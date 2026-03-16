@@ -1,5 +1,5 @@
 import { test, expect } from '../helpers/session';
-import { gotoApp } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 
 test.describe('Admin drops API contract', () => {
   test('admin drops page loads without raw HTML route errors', async ({ adminPage }) => {

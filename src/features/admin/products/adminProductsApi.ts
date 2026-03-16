@@ -1,11 +1,10 @@
 import { apiFetch, apiFetchForm } from '../../../shared/api/http';
-import { createApiContractError } from '../../../shared/api/contract';
-import { resolveMediaUrl } from '../../../shared/utils/media';
 import {
   parseAdminArtists,
+  parseAdminProductDetailPayload,
+  parseAdminProductPhotoUpdateResponse,
   parseAdminProducts,
   parsePendingMerchRequests,
-  mapAdminProductDto,
   type Artist,
   type PendingMerchRequest,
   type Product,
@@ -17,7 +16,6 @@ export type AdminProductsDataSnapshot = {
   artists: Artist[];
   pendingRequests: PendingMerchRequest[];
 };
-const PRODUCTS_DOMAIN = 'admin.products';
 
 export async function fetchAdminProductsDataSnapshot(): Promise<AdminProductsDataSnapshot> {
   const [productsResult, artistsResult, pendingResult, rejectedResult] = await Promise.allSettled([
@@ -58,7 +56,7 @@ export async function fetchAdminProductsDataSnapshot(): Promise<AdminProductsDat
 
 export async function fetchAdminProductDetail(productId: string): Promise<Product | null> {
   const payload = await apiFetch(`/products/${productId}`);
-  return mapAdminProductDto(payload?.product ?? payload);
+  return parseAdminProductDetailPayload(payload);
 }
 
 export async function patchAdminProduct(
@@ -87,15 +85,7 @@ export async function replaceAdminProductPhotos(
   const photoUpdate = await apiFetchForm(`/admin/products/${productId}/photos`, fd, {
     method: 'PUT',
   });
-  if (!Array.isArray(photoUpdate?.listingPhotoUrls)) {
-    throw createApiContractError(
-      PRODUCTS_DOMAIN,
-      'Product photo update response is missing listingPhotoUrls.'
-    );
-  }
-  return photoUpdate.listingPhotoUrls
-    .map((entry: any) => resolveMediaUrl(typeof entry === 'string' ? entry : null))
-    .filter((entry: string | null): entry is string => Boolean(entry));
+  return parseAdminProductPhotoUpdateResponse(photoUpdate);
 }
 
 export async function approveAdminPendingMerchRequest(

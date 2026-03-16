@@ -1,6 +1,6 @@
 ﻿import type { Page } from '@playwright/test';
 import { test, expect } from '../helpers/session';
-import { gotoApp } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 
 const cardForLabel = (page: Page, label: string) =>
   page

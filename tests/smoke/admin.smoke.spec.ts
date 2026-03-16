@@ -1,5 +1,5 @@
 import { test, expect } from '../helpers/session';
-import { gotoApp } from '../helpers/auth';
+import { gotoApp } from '../helpers/navigation';
 
 test.describe('Admin smoke', () => {
   test('admin artists page shows featured column and toggle', async ({ adminPage }) => {
