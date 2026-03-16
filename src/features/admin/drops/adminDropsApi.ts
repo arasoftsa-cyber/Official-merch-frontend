@@ -88,7 +88,7 @@ const normalizeProduct = (product: any): ProductOption | null => {
 export async function fetchAdminDropsSnapshot(): Promise<AdminDropsSnapshot> {
   const [dropsResult, artistsPayload, productsPayload] = await Promise.all([
     adminFetch<any>(ADMIN_DROPS_BASE),
-    apiFetch('/api/artists'),
+    apiFetch('/api/admin/artists'),
     apiFetch('/api/admin/products').catch(() => ({ items: [] })),
   ]);
 

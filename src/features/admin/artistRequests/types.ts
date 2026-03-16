@@ -24,7 +24,6 @@ export type ArtistRequest = {
   createdAt: string;
   status: ArtistRequestStatus;
   source: string;
-  labelId?: string | null;
   artistName: string;
   handle: string;
   email: string;

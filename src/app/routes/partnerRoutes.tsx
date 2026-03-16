@@ -83,27 +83,23 @@ export function PartnerRoutes({
           )
         }
       />
-      <Route path="admin" element={requireAuthElement(<AdminDashboardPage />)} />
-      <Route path="admin/orders" element={requireAuthElement(<AdminOrdersPage />)} />
-      <Route path="admin/artist-requests" element={requireAuthElement(<AdminArtistRequestsPage />)} />
-      <Route path="admin/leads" element={requireAuthElement(<AdminLeadsPage />)} />
-      <Route path="admin/artists" element={requireAuthElement(<AdminArtistsPage />)} />
-      <Route path="admin/artists/:id" element={requireAuthElement(<AdminArtistDetailPage />)} />
-      <Route path="admin/artists/:id/edit" element={requireAuthElement(<AdminArtistEditPage />)} />
-      <Route path="admin/products" element={requireAuthElement(<AdminProductsPage />)} />
-      <Route path="admin/products/new" element={requireAuthElement(<AdminCreateProductPage />)} />
-      <Route path="admin/inventory-skus" element={requireAuthElement(<AdminSkuMasterPage />)} />
-      <Route path="admin/drops" element={requireAuthElement(<AdminDropsPage />)} />
-      <Route
-        path="admin/homepage-banners"
-        element={requireAuthElement(<AdminHomepageBannersPage />)}
-      />
-      <Route
-        path="admin/products/:productId/variants"
-        element={requireAuthElement(<AdminProductVariantsPage />)}
-      />
-      <Route path="admin/orders/:id" element={requireAuthElement(<AdminOrderDetailPage />)} />
-      <Route path="admin/order/:id" element={requireAuthElement(<AdminOrderDetailPage />)} />
+      <Route path="admin" element={requireAuthElement(<Outlet />)}>
+        <Route index element={<AdminDashboardPage />} />
+        <Route path="orders" element={<AdminOrdersPage />} />
+        <Route path="artist-requests" element={<AdminArtistRequestsPage />} />
+        <Route path="leads" element={<AdminLeadsPage />} />
+        <Route path="artists" element={<AdminArtistsPage />} />
+        <Route path="artists/:id" element={<AdminArtistDetailPage />} />
+        <Route path="artists/:id/edit" element={<AdminArtistEditPage />} />
+        <Route path="products" element={<AdminProductsPage />} />
+        <Route path="products/new" element={<AdminCreateProductPage />} />
+        <Route path="inventory-skus" element={<AdminSkuMasterPage />} />
+        <Route path="drops" element={<AdminDropsPage />} />
+        <Route path="homepage-banners" element={<AdminHomepageBannersPage />} />
+        <Route path="products/:productId/variants" element={<AdminProductVariantsPage />} />
+        <Route path="orders/:id" element={<AdminOrderDetailPage />} />
+        <Route path="order/:id" element={<AdminOrderDetailPage />} />
+      </Route>
     </Route>
   );
 }

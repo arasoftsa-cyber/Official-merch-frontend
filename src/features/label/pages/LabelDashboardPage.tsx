@@ -4,10 +4,10 @@ import AppShell from '../../../shared/components/layout/AppShell';
 import KpiCard from '../../../shared/ui/legacy/KpiCard';
 import EmptyState from '../../../shared/ui/legacy/EmptyState';
 import { formatCurrencyFromCents } from '../../../shared/utils/formatting';
+import ArtistAccessRequestForm from '../../onboarding/components/ArtistAccessRequestForm';
 import {
   EMPTY_LABEL_SUMMARY,
   fetchLabelDashboardSummary,
-  submitLabelArtistAccessRequest,
   type LabelSummaryDto,
 } from '../api/labelDashboardApi';
 
@@ -23,17 +23,6 @@ export default function LabelDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [addArtistOpen, setAddArtistOpen] = useState(false);
   const [addArtistSuccess, setAddArtistSuccess] = useState<string | null>(null);
-  const [addArtistError, setAddArtistError] = useState<string | null>(null);
-  const [addArtistSubmitting, setAddArtistSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    name: '',
-    handleSuggestion: '',
-    contactEmail: '',
-    contactPhone: '',
-    socials: '',
-    pitch: '',
-  });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const loadSummary = async () => {
     setLoading(true);
@@ -54,68 +43,6 @@ export default function LabelDashboardPage() {
 
   const isLabelHome =
     location.pathname === '/partner/label' || location.pathname === '/partner/label/';
-
-  const validEmail = (value: string) => value.includes('@') && value.includes('.');
-  const handleFormChange =
-    (field: keyof typeof form) =>
-    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setForm((prev) => ({ ...prev, [field]: event.target.value }));
-      if (formErrors[field]) {
-        setFormErrors((prev) => {
-          const next = { ...prev };
-          delete next[field];
-          return next;
-        });
-      }
-    };
-
-  const submitArtistAccessRequest = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (addArtistSubmitting) return;
-
-    const trimmedName = form.name.trim();
-    const nextErrors: Record<string, string> = {};
-    if (!trimmedName) {
-      nextErrors.name = 'Name is required.';
-    }
-    if (form.contactEmail && !validEmail(form.contactEmail.trim())) {
-      nextErrors.contactEmail = 'Enter a valid email.';
-    }
-    if (Object.keys(nextErrors).length) {
-      setFormErrors(nextErrors);
-      return;
-    }
-
-    setFormErrors({});
-    setAddArtistError(null);
-    setAddArtistSubmitting(true);
-    try {
-      const socialValue = form.socials.trim();
-      await submitLabelArtistAccessRequest({
-        artistName: trimmedName,
-        handle: form.handleSuggestion,
-        contactEmail: form.contactEmail,
-        contactPhone: form.contactPhone,
-        socialLink: socialValue,
-        pitch: form.pitch,
-      });
-
-      setAddArtistOpen(false);
-      setAddArtistSuccess('Artist access request submitted. Admin will review.');
-      setForm({
-        name: '',
-        handleSuggestion: '',
-        contactEmail: '',
-        contactPhone: '',
-        socials: '',
-        pitch: '',
-      });
-    } catch (err: any) {
-      setAddArtistError(err?.message ?? 'Failed to submit request');
-    } finally {
-      setAddArtistSubmitting(false);
-    }
-  };
 
   const cardWrapperClass =
     'group transition duration-150 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white/60';
@@ -151,7 +78,6 @@ export default function LabelDashboardPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setAddArtistError(null);
                     setAddArtistSuccess(null);
                     setAddArtistOpen(true);
                   }}
@@ -254,7 +180,7 @@ export default function LabelDashboardPage() {
 
       {addArtistOpen && isLabelHome && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
+          <div className="dark max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold text-white">Artist Access Request</h2>
               <button
@@ -265,79 +191,14 @@ export default function LabelDashboardPage() {
                 Close
               </button>
             </div>
-
-            {addArtistError && (
-              <div role="alert" className="mb-3 rounded-xl border border-rose-500/40 bg-rose-600/10 px-4 py-3 text-sm text-rose-100">
-                {addArtistError}
-              </div>
-            )}
-
-            <form className="space-y-3" onSubmit={submitArtistAccessRequest}>
-              <label className="block text-sm font-medium text-white/80">
-                Name *
-                <input
-                  className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                  value={form.name}
-                  onChange={handleFormChange('name')}
-                />
-                {formErrors.name && <p className="text-xs text-rose-300">{formErrors.name}</p>}
-              </label>
-              <label className="block text-sm font-medium text-white/80">
-                Handle suggestion
-                <input
-                  className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                  value={form.handleSuggestion}
-                  onChange={handleFormChange('handleSuggestion')}
-                />
-              </label>
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="block text-sm font-medium text-white/80">
-                  Email
-                  <input
-                    type="email"
-                    className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                    value={form.contactEmail}
-                    onChange={handleFormChange('contactEmail')}
-                  />
-                  {formErrors.contactEmail && (
-                    <p className="text-xs text-rose-300">{formErrors.contactEmail}</p>
-                  )}
-                </label>
-                <label className="block text-sm font-medium text-white/80">
-                  Phone
-                  <input
-                    className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                    value={form.contactPhone}
-                    onChange={handleFormChange('contactPhone')}
-                  />
-                </label>
-              </div>
-              <label className="block text-sm font-medium text-white/80">
-                Socials
-                <input
-                  className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                  value={form.socials}
-                  onChange={handleFormChange('socials')}
-                />
-              </label>
-              <label className="block text-sm font-medium text-white/80">
-                Pitch
-                <textarea
-                  rows={3}
-                  className="mt-2 block w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-white/40 focus:outline-none"
-                  value={form.pitch}
-                  onChange={handleFormChange('pitch')}
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={addArtistSubmitting}
-                className="w-full rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90 disabled:opacity-60"
-                aria-label="Submit request"
-              >
-                {addArtistSubmitting ? 'Submitting...' : 'Submit request'}
-              </button>
-            </form>
+            <ArtistAccessRequestForm
+              submitLabel="Submit request"
+              successMessage="Artist access request submitted. Admin will review."
+              onSuccess={() => {
+                setAddArtistOpen(false);
+                setAddArtistSuccess('Artist access request submitted. Admin will review.');
+              }}
+            />
           </div>
         </div>
       )}

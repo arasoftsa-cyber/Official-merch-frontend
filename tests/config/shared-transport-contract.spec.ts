@@ -6,7 +6,7 @@ const readSource = (testFile: string, ...segments: string[]) =>
   readFileSync(resolveFrontendPathFromTest(testFile, ...segments), 'utf8');
 
 test.describe('shared transport contracts', () => {
-  test('ApplyArtistPage uses canonical shared transport helpers only', () => {
+  test('ApplyArtistPage mounts the shared artist access request form', () => {
     const source = readSource(
       test.info().file,
       'src',
@@ -16,8 +16,37 @@ test.describe('shared transport contracts', () => {
       'ApplyArtistPage.tsx'
     );
 
+    expect(source.includes('ArtistAccessRequestForm')).toBe(true);
+    expect(source.includes('await fetch(')).toBe(false);
+  });
+
+  test('shared artist access request transport uses the canonical API helper only', () => {
+    const source = readSource(
+      test.info().file,
+      'src',
+      'features',
+      'onboarding',
+      'api',
+      'artistAccessRequests.ts'
+    );
+
     expect(source.includes('apiFetchForm(')).toBe(true);
     expect(source.includes("apiFetch('/artist-access-requests'")).toBe(true);
+    expect(source.includes('await fetch(')).toBe(false);
+  });
+
+  test('LabelDashboardPage reuses the shared artist access request form', () => {
+    const source = readSource(
+      test.info().file,
+      'src',
+      'features',
+      'label',
+      'pages',
+      'LabelDashboardPage.tsx'
+    );
+
+    expect(source.includes('ArtistAccessRequestForm')).toBe(true);
+    expect(source.includes('submitLabelArtistAccessRequest')).toBe(false);
     expect(source.includes('await fetch(')).toBe(false);
   });
 

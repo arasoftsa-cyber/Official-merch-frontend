@@ -76,7 +76,6 @@ export const mapArtistRequestDto = (item: any): ArtistRequest => {
     createdAt,
     status: normalizeArtistRequestStatus(item.status),
     source: String(item.source ?? 'artist_access_request'),
-    labelId: (item as any).label_id ?? item.labelId ?? null,
     artistName,
     handle,
     email,

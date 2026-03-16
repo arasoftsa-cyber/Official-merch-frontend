@@ -213,7 +213,10 @@ export const gotoApp = async (
 ) => {
   const { authRetry = true, _authRetryCount = 0, ...gotoOptions } = options;
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const usedSoftNavigation = await navigateWithinApp(page, normalizedPath);
+  const preferDocumentNavigation = normalizedPath.startsWith('/partner/admin');
+  const usedSoftNavigation = preferDocumentNavigation
+    ? false
+    : await navigateWithinApp(page, normalizedPath);
 
   if (!usedSoftNavigation) {
     await page.goto(`${getUiBaseUrl()}${normalizedPath}`, {
