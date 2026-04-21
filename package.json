@@ -2,6 +2,7 @@
   "name": "official-merch-frontend",
   "private": true,
   "dependencies": {
+    "razorpay": "^2.9.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.3",
