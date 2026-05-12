@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../shared/ui/legacy/Card';
 import Button from '../shared/ui/legacy/Button';
 import Input from '../shared/ui/legacy/Input';
-import { getAccessToken } from '../shared/auth/tokenStore';
-import { getMe } from '../shared/api/appApi';
+import { getAccessToken, getRefreshToken, getSessionUser } from '../shared/auth/tokenStore';
 import { useCart } from '../cart/CartContext';
 import { apiFetch } from '../shared/api/http';
 import { fetchJson } from '../shared/api/fetchJson';
@@ -36,31 +35,19 @@ export default function CartPage() {
   const navigate = useNavigate();
   const { items, cartCount, cartTotalCents, setQty, removeItem, clearCart } =
     useCart();
-  const [role, setRole] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(() => {
+    const user = getSessionUser();
+    return typeof user?.role === 'string' ? user.role : null;
+  });
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [loadingRole, setLoadingRole] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [variantMeta, setVariantMeta] = useState<Record<string, VariantMeta>>({});
-  const loggedIn = Boolean(getAccessToken());
+  const loggedIn = Boolean(getAccessToken() || getRefreshToken() || getSessionUser());
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token) {
-      setRole(null);
-      return;
-    }
-    setLoadingRole(true);
-    getMe()
-      .then((me) => {
-        setRole(me?.role ?? me?.user?.role ?? null);
-      })
-      .catch(() => {
-        setRole(null);
-      })
-      .finally(() => {
-        setLoadingRole(false);
-      });
+    const user = getSessionUser();
+    setRole(typeof user?.role === 'string' ? user.role : null);
   }, []);
 
   useEffect(() => {

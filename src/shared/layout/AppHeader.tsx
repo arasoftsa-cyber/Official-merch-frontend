@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { clearSession, getAccessToken } from '../../shared/auth/tokenStore';
-import { getMe } from '../../shared/api/appApi';
+import { clearSession, getAccessToken, getRefreshToken, getSessionUser } from '../../shared/auth/tokenStore';
 import { logoutAuth } from '../../shared/api/auth';
 import { useCart } from '../../cart/CartContext';
 
@@ -19,38 +18,20 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
   const location = useLocation();
   const { cartCount } = useCart();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(Boolean(getAccessToken()));
-  const [role, setRole] = useState<string | null>(null);
-  const [roleLoading, setRoleLoading] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(Boolean(getAccessToken() || getRefreshToken() || getSessionUser()));
+  const [role, setRole] = useState<string | null>(() => {
+    const user = getSessionUser();
+    return typeof user?.role === 'string' ? user.role : null;
+  });
 
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname, location.search]);
 
   useEffect(() => {
-    const token = getAccessToken();
-    setLoggedIn(Boolean(token));
-    if (!token) {
-      setRole(null);
-      setRoleLoading(false);
-      return;
-    }
-    let active = true;
-    setRoleLoading(true);
-    getMe()
-      .then((me) => {
-        if (!active) return;
-        setRole(me?.role ?? me?.user?.role ?? null);
-      })
-      .catch(() => {
-        if (active) setRole(null);
-      })
-      .finally(() => {
-        if (active) setRoleLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+    const user = getSessionUser();
+    setLoggedIn(Boolean(getAccessToken() || getRefreshToken() || user));
+    setRole(typeof user?.role === 'string' ? user.role : null);
   }, [location.pathname]);
 
   const handleLogout = async () => {
@@ -68,7 +49,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
     }
   };
 
-  const isLoggedIn = loggedIn && !roleLoading;
+  const isLoggedIn = loggedIn;
   const userRole = String(role || '').toLowerCase();
   const pathname = String(location.pathname || '').toLowerCase();
   const inPartnerArea = pathname.startsWith('/partner');

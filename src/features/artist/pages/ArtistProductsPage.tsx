@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { getMe } from '../../../shared/api/appApi';
 import { apiFetch, apiFetchForm } from '../../../shared/api/http';
-import { getAccessToken } from '../../../shared/auth/tokenStore';
+import { getAccessToken, getSessionUser } from '../../../shared/auth/tokenStore';
 import { useToast } from '../../../shared/components/ux/ToastHost';
 import { Page, Container } from '../../../shared/ui/Page';
 import { formatOnboardingSkuTypeLabel } from '../../../shared/utils/onboardingSkuTypes';
@@ -50,6 +49,11 @@ export default function ArtistProductsPage() {
   const [newMerchSubmitError, setNewMerchSubmitError] = useState<string | null>(null);
   const [newMerchSubmitSuccess, setNewMerchSubmitSuccess] = useState<string | null>(null);
 
+  useEffect(() => {
+    const user = getSessionUser();
+    setUserRole(typeof user?.role === 'string' ? user.role : null);
+  }, []);
+
   const isArtistRole = String(userRole || '').toLowerCase() === 'artist';
 
   const loadProducts = async () => {
@@ -70,23 +74,8 @@ export default function ArtistProductsPage() {
     }
   };
 
-  const loadRole = async () => {
-    try {
-      const me: any = await getMe();
-      setUserRole(
-        me?.role ??
-        (Array.isArray(me?.roles) ? me.roles[0] : null) ??
-        me?.user?.role ??
-        null
-      );
-    } catch {
-      setUserRole(null);
-    }
-  };
-
   useEffect(() => {
     void loadProducts();
-    void loadRole();
   }, []);
 
   const setPending = (productId: string, pending: boolean) => {

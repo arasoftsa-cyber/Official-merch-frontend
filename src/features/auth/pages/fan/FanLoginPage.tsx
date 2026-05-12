@@ -78,6 +78,7 @@ export default function FanLoginPage() {
         setSession({
           accessToken,
           refreshToken: refreshToken || null,
+          user: res?.user ?? res?.data?.user ?? null,
         });
       }
 

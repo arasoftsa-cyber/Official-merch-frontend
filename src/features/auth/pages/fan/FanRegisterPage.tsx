@@ -245,6 +245,7 @@ export default function FanRegisterPage() {
         setSession({
           accessToken: token,
           refreshToken,
+          user: res?.user ?? res?.data?.user ?? null,
         });
         navigate(postRegisterTarget);
       } else {

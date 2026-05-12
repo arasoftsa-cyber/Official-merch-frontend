@@ -20,6 +20,8 @@ type ArtistRow = {
 type ArtistSortKey = 'relevance' | 'name-asc' | 'name-desc';
 
 const PAGE_SIZE = 12;
+let artistsPageCache: ArtistRow[] | null = null;
+
 const ARTIST_SORT_OPTIONS: PublicCatalogSortOption[] = [
   { value: 'relevance', label: 'Curated relevance' },
   { value: 'name-asc', label: 'Name: A to Z' },
@@ -27,15 +29,23 @@ const ARTIST_SORT_OPTIONS: PublicCatalogSortOption[] = [
 ];
 
 export default function ArtistsPage() {
-  const [artists, setArtists] = useState<ArtistRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [artists, setArtists] = useState<ArtistRow[]>(() => artistsPageCache ?? []);
+  const [loading, setLoading] = useState(() => !artistsPageCache);
   const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
   const [sortKey, setSortKey] = useState<ArtistSortKey>('relevance');
   const [page, setPage] = useState(1);
   const mountedRef = useRef(true);
 
-  const loadArtists = useCallback(async () => {
+  const loadArtists = useCallback(async (options?: { force?: boolean }) => {
+    const forceReload = Boolean(options?.force);
+    if (!forceReload && artistsPageCache) {
+      setArtists(artistsPageCache);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -60,6 +70,7 @@ export default function ArtistsPage() {
         })
         .filter((item: any): item is ArtistRow => Boolean(item)) as ArtistRow[];
       if (mountedRef.current) {
+        artistsPageCache = mapped;
         setArtists(mapped);
       }
     } catch (err: any) {
@@ -134,7 +145,7 @@ export default function ArtistsPage() {
           title="Something went wrong"
           message={error ? `Unable to load artists (${error}).` : 'Unable to load artists.'}
           actionLabel="Retry"
-          onAction={loadArtists}
+          onAction={() => loadArtists({ force: true })}
         />
       ) : null}
 
@@ -143,7 +154,7 @@ export default function ArtistsPage() {
           title="No artists yet"
           message="Try again in a moment."
           actionLabel="Retry"
-          onAction={loadArtists}
+          onAction={() => loadArtists({ force: true })}
         />
       ) : null}
 

@@ -67,10 +67,10 @@ export default function PartnerLoginPage() {
       setSession({
         accessToken,
         refreshToken,
+        user: loginResponse?.user ?? loginResponse?.data?.user ?? null,
       });
 
-      const me = await apiFetch('/auth/whoami');
-      const role = resolveRoleFromAuthPayload(me);
+      const role = resolveRoleFromAuthPayload(loginResponse);
       if (!isPartnerRole(role)) {
         clearSession();
         const issue = resolvePortalIssue({
