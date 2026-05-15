@@ -1,10 +1,22 @@
 export type CartItem = {
+  id?: string | null;
   productId: string;
   variantId?: string | null;
   title: string;
   priceCents: number;
   quantity: number;
   imageUrl?: string | null;
+  available?: boolean;
+  availabilityReason?: string | null;
+  availableStock?: number | null;
+  lineTotalCents?: number | null;
+  inventory?: {
+    supplierSku?: string | null;
+    merchType?: string | null;
+    qualityTier?: string | null;
+    size?: string | null;
+    color?: string | null;
+  } | null;
 };
 
 export type CartAction =

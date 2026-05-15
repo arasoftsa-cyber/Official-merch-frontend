@@ -17,11 +17,28 @@ type SessionUpdate = {
 };
 
 export const AUTH_SESSION_STORAGE_KEY = 'om_auth_session_v1';
+export const AUTH_SESSION_UPDATED_EVENT = 'om:auth-session-updated';
 
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
 let sessionUser: SessionUser | null = null;
 let persistedSessionLoaded = false;
+
+const dispatchSessionUpdatedEvent = (): void => {
+  try {
+    globalThis.window?.dispatchEvent(
+      new CustomEvent(AUTH_SESSION_UPDATED_EVENT, {
+        detail: {
+          accessToken,
+          refreshToken,
+          user: sessionUser,
+        },
+      })
+    );
+  } catch {
+    // Ignore non-browser runtimes.
+  }
+};
 
 const normalizeToken = (token: string | null | undefined): string | null => {
   const normalized = String(token || '').trim();
@@ -182,6 +199,7 @@ export function setSession(update: SessionUpdate): SessionTokens {
   }
   persistedSessionLoaded = true;
   writePersistedSession();
+  dispatchSessionUpdatedEvent();
 
   return {
     accessToken,
@@ -204,6 +222,7 @@ export function clearSession(): void {
   sessionUser = null;
   persistedSessionLoaded = true;
   writePersistedSession();
+  dispatchSessionUpdatedEvent();
 }
 
 export function clearTokens(): void {

@@ -6,27 +6,11 @@ import Input from '../shared/ui/legacy/Input';
 import { getAccessToken, getRefreshToken, getSessionUser } from '../shared/auth/tokenStore';
 import { useCart } from '../cart/CartContext';
 import { apiFetch } from '../shared/api/http';
-import { fetchJson } from '../shared/api/fetchJson';
 import { formatCurrencyFromCents } from '../shared/utils/formatting';
+import { safeErrorMessage } from '../shared/utils/safeError';
+import { useConfirm } from '../shared/ui/ConfirmService';
 
 const formatCents = (cents: number) => formatCurrencyFromCents(cents);
-const cartLineKey = (productId: string, variantId?: string | null) =>
-  `${productId}::${variantId ?? ''}`;
-
-type VariantMeta = {
-  size?: string;
-  color?: string;
-  sku?: string;
-};
-
-type ProductVariantsResponse = {
-  variants?: Array<{
-    id: string;
-    size?: string;
-    color?: string;
-    sku?: string;
-  }>;
-};
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'admin']);
@@ -35,14 +19,15 @@ export default function CartPage() {
   const navigate = useNavigate();
   const { items, cartCount, cartTotalCents, setQty, removeItem, clearCart } =
     useCart();
+  const { confirm } = useConfirm();
   const [role, setRole] = useState<string | null>(() => {
     const user = getSessionUser();
     return typeof user?.role === 'string' ? user.role : null;
   });
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [cartMutationLoading, setCartMutationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [variantMeta, setVariantMeta] = useState<Record<string, VariantMeta>>({});
   const loggedIn = Boolean(getAccessToken() || getRefreshToken() || getSessionUser());
 
   useEffect(() => {
@@ -50,58 +35,25 @@ export default function CartPage() {
     setRole(typeof user?.role === 'string' ? user.role : null);
   }, []);
 
-  useEffect(() => {
-    const itemsWithVariant = items.filter((item) => Boolean(item.variantId));
-    if (itemsWithVariant.length === 0) {
-      setVariantMeta({});
-      return;
-    }
-
-    const uniqueProductIds = Array.from(
-      new Set(itemsWithVariant.map((item) => item.productId))
-    );
-    let cancelled = false;
-
-    const loadVariantMeta = async () => {
-      const variantsByProduct: Record<string, ProductVariantsResponse['variants']> = {};
-
-      await Promise.all(
-        uniqueProductIds.map(async (productId) => {
-          try {
-            const payload = await fetchJson<ProductVariantsResponse>(`/products/${productId}`);
-            variantsByProduct[productId] = Array.isArray(payload?.variants)
-              ? payload.variants
-              : [];
-          } catch {
-            variantsByProduct[productId] = [];
-          }
-        })
-      );
-
-      if (cancelled) return;
-
-      const nextMeta: Record<string, VariantMeta> = {};
-      itemsWithVariant.forEach((item) => {
-        const variants = variantsByProduct[item.productId] ?? [];
-        const matched = variants.find((variant) => variant.id === item.variantId);
-        if (!matched) return;
-        nextMeta[cartLineKey(item.productId, item.variantId)] = {
-          size: matched.size,
-          color: matched.color,
-          sku: matched.sku,
-        };
-      });
-
-      setVariantMeta(nextMeta);
-    };
-
-    loadVariantMeta();
-    return () => {
-      cancelled = true;
-    };
-  }, [items]);
-
   const cartIsEmpty = items.length === 0;
+
+  const runCartMutation = async (
+    action: () => Promise<void>,
+    fallbackMessage: string
+  ) => {
+    setErrorMessage(null);
+    setCartMutationLoading(true);
+    try {
+      await action();
+    } catch (err) {
+      const detail = safeErrorMessage(err).trim();
+      setErrorMessage(
+        detail && !/^http_\d+$/i.test(detail) ? detail : fallbackMessage
+      );
+    } finally {
+      setCartMutationLoading(false);
+    }
+  };
 
   const handleCheckout = async () => {
     if (items.length === 0) {
@@ -121,38 +73,14 @@ export default function CartPage() {
       return;
     }
 
-    const uniqueProductIds = Array.from(new Set(items.map((entry) => String(entry.productId || '').trim()).filter(Boolean)));
-    const productVariantsByProductId: Record<string, ProductVariantsResponse['variants']> = {};
-    await Promise.all(
-      uniqueProductIds.map(async (productId) => {
-        try {
-          const payload = await fetchJson<ProductVariantsResponse>(`/products/${productId}`);
-          productVariantsByProductId[productId] = Array.isArray(payload?.variants) ? payload.variants : [];
-        } catch {
-          productVariantsByProductId[productId] = [];
-        }
-      })
-    );
-
     const checkoutItems = items.map((entry) => {
       const productId = String(entry.productId || '').trim();
       const quantity = Number(entry.quantity);
       const rawVariant = String((entry.variantId ?? (entry as any)?.productVariantId ?? '') || '').trim();
-      const variants = productVariantsByProductId[productId] ?? [];
 
       let resolvedVariantId: string | null = null;
       if (UUID_RE.test(rawVariant)) {
         resolvedVariantId = rawVariant;
-      } else if (rawVariant) {
-        const matchedBySku = variants.find(
-          (variant) => String(variant?.sku || '').trim().toLowerCase() === rawVariant.toLowerCase()
-        );
-        if (matchedBySku?.id) {
-          resolvedVariantId = matchedBySku.id;
-        }
-      }
-      if (!resolvedVariantId && variants.length === 1 && variants[0]?.id) {
-        resolvedVariantId = variants[0].id;
       }
 
       return {
@@ -196,7 +124,11 @@ export default function CartPage() {
       if (!orderId) {
         throw new Error('Order id missing from response');
       }
-      clearCart();
+      try {
+        await clearCart();
+      } catch {
+        // The order was created already, so we still continue to the order detail page.
+      }
       navigate(`/fan/orders/${orderId}`);
     } catch (err: any) {
       const detail = String(err?.message ?? '').trim();
@@ -210,38 +142,48 @@ export default function CartPage() {
     }
   };
 
-  const handleIncrease = (itemId: string, variantId?: string | null) => {
-    const item = items.find(
-      (entry) =>
-        entry.productId === itemId &&
-        (entry.variantId ?? null) === (variantId ?? null)
+  const handleIncrease = (item: (typeof items)[number]) => {
+    void runCartMutation(
+      () => setQty(item, item.quantity + 1),
+      'Could not update cart quantity.'
     );
-    if (item) {
-      setQty(item.productId, item.variantId ?? null, item.quantity + 1);
-    }
   };
 
-  const handleDecrease = (itemId: string, variantId?: string | null) => {
-    const item = items.find(
-      (entry) =>
-        entry.productId === itemId &&
-        (entry.variantId ?? null) === (variantId ?? null)
+  const handleDecrease = (item: (typeof items)[number]) => {
+    void runCartMutation(
+      () => setQty(item, item.quantity - 1),
+      'Could not update cart quantity.'
     );
-    if (item) {
-      setQty(item.productId, item.variantId ?? null, item.quantity - 1);
+  };
+
+  const handleRemoveItem = async (item: (typeof items)[number]) => {
+    const confirmed = await confirm({
+      title: 'Remove item',
+      message: `Remove ${item.title} from your cart?`,
+      confirmText: 'Remove',
+      cancelText: 'Keep item',
+      danger: true,
+    });
+
+    if (!confirmed) {
+      return;
     }
+
+    await runCartMutation(
+      () => removeItem(item),
+      'Could not remove this item from your cart.'
+    );
   };
 
   const subtotalLabel = useMemo(() => formatCents(cartTotalCents), [cartTotalCents]);
 
   const formatVariantSummary = (item: (typeof items)[number]) => {
-    if (!item.variantId) return null;
-    const meta = variantMeta[cartLineKey(item.productId, item.variantId)];
+    const meta = item.inventory;
     if (!meta) return null;
     const sizeColor = [meta.size, meta.color].filter(Boolean).join('/');
-    if (sizeColor && meta.sku) return `${sizeColor} (${meta.sku})`;
+    if (sizeColor && meta.supplierSku) return `${sizeColor} (${meta.supplierSku})`;
     if (sizeColor) return sizeColor;
-    if (meta.sku) return `(${meta.sku})`;
+    if (meta.supplierSku) return `(${meta.supplierSku})`;
     return null;
   };
 
@@ -260,7 +202,7 @@ export default function CartPage() {
             <div className="space-y-4">
               {items.map((item) => (
                 <div
-                  key={`${item.productId}-${item.variantId ?? 'single'}`}
+                  key={item.id ?? `${item.productId}-${item.variantId ?? 'single'}`}
                   className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:flex-row md:items-center md:justify-between"
                 >
                   <div>
@@ -271,14 +213,22 @@ export default function CartPage() {
                     <p className="text-sm text-neutral-400">
                       {formatCents(item.priceCents)}
                     </p>
+                    {item.available === false && (
+                      <p className="text-xs text-rose-300">
+                        Unavailable right now
+                        {item.availableStock && item.availableStock > 0
+                          ? `, only ${item.availableStock} left`
+                          : ''}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
                       className="rounded-full border border-white/20 px-3 py-1 text-[0.75rem] font-semibold"
-                      onClick={() => handleDecrease(item.productId, item.variantId)}
+                      onClick={() => handleDecrease(item)}
                       aria-label="Decrease quantity"
-                      disabled={item.quantity <= 1}
+                      disabled={cartMutationLoading || item.quantity <= 1}
                     >
                       -
                     </Button>
@@ -290,20 +240,24 @@ export default function CartPage() {
                     <Button
                       type="button"
                       className="rounded-full border border-white/20 px-3 py-1 text-[0.75rem] font-semibold"
-                      onClick={() => handleIncrease(item.productId, item.variantId)}
+                      onClick={() => handleIncrease(item)}
                       aria-label="Increase quantity"
+                      disabled={cartMutationLoading}
                     >
                       +
                     </Button>
                   </div>
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-neutral-400">
-                      {formatCents(item.quantity * item.priceCents)}
+                      {formatCents(item.lineTotalCents ?? item.quantity * item.priceCents)}
                     </p>
                     <Button
                       type="button"
                       className="rounded-full border border-white/20 px-3 py-1 text-[0.75rem] font-semibold"
-                      onClick={() => removeItem(item.productId, item.variantId)}
+                      onClick={() => {
+                        void handleRemoveItem(item);
+                      }}
+                      disabled={cartMutationLoading}
                     >
                       Remove
                     </Button>
@@ -319,7 +273,13 @@ export default function CartPage() {
                   <Button
                     type="button"
                     className="rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold"
-                    onClick={clearCart}
+                    onClick={() => {
+                      void runCartMutation(
+                        () => clearCart(),
+                        'Could not clear your cart.'
+                      );
+                    }}
+                    disabled={cartMutationLoading}
                   >
                     Clear cart
                   </Button>
@@ -327,7 +287,7 @@ export default function CartPage() {
                     type="button"
                     className="rounded-2xl bg-white/90 px-4 py-2 text-sm font-semibold text-black"
                     onClick={handleCheckout}
-                    disabled={cartIsEmpty || checkoutLoading}
+                    disabled={cartIsEmpty || cartMutationLoading || checkoutLoading}
                     aria-busy={checkoutLoading}
                   >
                     {checkoutLoading

@@ -7,6 +7,7 @@ import App from './app/App';
 import AppErrorBoundary from './shared/components/ux/AppErrorBoundary';
 import { ToastProvider } from './shared/components/ux/ToastHost';
 import { API_BASE } from './shared/api/baseUrl';
+import { ConfirmProvider } from './shared/ui/ConfirmService';
 
 const isDev = Boolean(import.meta.env.DEV);
 const root = document.getElementById('root');
@@ -91,9 +92,11 @@ try {
     <React.StrictMode>
       <AppErrorBoundary>
         <ToastProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <ConfirmProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </ConfirmProvider>
         </ToastProvider>
       </AppErrorBoundary>
     </React.StrictMode>

@@ -43,6 +43,7 @@ export default function ProductDetailPage() {
   const [status, setStatus] = useState<'loading' | 'idle' | 'error' | 'not_found'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
+  const [addToCartLoading, setAddToCartLoading] = useState(false);
   const [buyNowLoading, setBuyNowLoading] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedColor, setSelectedColor] = useState<string>('');
@@ -206,6 +207,7 @@ export default function ProductDetailPage() {
   }, [hasVariants, selectedColor, selectedSize, selectedVariant, selectedVariantInStock]);
 
   const addToCartDisabledReason = useMemo(() => {
+    if (addToCartLoading) return 'pending_action';
     if (buyNowLoading) return 'pending_action';
     if (isLoading) return 'loading';
     if (qtyNum < 1) return 'invalid_qty';
@@ -216,6 +218,7 @@ export default function ProductDetailPage() {
     }
     return 'ready';
   }, [
+    addToCartLoading,
     buyNowLoading,
     getVariantSelectionError,
     isLoading,
@@ -302,9 +305,9 @@ export default function ProductDetailPage() {
     return () => clearTimeout(timer);
   }, [cartFeedback]);
 
-  const addSelectedVariantToCart = useCallback(() => {
+  const addSelectedVariantToCart = useCallback(async () => {
     if (!id || !selectedVariantIdentifier) return;
-    addItem(
+    await addItem(
       {
         productId: id,
         variantId: selectedVariantIdentifier,
@@ -316,17 +319,26 @@ export default function ProductDetailPage() {
     );
   }, [addItem, displayPriceCents, id, photos, product?.title, qty, selectedVariantIdentifier]);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     const variantError = getVariantSelectionError();
     if (variantError) {
       setSelectionError(variantError);
       toast.notify(variantError, 'error');
       return;
     }
-    setSelectionError(null);
-    addSelectedVariantToCart();
-    toast.notify('Added to cart', 'success');
-    setCartFeedback('Added to cart');
+    setAddToCartLoading(true);
+    try {
+      setSelectionError(null);
+      await addSelectedVariantToCart();
+      toast.notify('Added to cart', 'success');
+      setCartFeedback('Added to cart');
+    } catch (err) {
+      const message = safeErrorMessage(err);
+      setSelectionError(message);
+      toast.notify(message, 'error');
+    } finally {
+      setAddToCartLoading(false);
+    }
   };
 
   const handleBuyNow = useCallback(async () => {
@@ -339,8 +351,12 @@ export default function ProductDetailPage() {
     setBuyNowLoading(true);
     try {
       setSelectionError(null);
-      addSelectedVariantToCart();
+      await addSelectedVariantToCart();
       navigate('/cart');
+    } catch (err) {
+      const message = safeErrorMessage(err);
+      setSelectionError(message);
+      toast.notify(message, 'error');
     } finally {
       setBuyNowLoading(false);
     }
@@ -558,8 +574,11 @@ export default function ProductDetailPage() {
               <div className="flex flex-col gap-3">
                 <button
                   type="button"
-                  onClick={handleAddToCart}
+                  onClick={() => {
+                    void handleAddToCart();
+                  }}
                   disabled={
+                    addToCartLoading ||
                     buyNowLoading ||
                     isLoading ||
                     Boolean(getVariantSelectionError()) ||
@@ -567,7 +586,7 @@ export default function ProductDetailPage() {
                   }
                   className="om-btn om-focus w-full bg-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-300 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/90 dark:text-black dark:hover:bg-white"
                 >
-                  {buyNowLoading ? 'Processing...' : 'Add to cart'}
+                  {addToCartLoading ? 'Adding...' : 'Add to cart'}
                 </button>
 
                 <button
