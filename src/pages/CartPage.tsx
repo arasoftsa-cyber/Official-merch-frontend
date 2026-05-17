@@ -3,37 +3,42 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../shared/ui/legacy/Card';
 import Button from '../shared/ui/legacy/Button';
 import Input from '../shared/ui/legacy/Input';
-import { getAccessToken, getRefreshToken, getSessionUser } from '../shared/auth/tokenStore';
 import { useCart } from '../cart/CartContext';
 import { apiFetch } from '../shared/api/http';
 import { formatCurrencyFromCents } from '../shared/utils/formatting';
 import { safeErrorMessage } from '../shared/utils/safeError';
 import { useConfirm } from '../shared/ui/ConfirmService';
+import { getRoleHomeRoute } from '../shared/auth/routingPolicy';
+import { useCartAccessState } from '../cart/cartAccess';
 
 const formatCents = (cents: number) => formatCurrencyFromCents(cents);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'admin']);
 
 export default function CartPage() {
   const navigate = useNavigate();
   const { items, cartCount, cartTotalCents, setQty, removeItem, clearCart } =
     useCart();
   const { confirm } = useConfirm();
-  const [role, setRole] = useState<string | null>(() => {
-    const user = getSessionUser();
-    return typeof user?.role === 'string' ? user.role : null;
-  });
+  const { isAuthenticated: loggedIn, role, canUseCart } = useCartAccessState();
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [cartMutationLoading, setCartMutationLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const loggedIn = Boolean(getAccessToken() || getRefreshToken() || getSessionUser());
 
   useEffect(() => {
-    const user = getSessionUser();
-    setRole(typeof user?.role === 'string' ? user.role : null);
-  }, []);
+    if (!loggedIn) {
+      navigate('/fan/login?returnTo=%2Fcart', { replace: true });
+      return;
+    }
+    if (!canUseCart) {
+      navigate(getRoleHomeRoute(role), { replace: true });
+    }
+  }, [canUseCart, loggedIn, navigate, role]);
+
+  if (!loggedIn || !canUseCart) {
+    return null;
+  }
 
   const cartIsEmpty = items.length === 0;
 
@@ -64,8 +69,8 @@ export default function CartPage() {
       navigate('/fan/login?returnTo=%2Fcart');
       return;
     }
-    if (!STOREFRONT_SHOPPER_ROLES.has(String(role ?? '').toLowerCase())) {
-      window.location.assign('/forbidden');
+    if (!canUseCart) {
+      navigate(getRoleHomeRoute(role));
       return;
     }
     if (items.some((entry) => !Number.isFinite(Number(entry.quantity)) || Number(entry.quantity) <= 0)) {
@@ -292,9 +297,7 @@ export default function CartPage() {
                   >
                     {checkoutLoading
                       ? 'Processing...'
-                      : loggedIn
-                        ? 'Checkout'
-                        : 'Login to checkout'}
+                      : 'Checkout'}
                   </Button>
                 </div>
               </div>

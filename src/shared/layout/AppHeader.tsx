@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { clearSession, getAccessToken, getRefreshToken, getSessionUser } from '../../shared/auth/tokenStore';
+import { clearSession } from '../../shared/auth/tokenStore';
 import { logoutAuth } from '../../shared/api/auth';
 import { useCart } from '../../cart/CartContext';
+import { useCartAccessState } from '../../cart/cartAccess';
 
 type AppHeaderProps = {
   variant?: 'public' | 'buyer';
@@ -17,22 +18,12 @@ const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'ad
 export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
   const location = useLocation();
   const { cartCount } = useCart();
+  const { isAuthenticated: isLoggedIn, role, canUseCart } = useCartAccessState();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(Boolean(getAccessToken() || getRefreshToken() || getSessionUser()));
-  const [role, setRole] = useState<string | null>(() => {
-    const user = getSessionUser();
-    return typeof user?.role === 'string' ? user.role : null;
-  });
 
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    const user = getSessionUser();
-    setLoggedIn(Boolean(getAccessToken() || getRefreshToken() || user));
-    setRole(typeof user?.role === 'string' ? user.role : null);
-  }, [location.pathname]);
 
   const handleLogout = async () => {
     try {
@@ -42,14 +33,11 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
     } finally {
       clearSession();
       sessionStorage.clear();
-      setLoggedIn(false);
-      setRole(null);
       // Force a clean app state after logout so protected routes cannot reuse stale auth state.
       window.location.replace('/');
     }
   };
 
-  const isLoggedIn = loggedIn;
   const userRole = String(role || '').toLowerCase();
   const pathname = String(location.pathname || '').toLowerCase();
   const inPartnerArea = pathname.startsWith('/partner');
@@ -60,7 +48,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
     userRole.includes('label') ||
     userRole.includes('partner');
   const showStorefrontActions = isLoggedIn && isStorefrontShopper && !inPartnerArea;
-  const showCart = !inPartnerArea;
+  const showCart = canUseCart && !inPartnerArea;
   const actionPadding = variant === 'buyer' ? 'px-3 py-1.5' : 'px-3 py-1.5';
   const loginTarget = `/login?returnTo=${encodeURIComponent(
     `${location.pathname}${location.search}`

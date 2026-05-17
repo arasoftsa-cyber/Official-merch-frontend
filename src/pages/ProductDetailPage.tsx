@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { fetchJson } from '../shared/api/fetchJson';
 import { useToast } from '../shared/components/ux/ToastHost';
 import ErrorState from '../shared/components/ux/ErrorState';
@@ -11,6 +11,7 @@ import { Container, Page } from '../shared/ui/Page';
 import { useCart } from '../cart/CartContext';
 import { NotFoundPage } from './ErrorPages';
 import { safeErrorMessage } from '../shared/utils/safeError';
+import { useCartAccessState } from '../cart/cartAccess';
 
 import {
   formatCurrency,
@@ -36,8 +37,10 @@ const isVariantPurchasable = (variant: Variant | null | undefined): boolean => {
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
+  const { isAuthenticated, canUseCart } = useCartAccessState();
   const [product, setProduct] = useState<Product | null>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [status, setStatus] = useState<'loading' | 'idle' | 'error' | 'not_found'>('loading');
@@ -298,6 +301,10 @@ export default function ProductDetailPage() {
 
   const { addItem } = useCart();
   const [cartFeedback, setCartFeedback] = useState<string | null>(null);
+  const buyerAccountRequired = isAuthenticated && !canUseCart;
+  const loginTarget = `/fan/login?returnTo=${encodeURIComponent(
+    `${location.pathname}${location.search}`
+  )}`;
 
   useEffect(() => {
     if (!cartFeedback) return undefined;
@@ -320,6 +327,16 @@ export default function ProductDetailPage() {
   }, [addItem, displayPriceCents, id, photos, product?.title, qty, selectedVariantIdentifier]);
 
   const handleAddToCart = async () => {
+    if (!isAuthenticated) {
+      navigate(loginTarget);
+      return;
+    }
+    if (buyerAccountRequired) {
+      const message = 'Cart and checkout are only available for buyer accounts.';
+      setSelectionError(message);
+      toast.notify(message, 'error');
+      return;
+    }
     const variantError = getVariantSelectionError();
     if (variantError) {
       setSelectionError(variantError);
@@ -342,6 +359,16 @@ export default function ProductDetailPage() {
   };
 
   const handleBuyNow = useCallback(async () => {
+    if (!isAuthenticated) {
+      navigate(loginTarget);
+      return;
+    }
+    if (buyerAccountRequired) {
+      const message = 'Cart and checkout are only available for buyer accounts.';
+      setSelectionError(message);
+      toast.notify(message, 'error');
+      return;
+    }
     const variantError = getVariantSelectionError();
     if (variantError) {
       setSelectionError(variantError);
@@ -360,7 +387,15 @@ export default function ProductDetailPage() {
     } finally {
       setBuyNowLoading(false);
     }
-  }, [addSelectedVariantToCart, getVariantSelectionError, navigate, toast]);
+  }, [
+    addSelectedVariantToCart,
+    buyerAccountRequired,
+    getVariantSelectionError,
+    isAuthenticated,
+    loginTarget,
+    navigate,
+    toast,
+  ]);
 
   if (isNotFound) {
     return <NotFoundPage />;
@@ -580,13 +615,20 @@ export default function ProductDetailPage() {
                   disabled={
                     addToCartLoading ||
                     buyNowLoading ||
+                    buyerAccountRequired ||
                     isLoading ||
                     Boolean(getVariantSelectionError()) ||
                     qtyNum < 1
                   }
                   className="om-btn om-focus w-full bg-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-300 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/90 dark:text-black dark:hover:bg-white"
                 >
-                  {addToCartLoading ? 'Adding...' : 'Add to cart'}
+                  {addToCartLoading
+                    ? 'Adding...'
+                    : !isAuthenticated
+                      ? 'Login to buy'
+                      : buyerAccountRequired
+                        ? 'Buyer account required'
+                        : 'Add to cart'}
                 </button>
 
                 <button
@@ -595,16 +637,28 @@ export default function ProductDetailPage() {
                   onClick={handleBuyNow}
                   disabled={
                     buyNowLoading ||
+                    buyerAccountRequired ||
                     isLoading ||
                     Boolean(getVariantSelectionError()) ||
                     qtyNum < 1
                   }
                   className="om-btn om-focus w-full bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {buyNowLoading ? 'Processing...' : 'Buy now'}
+                  {buyNowLoading
+                    ? 'Processing...'
+                    : !isAuthenticated
+                      ? 'Login to continue'
+                      : buyerAccountRequired
+                        ? 'Buyer account required'
+                        : 'Buy now'}
                 </button>
 
                 {cartFeedback && <p className="text-sm text-emerald-500 dark:text-emerald-300">{cartFeedback}</p>}
+                {buyerAccountRequired && (
+                  <p className="text-sm text-amber-500 dark:text-amber-300">
+                    Cart and checkout are only available for buyer accounts.
+                  </p>
+                )}
               </div>
 
               <div className="mt-4 text-xs uppercase tracking-[0.32em] text-slate-500 dark:text-slate-400">

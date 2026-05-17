@@ -57,7 +57,7 @@ export default function FanLoginPage() {
     try {
       const res: any = await apiFetch('/auth/fan/login', {
         method: 'POST',
-        body: { email, password },
+        body: { email: email.trim(), password: password.trim() },
       });
       const role = resolveRoleFromAuthPayload(res);
       if (role && !isFanRole(role)) {
@@ -214,7 +214,12 @@ export default function FanLoginPage() {
           <button
             data-testid="fan-login-submit"
             type="submit"
-            disabled={isSubmitting || isGoogleRedirecting}
+            disabled={
+              isSubmitting ||
+              isGoogleRedirecting ||
+              !email.trim() ||
+              !password.trim()
+            }
             className="h-14 w-full rounded-2xl bg-slate-900 text-base font-bold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-[#9c9c9c] dark:text-black dark:hover:bg-[#b0b0b0]"
           >
             {isSubmitting ? 'Authenticating...' : 'Sign In'}

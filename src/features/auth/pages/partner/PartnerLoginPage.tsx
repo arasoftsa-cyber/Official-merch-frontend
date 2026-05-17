@@ -45,7 +45,7 @@ export default function PartnerLoginPage() {
     try {
       const loginResponse = await apiFetch('/auth/partner/login', {
         method: 'POST',
-        body: { email, password },
+        body: { email: email.trim(), password: password.trim() },
       } as any);
 
       const accessToken =
@@ -214,7 +214,12 @@ export default function PartnerLoginPage() {
 
             <button
               type="submit"
-              disabled={loading || isGoogleRedirecting}
+              disabled={
+                loading ||
+                isGoogleRedirecting ||
+                !email.trim() ||
+                !password.trim()
+              }
               className="h-14 w-full rounded-2xl bg-slate-900 text-base font-bold text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-[#9c9c9c] dark:text-black dark:hover:bg-[#b0b0b0]"
             >
               {loading ? 'Authenticating...' : 'Login'}
