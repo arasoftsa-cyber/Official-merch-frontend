@@ -4,8 +4,8 @@ import { apiFetch, API_BASE } from '../shared/api/http';
 import {
   clearSession,
   getAccessToken,
-  clearTokens,
   getRefreshToken,
+  getSessionUser,
   loadPersistedSession,
 } from '../shared/auth/tokenStore';
 import {
@@ -120,13 +120,26 @@ function useAuthStatus() {
     const persistedSession = loadPersistedSession();
     const currentToken = getAccessToken() || null;
     const currentRefreshToken = persistedSession.refreshToken || null;
+    const persistedUser = persistedSession.user || getSessionUser();
     const sessionCandidate = currentToken || currentRefreshToken;
+    const persistedRole = resolveRoleFromAuthPayload(persistedUser);
 
     if (!sessionCandidate) {
       if (isMounted) {
         setRole(null);
         setAuthChecked(true);
         validatedTokenRef.current = null;
+      }
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    if (currentToken && persistedRole) {
+      if (isMounted) {
+        setRole(persistedRole);
+        setAuthChecked(true);
+        validatedTokenRef.current = currentToken;
       }
       return () => {
         isMounted = false;

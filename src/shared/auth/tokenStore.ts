@@ -1,18 +1,44 @@
 type SessionTokens = {
   accessToken: string | null;
   refreshToken: string | null;
+  user: SessionUser | null;
+};
+
+export type SessionUser = {
+  id?: string | null;
+  email?: string | null;
+  role?: string | null;
 };
 
 type SessionUpdate = {
   accessToken?: string | null;
   refreshToken?: string | null;
+  user?: SessionUser | null;
 };
 
 export const AUTH_SESSION_STORAGE_KEY = 'om_auth_session_v1';
+export const AUTH_SESSION_UPDATED_EVENT = 'om:auth-session-updated';
 
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
+let sessionUser: SessionUser | null = null;
 let persistedSessionLoaded = false;
+
+const dispatchSessionUpdatedEvent = (): void => {
+  try {
+    globalThis.window?.dispatchEvent(
+      new CustomEvent(AUTH_SESSION_UPDATED_EVENT, {
+        detail: {
+          accessToken,
+          refreshToken,
+          user: sessionUser,
+        },
+      })
+    );
+  } catch {
+    // Ignore non-browser runtimes.
+  }
+};
 
 const normalizeToken = (token: string | null | undefined): string | null => {
   const normalized = String(token || '').trim();
@@ -22,6 +48,49 @@ const normalizeToken = (token: string | null | undefined): string | null => {
 const getSessionStorage = (): Storage | null => {
   try {
     return globalThis.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeUser = (value: any): SessionUser | null => {
+  if (!value || typeof value !== 'object') return null;
+  const id = typeof value?.id === 'string' ? value.id.trim() : '';
+  const email = typeof value?.email === 'string' ? value.email.trim() : '';
+  const role = typeof value?.role === 'string' ? value.role.trim().toLowerCase() : '';
+  if (!id && !email && !role) return null;
+  return {
+    id: id || null,
+    email: email || null,
+    role: role || null,
+  };
+};
+
+const decodeBase64Url = (value: string): string | null => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  const padded = normalized.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  try {
+    return globalThis.atob?.(padded) ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const parseUserFromAccessToken = (token: string | null | undefined): SessionUser | null => {
+  const normalized = normalizeToken(token);
+  if (!normalized) return null;
+  const parts = normalized.split('.');
+  if (parts.length < 2) return null;
+  const payloadText = decodeBase64Url(parts[1]);
+  if (!payloadText) return null;
+  try {
+    const payload = JSON.parse(payloadText);
+    return normalizeUser({
+      id: payload?.sub,
+      email: payload?.email,
+      role: payload?.role,
+    });
   } catch {
     return null;
   }
@@ -41,6 +110,7 @@ const writePersistedSession = (): void => {
       AUTH_SESSION_STORAGE_KEY,
       JSON.stringify({
         refreshToken,
+        user: sessionUser,
       })
     );
   } catch {
@@ -54,6 +124,7 @@ const readPersistedSession = (): SessionTokens => {
     return {
       accessToken: null,
       refreshToken: null,
+      user: null,
     };
   }
 
@@ -63,6 +134,7 @@ const readPersistedSession = (): SessionTokens => {
       return {
         accessToken: null,
         refreshToken: null,
+        user: null,
       };
     }
 
@@ -70,12 +142,14 @@ const readPersistedSession = (): SessionTokens => {
     return {
       accessToken: null,
       refreshToken: normalizeToken(parsed?.refreshToken),
+      user: normalizeUser(parsed?.user),
     };
   } catch {
     storage.removeItem(AUTH_SESSION_STORAGE_KEY);
     return {
       accessToken: null,
       refreshToken: null,
+      user: null,
     };
   }
 };
@@ -86,12 +160,16 @@ export function loadPersistedSession(): SessionTokens {
     if (!refreshToken) {
       refreshToken = persisted.refreshToken;
     }
+    if (!sessionUser) {
+      sessionUser = persisted.user;
+    }
     persistedSessionLoaded = true;
   }
 
   return {
     accessToken,
     refreshToken,
+    user: sessionUser,
   };
 }
 
@@ -103,6 +181,10 @@ export function getRefreshToken(): string | null {
   return loadPersistedSession().refreshToken;
 }
 
+export function getSessionUser(): SessionUser | null {
+  return loadPersistedSession().user;
+}
+
 export function setSession(update: SessionUpdate): SessionTokens {
   if (Object.prototype.hasOwnProperty.call(update, 'accessToken')) {
     accessToken = normalizeToken(update.accessToken);
@@ -110,12 +192,19 @@ export function setSession(update: SessionUpdate): SessionTokens {
   if (Object.prototype.hasOwnProperty.call(update, 'refreshToken')) {
     refreshToken = normalizeToken(update.refreshToken);
   }
+  if (Object.prototype.hasOwnProperty.call(update, 'user')) {
+    sessionUser = normalizeUser(update.user);
+  } else if (accessToken && !sessionUser) {
+    sessionUser = parseUserFromAccessToken(accessToken);
+  }
   persistedSessionLoaded = true;
   writePersistedSession();
+  dispatchSessionUpdatedEvent();
 
   return {
     accessToken,
     refreshToken,
+    user: sessionUser,
   };
 }
 
@@ -130,8 +219,10 @@ export function setRefreshToken(token: string): void {
 export function clearSession(): void {
   accessToken = null;
   refreshToken = null;
+  sessionUser = null;
   persistedSessionLoaded = true;
   writePersistedSession();
+  dispatchSessionUpdatedEvent();
 }
 
 export function clearTokens(): void {
@@ -141,5 +232,6 @@ export function clearTokens(): void {
 export function __resetSessionStoreForTests(): void {
   accessToken = null;
   refreshToken = null;
+  sessionUser = null;
   persistedSessionLoaded = false;
 }

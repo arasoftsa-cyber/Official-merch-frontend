@@ -5,7 +5,8 @@ import { createRefreshFlow, shouldRetryAfter401 } from './authRefreshFlow';
 export const API_BASE = String(API_BASE_CONFIG || '').trim().replace(/\/+$/, '');
 const NETWORK_ERROR_MESSAGE =
   'Cannot reach the server. Make sure the backend is running and your API base URL is correct.';
-type ApiRequestOptions = RequestInit & {
+type ApiRequestOptions = Omit<RequestInit, 'body'> & {
+  body?: RequestInit['body'] | Record<string, unknown> | null;
   schema?: any;
   __retryCount?: number;
   __skipAuthRefresh?: boolean;

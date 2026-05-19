@@ -46,6 +46,7 @@ export default function LoginPage() {
       setSession({
         accessToken,
         refreshToken,
+        user: loginResponse?.user ?? loginResponse?.data?.user ?? null,
       });
 
       const params = new URLSearchParams(location.search);

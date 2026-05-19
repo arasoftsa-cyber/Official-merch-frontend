@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { clearSession, getAccessToken } from '../../shared/auth/tokenStore';
-import { getMe } from '../../shared/api/appApi';
+import { clearSession } from '../../shared/auth/tokenStore';
 import { logoutAuth } from '../../shared/api/auth';
 import { useCart } from '../../cart/CartContext';
+import { useCartAccessState } from '../../cart/cartAccess';
 
 type AppHeaderProps = {
   variant?: 'public' | 'buyer';
@@ -18,40 +18,12 @@ const STOREFRONT_SHOPPER_ROLES = new Set(['buyer', 'fan', 'artist', 'label', 'ad
 export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
   const location = useLocation();
   const { cartCount } = useCart();
+  const { isAuthenticated: isLoggedIn, role, canUseCart } = useCartAccessState();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(Boolean(getAccessToken()));
-  const [role, setRole] = useState<string | null>(null);
-  const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    const token = getAccessToken();
-    setLoggedIn(Boolean(token));
-    if (!token) {
-      setRole(null);
-      setRoleLoading(false);
-      return;
-    }
-    let active = true;
-    setRoleLoading(true);
-    getMe()
-      .then((me) => {
-        if (!active) return;
-        setRole(me?.role ?? me?.user?.role ?? null);
-      })
-      .catch(() => {
-        if (active) setRole(null);
-      })
-      .finally(() => {
-        if (active) setRoleLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [location.pathname]);
 
   const handleLogout = async () => {
     try {
@@ -61,14 +33,11 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
     } finally {
       clearSession();
       sessionStorage.clear();
-      setLoggedIn(false);
-      setRole(null);
       // Force a clean app state after logout so protected routes cannot reuse stale auth state.
       window.location.replace('/');
     }
   };
 
-  const isLoggedIn = loggedIn && !roleLoading;
   const userRole = String(role || '').toLowerCase();
   const pathname = String(location.pathname || '').toLowerCase();
   const inPartnerArea = pathname.startsWith('/partner');
@@ -79,7 +48,7 @@ export default function AppHeader({ variant = 'public' }: AppHeaderProps) {
     userRole.includes('label') ||
     userRole.includes('partner');
   const showStorefrontActions = isLoggedIn && isStorefrontShopper && !inPartnerArea;
-  const showCart = !inPartnerArea;
+  const showCart = canUseCart && !inPartnerArea;
   const actionPadding = variant === 'buyer' ? 'px-3 py-1.5' : 'px-3 py-1.5';
   const loginTarget = `/login?returnTo=${encodeURIComponent(
     `${location.pathname}${location.search}`

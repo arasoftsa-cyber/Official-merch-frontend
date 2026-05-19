@@ -124,6 +124,7 @@ export default function OidcCallbackPage() {
         setSession({
           accessToken,
           refreshToken,
+          user: payload?.user ?? payload?.data?.user ?? null,
         });
 
         if (cancelled) return;

@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMe } from '../../../../shared/api/appApi';
-import { getAccessToken } from '../../../../shared/auth/tokenStore';
+import { getAccessToken, getSessionUser } from '../../../../shared/auth/tokenStore';
 import {
   resolvePartnerEntryRedirect,
   resolveRoleFromAuthPayload,
@@ -15,16 +14,16 @@ export default function PartnerEntryRedirectPage() {
 
     (async () => {
       const token = getAccessToken();
-      if (!token) {
+      const sessionUser = getSessionUser();
+      if (!token && !sessionUser) {
         navigate('/', { replace: true });
         return;
       }
 
       try {
-        const me = await getMe();
-        if (!active) return;
-        const role = resolveRoleFromAuthPayload(me);
+        const role = resolveRoleFromAuthPayload(sessionUser);
         const target = resolvePartnerEntryRedirect(role, '/');
+        if (!active) return;
         navigate(target, { replace: true });
       } catch {
         if (!active) return;

@@ -2,10 +2,10 @@ import React from 'react';
 import { Modal } from './Modal';
 import { cn } from './cn';
 
-type ConfirmDialogProps = {
+export type ConfirmDialogProps = {
   open: boolean;
   title?: string;
-  message: string;
+  message: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
   danger?: boolean;

@@ -12,9 +12,9 @@ import type {
   OrderDetailDto,
   OrderEventDto,
 } from '../../../shared/api/orderDtos';
-import { ConfirmDialog } from '../../../shared/ui/ConfirmDialog';
 import { isUiTest } from '../../../shared/lib/uiTest';
 import { Card } from '../../../shared/ui/Page';
+import { useConfirm } from '../../../shared/ui/ConfirmService';
 import {
   formatCurrencyFromCents,
   formatDateTime as formatDateTimeValue,
@@ -57,7 +57,6 @@ export default function BuyerOrderDetailPage() {
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [payBusy, setPayBusy] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
-  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
   const [productTitles, setProductTitles] = useState<Record<string, string>>(
     {},
@@ -65,6 +64,7 @@ export default function BuyerOrderDetailPage() {
   const [variantMeta, setVariantMeta] = useState<
     Record<string, { size?: string; color?: string; sku?: string }>
   >({});
+  const { confirm } = useConfirm();
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -460,12 +460,22 @@ export default function BuyerOrderDetailPage() {
             )} */}
             <button
               data-testid="order-cancel"
-              onClick={() => {
+              onClick={async () => {
                 if (isUiTest) {
-                  cancelOrder();
-                } else {
-                  setCancelConfirmOpen(true);
+                  await cancelOrder();
+                  return;
                 }
+
+                const confirmed = await confirm({
+                  title: 'Cancel order',
+                  message: 'Are you sure you want to cancel this order?',
+                  confirmText: 'Confirm',
+                  cancelText: 'Back',
+                  danger: true,
+                });
+
+                if (!confirmed) return;
+                await cancelOrder();
               }}
               disabled={actionBusy}
               className="rounded-full border border-rose-300 dark:border-rose-500/40 px-6 py-2.5 text-xs font-bold uppercase tracking-widest text-rose-600 transition hover:bg-rose-50 dark:hover:border-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
@@ -614,19 +624,6 @@ export default function BuyerOrderDetailPage() {
         )}
       </section>
 
-      <ConfirmDialog
-        open={cancelConfirmOpen}
-        title="Cancel order"
-        message="Are you sure you want to cancel this order?"
-        confirmText="Confirm"
-        cancelText="Back"
-        danger
-        onCancel={() => setCancelConfirmOpen(false)}
-        onConfirm={async () => {
-          setCancelConfirmOpen(false);
-          await cancelOrder();
-        }}
-      />
     </div>
   );
 }
