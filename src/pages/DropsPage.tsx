@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fetchJson } from '../shared/api/fetchJson';
+import { getAdminDrops } from '../shared/api/dropsApi';
 import PublicCatalogCard from '../features/catalog/components/PublicCatalogCard';
 import PublicCatalogEmptyState from '../features/catalog/components/PublicCatalogEmptyState';
 import PublicCatalogGrid from '../features/catalog/components/PublicCatalogGrid';
@@ -40,22 +40,19 @@ export default function DropsPage() {
     setLoading(true);
     setError(null);
     try {
-      const payload = await fetchJson<{ items?: any[] }>('/drops/featured');
-      const raw = Array.isArray(payload?.items) ? payload.items : [];
-      const mapped = raw
-        .map((row) => {
-          if (!row?.id || !row?.title) return null;
-          return {
-            id: row.id,
-            title: row.title,
-            handle: row.handle,
-            startsAt: row.starts_at,
-            coverUrl: row.coverUrl ?? row.cover_url ?? row.image_url ?? null,
-          };
-        })
-        .filter((item: any): item is DropRow => Boolean(item)) as DropRow[];
+      const drops = await getAdminDrops();
       if (mountedRef.current) {
-        setDrops(mapped);
+        setDrops(
+          drops
+            .map((drop) => ({
+              id: drop.id,
+              title: drop.title,
+              handle: drop.handle,
+              startsAt: drop.startsAt || undefined,
+              coverUrl: drop.heroImageUrl || undefined,
+            }))
+            .filter((item): item is DropRow => Boolean(item.id))
+        );
       }
     } catch (err: any) {
       if (mountedRef.current) {

@@ -42,6 +42,7 @@ export function PublicRoutes({ loginEntryElement }: { loginEntryElement: RouteEl
         <Route path="partner/login" element={loginEntryElement(<PartnerLoginPage />)} />
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
         <Route path="reset-password" element={<ResetPasswordPage />} />
+        <Route path="cart" element={<CartPage />} />
       </Route>
       <Route path="artists/dashboard" element={<RedirectPage to="/partner/artist" />} />
       <Route path="artists/products" element={<RedirectPage to="/partner/artist/products" />} />
@@ -49,7 +50,6 @@ export function PublicRoutes({ loginEntryElement }: { loginEntryElement: RouteEl
       <Route element={<BareLayout />}>
         <Route path={OIDC_CALLBACK_ROUTE_PATH} element={<OidcCallbackPage />} />
       </Route>
-      <Route path="cart" element={<CartPage />} />
       <Route path="forbidden" element={<ForbiddenPage />} />
       <Route path="notfound" element={<NotFoundPage />} />
       <Route path="*" element={<NotFoundPage />} />
