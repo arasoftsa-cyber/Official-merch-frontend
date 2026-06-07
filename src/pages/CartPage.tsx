@@ -129,11 +129,6 @@ export default function CartPage() {
       if (!orderId) {
         throw new Error('Order id missing from response');
       }
-      try {
-        await clearCart();
-      } catch {
-        // The order was created already, so we still continue to the order detail page.
-      }
       navigate(`/fan/orders/${orderId}`);
     } catch (err: any) {
       const detail = String(err?.message ?? '').trim();

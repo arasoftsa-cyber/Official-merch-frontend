@@ -8,6 +8,7 @@ import {
   getOrderEvents,
 } from '../../../shared/api/ordersApi';
 import { changePaymentStatusToPaid, startPayment } from '../../../shared/api/paymentsFlowApi';
+import { useCart } from '../../../cart/CartContext';
 import type {
   OrderDetailDto,
   OrderEventDto,
@@ -65,6 +66,7 @@ export default function BuyerOrderDetailPage() {
     Record<string, { size?: string; color?: string; sku?: string }>
   >({});
   const { confirm } = useConfirm();
+  const { items: cartItems, removeItem } = useCart();
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -132,6 +134,7 @@ export default function BuyerOrderDetailPage() {
         handler: async function (response: any) {
           console.log('SUCCESS:', response);
           await changePaymentStatusToPaid(response);
+          await removePurchasedItemsFromCart();
           await loadData();
 
           // VERY IMPORTANT → verify payment on backend
@@ -176,6 +179,7 @@ export default function BuyerOrderDetailPage() {
       await apiFetch(`/api/payments/mock/confirm/${attemptId}`, {
         method: 'POST',
       });
+      await removePurchasedItemsFromCart();
       await loadData();
     } catch (err: any) {
       setPayError(err?.message ?? 'Mock confirm failed');
@@ -188,6 +192,29 @@ export default function BuyerOrderDetailPage() {
     () => (Array.isArray(detail?.items) ? detail.items : []),
     [detail?.items],
   );
+
+  const removePurchasedItemsFromCart = async () => {
+    const purchasedCartItems = detailItems
+      .map((orderItem) => {
+        const productId = String(orderItem.productId ?? '').trim();
+        const variantId = String(orderItem.productVariantId ?? '').trim();
+        if (!productId) return null;
+
+        return (
+          cartItems.find(
+            (cartItem) =>
+              cartItem.productId === productId &&
+              String(cartItem.variantId ?? '') === variantId,
+          ) ?? null
+        );
+      })
+      .filter((item): item is (typeof cartItems)[number] => Boolean(item));
+
+    await Promise.all(
+      purchasedCartItems.map((item) => removeItem(item).catch(() => undefined)),
+    );
+  };
+
   const status = detail?.status ?? 'unknown';
   const totalCents = detail?.totalCents ?? null;
   const formattedTotal =

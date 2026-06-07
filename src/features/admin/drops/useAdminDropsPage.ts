@@ -27,10 +27,14 @@ export function useAdminDropsPage() {
     setError(null);
     try {
       const snapshot = await fetchAdminDropsSnapshot();
+      const artistOptions = snapshot.artists.map((artist) => ({
+        id: artist.id,
+        name: artist.name,
+      }));
       setRows(snapshot.rows);
-      setArtists(snapshot.artists);
+      setArtists(artistOptions);
       setProducts(snapshot.products);
-      setSelectedArtistId((prev) => prev || snapshot.artists[0]?.id || '');
+      setSelectedArtistId((prev) => prev || artistOptions[0]?.id || '');
       setMappedCountByDropId((prev) => ({
         ...prev,
         ...snapshot.mappedCountByDropId,

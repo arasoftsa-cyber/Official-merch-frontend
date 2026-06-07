@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { getDropById } from '../shared/api/dropsApi';
 import { fetchJson } from '../shared/api/fetchJson';
 import EmptyState from '../shared/components/ux/EmptyState';
 import ErrorBanner from '../shared/components/ux/ErrorBanner';
@@ -41,7 +42,7 @@ const formatDropTitle = (drop?: DropData) => drop?.title ?? 'Drop';
 const DROP_PAGE_DOMAIN = 'catalog.drop';
 
 const parseDropPayload = (payload: unknown): DropData => {
-  const source = readObjectEnvelope(payload, 'drop', DROP_PAGE_DOMAIN, { allowDirect: false });
+  const source = readObjectEnvelope(payload, 'drop', DROP_PAGE_DOMAIN, { allowDirect: true });
   const id = String(source.id ?? '').trim();
   const handle = String(source.handle ?? '').trim();
   const title = String(source.title ?? '').trim();
@@ -103,8 +104,18 @@ export default function DropPage() {
     setError(null);
     setNotFound(false);
     try {
-      const payload = await fetchJson<{ drop?: any }>(`/drops/${handle}`);
-      setDrop(parseDropPayload(payload));
+      const dropDto = await getDropById(handle);
+      if (!dropDto.id || !dropDto.handle || !dropDto.title) {
+        throw new Error('Drop response is missing required fields');
+      }
+      setDrop({
+        id: dropDto.id,
+        handle: dropDto.handle,
+        title: dropDto.title,
+        description: dropDto.description ?? undefined,
+        heroImageUrl: dropDto.heroImageUrl,
+        quizJson: dropDto.quizJson,
+      });
       setStatus('idle');
     } catch (err: any) {
       if (err?.status === 404 || err?.message === 'Drop not found') {

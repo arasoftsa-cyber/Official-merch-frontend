@@ -1,5 +1,6 @@
 import { apiFetch, apiFetchForm } from '../../../shared/api/http';
 import { readArrayEnvelope, readObjectEnvelope } from '../../../shared/api/contract';
+import { getArtists } from '../../../shared/api/dropsApi';
 import type {
   ArtistOption,
   DropLifecycleAction,
@@ -13,6 +14,7 @@ import {
 } from './adminDropsDtos';
 
 const ADMIN_DROPS_BASE = '/api/admin/drops';
+const ADMIN_DROPS_BASE_NEW = '/api/drops'; // Temporary parallel endpoint
 const ADMIN_DROPS_DOMAIN = 'admin.drops';
 
 type AdminFetchResult<T> = {
@@ -88,7 +90,7 @@ const normalizeProduct = (product: any): ProductOption | null => {
 export async function fetchAdminDropsSnapshot(): Promise<AdminDropsSnapshot> {
   const [dropsResult, artistsPayload, productsPayload] = await Promise.all([
     adminFetch<any>(ADMIN_DROPS_BASE),
-    apiFetch('/api/artists'),
+    getArtists().catch(() => []),
     apiFetch('/api/admin/products').catch(() => ({ items: [] })),
   ]);
 
@@ -98,12 +100,12 @@ export async function fetchAdminDropsSnapshot(): Promise<AdminDropsSnapshot> {
 
   const dropsPayload = dropsResult.data;
   const dropItems = parseAdminDropItems(dropsPayload);
-  const artistItems = readArrayEnvelope(artistsPayload, 'items', 'admin.drops.artists');
+  const artistsFromApi = Array.isArray(artistsPayload) ? artistsPayload : [];
   const productItems = readArrayEnvelope(productsPayload, 'items', 'admin.drops.products', {
     allowDirectArray: true,
   });
 
-  const artists = artistItems
+  const artists = artistsFromApi
     .map(normalizeArtist)
     .filter((item: ArtistOption | null): item is ArtistOption => Boolean(item));
   const products = productItems
@@ -138,9 +140,9 @@ export async function createAdminDrop(title: string, artistId: string): Promise<
     artistId,
   };
 
-  const createResult = await adminFetch<any>(ADMIN_DROPS_BASE, {
+  const createResult = await adminFetch<any>(ADMIN_DROPS_BASE_NEW, {
     method: 'POST',
-    body: JSON.stringify(createBody) as any,
+    body: createBody,
   });
 
   if (!createResult.ok) {
@@ -173,8 +175,8 @@ export async function fetchAdminDropProductIds(dropId: string): Promise<string[]
 
   return Array.isArray(productResult.data?.product_ids)
     ? productResult.data.product_ids
-        .map((value: any) => String(value || '').trim())
-        .filter(Boolean)
+      .map((value: any) => String(value || '').trim())
+      .filter(Boolean)
     : [];
 }
 
