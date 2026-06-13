@@ -10,6 +10,7 @@ import { safeErrorMessage } from '../shared/utils/safeError';
 import { useConfirm } from '../shared/ui/ConfirmService';
 import { getRoleHomeRoute } from '../shared/auth/routingPolicy';
 import { useCartAccessState } from '../cart/cartAccess';
+import { getAddresses } from '../shared/api/addressesApi';
 
 const formatCents = (cents: number) => formatCurrencyFromCents(cents);
 
@@ -103,6 +104,21 @@ export default function CartPage() {
     setStatusMessage(null);
     setCheckoutLoading(true);
     setErrorMessage(null);
+
+    // Check if user has at least one saved address
+    try {
+      const addresses = await getAddresses();
+      if (addresses.length === 0) {
+        setCheckoutLoading(false);
+        setErrorMessage('Please add a delivery address before checking out.');
+        setTimeout(() => navigate('/fan/addresses'), 2000);
+        return;
+      }
+    } catch (err) {
+      setCheckoutLoading(false);
+      setErrorMessage('Could not verify your saved addresses. Please try again.');
+      return;
+    }
 
     const extractOrderId = (response: any): string | null => {
       if (!response) return null;
